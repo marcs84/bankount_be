@@ -1,0 +1,952 @@
+{
+	"info": {
+		"_postman_id": "81c89b0f-aaa9-46ac-b359-5ae8582b9a6b",
+		"name": "Middleware Wallet Bankount",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "26092399"
+	},
+	"item": [
+		{
+			"name": "Login",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "cryptowallet|secret_key_app",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "username",
+							"value": "test@gmail.com",
+							"type": "text"
+						},
+						{
+							"key": "password",
+							"value": "Test9797!",
+							"type": "text"
+						},
+						{
+							"key": "",
+							"value": "",
+							"type": "text",
+							"disabled": true
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/login",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"login"
+					]
+				},
+				"description": "API per effettuare il Login di un utente\n\n> **Requisiti**  \n> Richiede che le credenziali dell'utente siano presenti nel database.\n\n> **Restituzione**  \n> Restituisce conferma dell'operazione."
+			},
+			"response": []
+		},
+		{
+			"name": "Create User",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "cryptowallet|secret_key_app",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "nome",
+							"value": "Aldo",
+							"type": "text"
+						},
+						{
+							"key": "cognome",
+							"value": "Bianchi",
+							"type": "text"
+						},
+						{
+							"key": "email",
+							"value": "test@gmail.com",
+							"type": "text"
+						},
+						{
+							"key": "password",
+							"value": "Test9797!",
+							"type": "text"
+						},
+						{
+							"key": "network",
+							"value": "TESTNET",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/createUser",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"createUser"
+					]
+				},
+				"description": "API per registrare un'utente alla piattaforma.  \nQuest'API comprende anche la generazione del Masternode e la relativa associazione all'utente.\n\n> **Requisiti**  \n> Richiede che l'utente non sia già presente nel database.\n\n> **Restituzione**  \n> Restituisce la frase Mnemonic da mostrare poi a video all'utente."
+			},
+			"response": []
+		},
+		{
+			"name": "Delete User",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MjQzLCJlbWFpbCI6InRlc3RYTVJAZ21haWwuY29tMTEiLCJtYXN0ZXJub2RlIjoiVTJGc2RHVmtYMS9nbktGMkt6MWl3ZDZ2MXN5Q01DbmNPcXJMMnlqWEtIWHJSV3p5Zy9jaUNzMU9TVWNJaHhYNnpKa0xoWnlBeWpqc0JXL1lLczlSaE02QURxMzVNRFBHSWpIc3N2NlpRdXlDNEdmMWdKZ1lvaE5DTUt1NEYzTWhlcWdiUWxGMFJscTJRUFByOXkyMWZqdDZhU2xJNGRvaDZzV09JbmIvNkNnPSIsImlhdCI6MTY5NDUwNzYxMX0.Mh9NwDXAPdwX-w7tFfzWcqF182Ewh9hCa1Yqs__pVZE",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": []
+				},
+				"url": {
+					"raw": "{{base_url}}/api/deleteUser",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"deleteUser"
+					]
+				},
+				"description": "API per l'eliminazione dell'utente dalla piattaforma. Nel database l'utente verrà disabilitato.\n\n> **Requisiti**  \n> Richiede che l'utente esista nel database per essere cancellato.\n\n> **Restituzione**  \n> Restituisce conferma dell'operazione."
+			},
+			"response": []
+		},
+		{
+			"name": "Get Addresses",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTExLCJlbWFpbCI6ImFsZXNzYW5kcm9AbGl2ZS5pdCIsIm1hc3Rlcm5vZGUiOiJVMkZzZEdWa1gxOFBCcHcyMXhlbWYvSmYzaEVtUHVDZnFBYkQ3eWY5ZFFwU0JrZkpaSkJIUm5STWlXSVN3MnFxRkdiaitVdXpzbHJUMDhNOVl4MVJ1cGhSOVRKeVVoYUpNanFMRW50Mzk5Z0x6SjNuUTQ4TlFNRTcxd2RGZkRrMUtqem9CZnZWQ2Q3YUlaaGdoQlNrWFVQV3l5MHh4Y0RDRzJreC9iMXBRaWs9IiwiaWF0IjoxNjkxNjIzODg4fQ.lXe5SHftMLAHjWoRRkbpUb6JuBrL2B_AL_nR3Ai2kLI",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": []
+				},
+				"url": {
+					"raw": "{{base_url}}/api/getAddresses",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"getAddresses"
+					]
+				},
+				"description": "API per la restituzione di tutti gli indirizzi pubblici di un dato utente (a seconda del Bearer Token).\n\n> **Requisiti**  \n> Richiede che il Bearer Token sia associato ad un utente esistente nel database per restituire gli indirizzi.\n\n> **Restituzione**  \n> Restituisce la lista, divisa per blockchain, di tutti gli indrizzi pubblici che l'utente ha generato."
+			},
+			"response": []
+		},
+		{
+			"name": "Add Crypto To Account",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MjMzLCJlbWFpbCI6ImFiY2RAZ21haWwuY29tIiwibWFzdGVybm9kZSI6IlUyRnNkR1ZrWDErd0tSRjZuVVlqWjZrdjJzOWdFSXVkdFpnY3NLd2ZsTXQ0djNYZmRmWkM0MENWdk96NE9RSzN6NHFpV0lYcGFFN0U4R2RwRkN6VWdQbi9HeDhHZFd1V29ZQXU5bW1tNElhU3drQ1BQYUw2aTlZQ2FsUkVTcjdBVnJwYTBNZzVyWWZtVG1oZDJCdmR3ZDdNNlNzZXYrV29iZWYwazBjTDRIQT0iLCJpYXQiOjE2OTI4NzI3ODl9.C_rApoM6TB6B5Bzib9NMFYgveXINTN6QH1XIQRJXgBI",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "cointype",
+							"value": "XMR",
+							"type": "text"
+						},
+						{
+							"key": "network",
+							"value": "TESTNET",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/addCryptoToAccount",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"addCryptoToAccount"
+					],
+					"query": [
+						{
+							"key": "network",
+							"value": "TESTNET",
+							"disabled": true
+						}
+					]
+				},
+				"description": "API per l'inserimento di un account per una specifica blockchain supportata, indicata nel body della richiesta.\n\nQuest'API rappresenta la funzionalità presentata nel BIP44 (Multi-Account Hierarchy for Deterministic  \nWallets) ,ossia, la gestione di più account all'interno di portafogli deterministici.\n\n> **Requisiti**  \n> Richiede che venga specificata il tipo di rete per cui generare l'address (se Testnet o Mainnet) e la blockchain per la quale generare il nuovo account.\n\n> **Restituzione**  \n> Restituisce conferma dell'operazione."
+			},
+			"response": []
+		},
+		{
+			"name": "Get Balance",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MjMzLCJlbWFpbCI6ImFiY2RAZ21haWwuY29tIiwibWFzdGVybm9kZSI6IlUyRnNkR1ZrWDErd0tSRjZuVVlqWjZrdjJzOWdFSXVkdFpnY3NLd2ZsTXQ0djNYZmRmWkM0MENWdk96NE9RSzN6NHFpV0lYcGFFN0U4R2RwRkN6VWdQbi9HeDhHZFd1V29ZQXU5bW1tNElhU3drQ1BQYUw2aTlZQ2FsUkVTcjdBVnJwYTBNZzVyWWZtVG1oZDJCdmR3ZDdNNlNzZXYrV29iZWYwazBjTDRIQT0iLCJpYXQiOjE2OTI4NzI3ODl9.C_rApoM6TB6B5Bzib9NMFYgveXINTN6QH1XIQRJXgBI",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "cointype",
+							"value": "XMR",
+							"type": "text"
+						},
+						{
+							"key": "address",
+							"value": "9u4TVPMEvQz5cNm7KwvWHv5xq38zUjJKDdEa4Nvi28PwNQxCzpEvvdoMxyqekWxwUYjnWzvFKCuaBDdmXBJXUfZyBGE9j3m",
+							"type": "text"
+						},
+						{
+							"key": "network",
+							"value": "TESTNET",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/getBalance",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"getBalance"
+					]
+				},
+				"description": "API per la restituzione del bilancio in cryptovalute di un dato address pubblico.\n\n> **Requisiti**  \n> Richiede che venga specificato l'indirizzo pubblico per il quale si vuole conoscere il bilancio, la blockchain di riferimento e la rete sulla quale si sta cercando questa informazione (se di Testnet o Mainnet)\n\n> **Restituzione**  \n> Restituisce il bilancio dell'indirizzo pubblico indicato."
+			},
+			"response": []
+		},
+		{
+			"name": "Get All Balances",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MjMxLCJlbWFpbCI6Imdpb3I0bmEwMEBnbWFpbC5jb20iLCJtYXN0ZXJub2RlIjoiVTJGc2RHVmtYMThueDdWbFRHa0xsNkZRZ0MzdmdOZVI3Zk01UDB0c3JaTFBRa3owTWZYYjZMejlwZ2o5UU9ROCtPbDd1YnhqTDFTd0EvVlJkSHlMMGJDL1dUdXRxV2ErcFZKQ29aRkxHVkdiUEsyTkVmRmc1THF6Z3dvMTEyOEN4Tm9RdjZ4emdJSnZ5aC9uWm5HZENRU3Brc0NTNm9zRWVndEtSNDFxdjljPSIsImlhdCI6MTY5Mjg2NTY3M30.8Kr4itg9-7xXe699o_RLg_HI2_KLb1cqnXq4w3gkg0o",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "network",
+							"value": "TESTNET",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/getAllBalances",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"getAllBalances"
+					]
+				},
+				"description": "API per la restituzione del bilancio in cryptovalute di tutti gli address presenti nel database di un dato utente (scelto in base al Bearer Token indicato)\n\n> **Requisiti**  \n> Richiede che il Bearer Token faccia riferimento ad un utente presente nel database.\n\n> **Restituzione**  \n> Restituisce il bilancio di tutti gli indirizzi riferiti all'utente, divisi per blockchain."
+			},
+			"response": []
+		},
+		{
+			"name": "Exchange Coin Between Same Bc",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MjM3LCJlbWFpbCI6InRlc3RYTVJAZ21haWwuY29tIiwibWFzdGVybm9kZSI6IlUyRnNkR1ZrWDErdWgrZjNXSzdxYmNqdGxrTVB6aHZuMjJleTUxQlF1VjZoMTZUVWp4Z0xFQUJaWVZJVEdQUzYrWFJ6VEtFZmhXMGZlWWhyMUxBUnl5Z0ZuZW5WR1RSZkVRVkRzVjN3RWVLNUtpcFY3aHUyQUUrN0ttT1ZFVVJMNHk5TWRMODJaN1VNRjFPNzI0ZTcvNmcraDBzei9YenZ5V1NkQ0Y3QXI1az0iLCJpYXQiOjE2OTI5ODAyOTl9.7C93Z8vVdZXGTEuSIlZbXSDRdlcpKO_DCukf6SwVJXU",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "cointype",
+							"value": "XMR",
+							"type": "text"
+						},
+						{
+							"key": "fromaddress",
+							"value": "9u4TVPMEvQz5cNm7KwvWHv5xq38zUjJKDdEa4Nvi28PwNQxCzpEvvdoMxyqekWxwUYjnWzvFKCuaBDdmXBJXUfZyBGE9j3m",
+							"type": "text"
+						},
+						{
+							"key": "toaddress",
+							"value": "9yak4Yx3BNiX1e3vrR4NNNUZDG86BCbGT45Heq5mm3ERFgBT2EHLiTGj716iur3MXkb7UU1PSurTtF9aUbLscR3T53vNumm",
+							"type": "text"
+						},
+						{
+							"key": "amount",
+							"value": "0.001",
+							"type": "text"
+						},
+						{
+							"key": "network",
+							"value": "TESTNET",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/exchangeCoinBetweenSameBc",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"exchangeCoinBetweenSameBc"
+					]
+				},
+				"description": "API per permette di inviare un quantitativo di cryptovalute ad un'indirizzo pubblico sulla blockchain.\n\n> **Requisiti**  \n> Richiede che l'ammontare di cryptovalute che si desidera inviare al destinatario sia minore del bilancio effettivo del mittente.\n> \n> **Restituzione**  \n> Restituisce un resoconto della transazione appena effettuata sulla blockchain."
+			},
+			"response": []
+		},
+		{
+			"name": "Get Tokens",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTY5LCJlbWFpbCI6Imdpb3Zhbm5pMUBsaXZlLml0IiwibWFzdGVybm9kZSI6IlUyRnNkR1ZrWDErWU84OVZxOXNyZHRLM0E1d3dkMHZuNXMxbVVMcEtuRXZBcGVZWmkwUVl0SUZiWEh5RUVDM2syVnRnWHVueDhuT2RobzJhOFhFZDY1WEUrSnFrUmlZTldob0tUL0Jnd29jYW45elJ4T00rMEtlTVkya2RXWTdmcnRleExJVkwvUmRDbTJ3L0tsekM0L1QvOVNYZzIvcW9vN21zRHlZV09waz0iLCJpYXQiOjE2OTE2MTc5NTR9.zoGlt6rlyYopS6Hpslh6o1novN7Czd2IjJDmq22uPFI",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "chain",
+							"value": "ETH",
+							"type": "text"
+						},
+						{
+							"key": "tokenname",
+							"value": "DAI",
+							"type": "text"
+						},
+						{
+							"key": "address",
+							"value": "0xD4faF19a05f11B74e8ce4e89195F0e4F6fa0AB54",
+							"type": "text"
+						},
+						{
+							"key": "network",
+							"value": "TESTNET",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/getTokens",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"getTokens"
+					]
+				},
+				"description": "API per la restituzione del bilancio in token di un dato address pubblico.\n\n> **Requisiti**  \n> Richiede che l'indirizzo pubblico e il nome del token forniti siano corretti per la blockchain specificata.\n\n> **Restituzione**  \n> Restituisce il bilancio dei token per l'indirizzo pubblico indicato.\n\n**API valida solo per la blockchain di Ethereum e Binance Smart Chain**"
+			},
+			"response": []
+		},
+		{
+			"name": "Exchange Token Between Same Bc",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTExLCJlbWFpbCI6ImFsZXNzYW5kcm9AbGl2ZS5pdCIsIm1hc3Rlcm5vZGUiOiJVMkZzZEdWa1gxK1JmNjloWGNuaE9sUzFTZ3J4ckQ0eHNsSk5zV215TjZ4RzNRbldkR09IV1hNNVkvQ1NRN0RQTEcyMms2Ukl6T2cwZ09DcXlqZXAzVUtkbmVmNHNUUzRsajE3cGtYV29ncWE5aDZFOW13WVNoRGl2dHp6VnF2Y0cwOE9zRGJLdEdGbTg5NlRaZ0o5dThlajkvejdwZWllWHVPYnlSUkl3QkU9IiwiaWF0IjoxNjkyMDU1OTIyfQ.pr44RNYyeXRa0jb1QLMggLLCArhC5wadgXjDCyepJNg",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "chain",
+							"value": "ETH",
+							"type": "text"
+						},
+						{
+							"key": "tokenname",
+							"value": "DAI",
+							"type": "text"
+						},
+						{
+							"key": "toaddress",
+							"value": "0x61B5EA3449678A073902bB751381C24635186153",
+							"type": "text"
+						},
+						{
+							"key": "fromaddress",
+							"value": "0xD4faF19a05f11B74e8ce4e89195F0e4F6fa0AB54",
+							"type": "text"
+						},
+						{
+							"key": "amount",
+							"value": "1",
+							"type": "text"
+						},
+						{
+							"key": "network",
+							"value": "TESTNET",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/exchangeTokenBetweenSameBc",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"exchangeTokenBetweenSameBc"
+					]
+				},
+				"description": "API per permette di inviare un quantitativo di token ad un'indirizzo pubblico sulla blockchain.\n\n> **Requisiti**  \n> Richiede che l'ammontare di token che si desidera inviare al destinatario sia minore del bilancio effettivo del mittente.\n> \n> **Restituzione**  \n> Restituisce un resoconto della transazione appena effettuata sulla blockchain."
+			},
+			"response": []
+		},
+		{
+			"name": "Get List Of Supported Tokens",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTY5LCJlbWFpbCI6Imdpb3Zhbm5pMUBsaXZlLml0IiwibWFzdGVybm9kZSI6IlUyRnNkR1ZrWDErWU84OVZxOXNyZHRLM0E1d3dkMHZuNXMxbVVMcEtuRXZBcGVZWmkwUVl0SUZiWEh5RUVDM2syVnRnWHVueDhuT2RobzJhOFhFZDY1WEUrSnFrUmlZTldob0tUL0Jnd29jYW45elJ4T00rMEtlTVkya2RXWTdmcnRleExJVkwvUmRDbTJ3L0tsekM0L1QvOVNYZzIvcW9vN21zRHlZV09waz0iLCJpYXQiOjE2OTE2MTc5NTR9.zoGlt6rlyYopS6Hpslh6o1novN7Czd2IjJDmq22uPFI",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "chain",
+							"value": "ETH",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/getListOfSupportedTokens",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"getListOfSupportedTokens"
+					]
+				},
+				"description": "API per ricevere la lista dei token supportati dall'applicativo per una determinata blockchain.\n\n> **Requisiti**  \n> Richiede che la blockchain fornita sia tra quelle compatibili per la gestione dei token (Ethereum e Binance Smart Chain).\n> \n> **Restituzione**  \n> Restituisce la lista dei token supportati per la blockchain indicata."
+			},
+			"response": []
+		},
+		{
+			"name": "Get Transactions",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{token}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "limit",
+							"value": "10",
+							"type": "text"
+						},
+						{
+							"key": "offset",
+							"value": "0",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/getTransactions",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"getTransactions"
+					]
+				},
+				"description": "API per ricevere la una lista di transazioni inviate dagli indirizzi pubblici degli utenti salvati nel sistema in base al limit (il numero massimo di transazioni da restituire in risposta) e all'offset (da quale transazione iniziare a restituire i dati) forniti.\n\n> **Requisiti**  \n> Richiede che esista almeno una transazione salvata nel database.\n> \n> **Restituzione**  \n> Restituisce una lista di transazioni salvate in base a quante ne sono state richieste considerando limit e offset."
+			},
+			"response": []
+		},
+		{
+			"name": "Get Latest Transaction",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTExLCJlbWFpbCI6ImFsZXNzYW5kcm9AbGl2ZS5pdCIsIm1hc3Rlcm5vZGUiOiJVMkZzZEdWa1gxOFBCcHcyMXhlbWYvSmYzaEVtUHVDZnFBYkQ3eWY5ZFFwU0JrZkpaSkJIUm5STWlXSVN3MnFxRkdiaitVdXpzbHJUMDhNOVl4MVJ1cGhSOVRKeVVoYUpNanFMRW50Mzk5Z0x6SjNuUTQ4TlFNRTcxd2RGZkRrMUtqem9CZnZWQ2Q3YUlaaGdoQlNrWFVQV3l5MHh4Y0RDRzJreC9iMXBRaWs9IiwiaWF0IjoxNjkwNTU2NTIwfQ.znIPfXvFSpon2x4IYt7yym9_ThEHYv_6kuFl7Ndm3uU",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "limit",
+							"value": "10",
+							"type": "text"
+						},
+						{
+							"key": "offset",
+							"value": "9",
+							"type": "text"
+						},
+						{
+							"key": "address",
+							"value": "CEVHiLySVcAzGyBw8ekUyZ8Jvx25f49b76Q6DyQd9wqi",
+							"type": "text",
+							"disabled": true
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/getLatestTransactionsFromDB",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"getLatestTransactionsFromDB"
+					]
+				},
+				"description": "API per ricevere la lista delle ultime transazioni inviate dagli indirizzi pubblici degli utenti salvati nel sistema con un offset e un limit opzionali, nel caso si vogliano ricevere un numero preciso di transazioni.\n\n> **Requisiti**  \n> Richiede che esista almeno una transazione salvata nel database.\n> \n> **Restituzione**  \n> Restituisce una lista di transazioni salvate in base a quante ne sono state richieste."
+			},
+			"response": []
+		},
+		{
+			"name": "Get All Transactions",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTExLCJlbWFpbCI6ImFsZXNzYW5kcm9AbGl2ZS5pdCIsIm1hc3Rlcm5vZGUiOiJVMkZzZEdWa1gxK1JmNjloWGNuaE9sUzFTZ3J4ckQ0eHNsSk5zV215TjZ4RzNRbldkR09IV1hNNVkvQ1NRN0RQTEcyMms2Ukl6T2cwZ09DcXlqZXAzVUtkbmVmNHNUUzRsajE3cGtYV29ncWE5aDZFOW13WVNoRGl2dHp6VnF2Y0cwOE9zRGJLdEdGbTg5NlRaZ0o5dThlajkvejdwZWllWHVPYnlSUkl3QkU9IiwiaWF0IjoxNjkyMDU1OTIyfQ.pr44RNYyeXRa0jb1QLMggLLCArhC5wadgXjDCyepJNg",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": []
+				},
+				"url": {
+					"raw": "{{base_url}}/api/getAllTransactions",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"getAllTransactions"
+					]
+				},
+				"description": "API per ricevere la lista di tutte le transazioni presenti nel database.\n\n> **Requisiti**  \n> Richiede che esista almeno una transazione presente nel database.\n> \n> **Restituzione**  \n> Restituisce la lista di tutte le transazioni e i relativi dettagli."
+			},
+			"response": []
+		},
+		{
+			"name": "Get Transactions By Address",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTExLCJlbWFpbCI6ImFsZXNzYW5kcm9AbGl2ZS5pdCIsIm1hc3Rlcm5vZGUiOiJVMkZzZEdWa1gxOFBCcHcyMXhlbWYvSmYzaEVtUHVDZnFBYkQ3eWY5ZFFwU0JrZkpaSkJIUm5STWlXSVN3MnFxRkdiaitVdXpzbHJUMDhNOVl4MVJ1cGhSOVRKeVVoYUpNanFMRW50Mzk5Z0x6SjNuUTQ4TlFNRTcxd2RGZkRrMUtqem9CZnZWQ2Q3YUlaaGdoQlNrWFVQV3l5MHh4Y0RDRzJreC9iMXBRaWs9IiwiaWF0IjoxNjkxNjIzODg4fQ.lXe5SHftMLAHjWoRRkbpUb6JuBrL2B_AL_nR3Ai2kLI",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "address",
+							"value": "Bc832EqCkDkwioLgUxK6TmJ3hAUszRVxcR63erAHdkN6",
+							"type": "text"
+						},
+						{
+							"key": "limit",
+							"value": "6",
+							"type": "text"
+						},
+						{
+							"key": "offset",
+							"value": "1",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/getTransactionsByAddress",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"getTransactionsByAddress"
+					]
+				},
+				"description": "API per ricevere tutte le transazioni effettuate da un dato indirizzo pubblico con un offset e un limit opzionali, nel caso si vogliano ricevere un numero preciso di transazioni.\n\n> **Requisiti**  \n> Richiede che esista almeno una transazione riferita all'indirizzo e che l'indirizzo sia valido.\n> \n> **Restituzione**  \n> Restituisce una lista di tutte le transazioni in cui è coinvolto l'indirizzo indicato."
+			},
+			"response": []
+		},
+		{
+			"name": "Change Password",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTY5LCJlbWFpbCI6Imdpb3Zhbm5pMUBsaXZlLml0IiwibWFzdGVybm9kZSI6IlUyRnNkR1ZrWDEvdnJmeWpnaEQ5bUxnMkYxZEVwN0J3RThYeTY0N3A0TUxSUDA1ZElHQ0tRRTZTMmsreWlBVWphU2crcXpqZEZRMGVwSmMyNkJmK1hRUXRrSExsVzRwVnUxd2dwNi9NK0tZcXRyS3pEcGQxWGEzTjFOU09Ic0RSbHF6NmV6NEN0WTM5KzRPd1RTeVA2czNxVUtRUzJQMnMrZkkzMGp4MDRBaz0iLCJpYXQiOjE2OTE2MTY3OTl9.nnC3PbPXCXWKDRAF4lVnpJp-1sr70P3fpsj_55NPMcM",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "old_password",
+							"value": "Test9797!",
+							"type": "text"
+						},
+						{
+							"key": "new_password",
+							"value": "Test979797!",
+							"type": "text"
+						},
+						{
+							"key": "",
+							"value": "",
+							"type": "text",
+							"disabled": true
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/changePassword",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"changePassword"
+					]
+				},
+				"description": "API per cambiare la password di un utente loggato.\n\n> **Requisiti**  \n> Richiede che l'utente esista nel database.\n> \n> **Restituzione**  \n> Restituisce conferma dell'operazione."
+			},
+			"response": []
+		},
+		{
+			"name": "Change Password No Logged User",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "cryptowallet|secret_key_app",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "email",
+							"value": "test@gmail.com",
+							"type": "text"
+						},
+						{
+							"key": "new_password",
+							"value": "Test9797!",
+							"type": "text"
+						},
+						{
+							"key": "",
+							"value": "",
+							"type": "text",
+							"disabled": true
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/changePasswordForNoLoggedUser",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"changePasswordForNoLoggedUser"
+					]
+				},
+				"description": "API per cambiare la password di un utente che non riesce più a loggare, senza accesso.\n\n> **Requisiti**  \n> Richiede che l'utente esista nel database.\n> \n> **Restituzione**  \n> Restituisce conferma dell'operazione."
+			},
+			"response": []
+		},
+		{
+			"name": "Send Change Password Email",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "cryptowallet|secret_key_app",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "email",
+							"value": "test@gmail.com",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/sendChangePasswordEmail",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"sendChangePasswordEmail"
+					]
+				},
+				"description": "API per inviare l'email di conferma per poter modificare la password.\n\n> **Requisiti**  \n> Richiede che l'email sia di un utente presente nel database.\n> \n> **Restituzione**  \n> Restituisce conferma dell'operazione."
+			},
+			"response": []
+		},
+		{
+			"name": "Verify Token Change Password",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "cryptowallet|secret_key_app",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/verifyTokenChangePassword?token=<tokendaverificare>",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"verifyTokenChangePassword"
+					],
+					"query": [
+						{
+							"key": "token",
+							"value": "<tokendaverificare>"
+						}
+					]
+				},
+				"description": "API per il redirezionamento alla pagina di verifica e cambio effettivo della password.\n\n> **Requisiti**  \n> Richiede che l'utente esista nel database.\n> \n> **Restituzione**  \n> Restituisce conferma dell'operazione."
+			},
+			"response": []
+		},
+		{
+			"name": "Verify Token",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "cryptowallet|secret_key_app",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/verify?token=<tokendaverificare>",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"verify"
+					],
+					"query": [
+						{
+							"key": "token",
+							"value": "<tokendaverificare>"
+						}
+					]
+				},
+				"description": "API per attivare l'account di un utente disabilitato. Solitamente questa verifica viene effettuata al momento della registrazione per confermare la ricezione di un'email di conferma con conseguente attivazione.\n\n> **Requisiti**  \n> Richiede che l'utente esista nel database.\n> \n> **Restituzione**  \n> Restituisce conferma dell'operazione."
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "app.bankount.com",
+			"type": "string"
+		}
+	]
+}
