@@ -199,6 +199,9 @@ router.post('/api/exchangeCoinBetweenSameBc', urlencodedParser, auth.authenticat
     }
 });
 
+router.post('/api/coin-exchange-utils', jsonParser, auth.authenticateToken, controllers.getUtilsForTransaction)
+router.post('/api/transact-coins', jsonParser, auth.authenticateToken, controllers.doTransactionBetweenSameBC)
+
 // Route to add a new account for a specific blockchain
 router.post('/api/addCryptoToAccount', urlencodedParser, auth.authenticateToken, async (req, res) => {
     const data = req.body;
@@ -1293,5 +1296,7 @@ router.put('/api/addresses/update', jsonParser, auth.authenticateToken, async (r
         })
     }
 })
+
+router.get('/api/lookup-urls', jsonParser, auth.authenticateToken, controllers.fetchLookupUrls)
 
 module.exports = router;
