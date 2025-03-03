@@ -622,10 +622,12 @@ const insertTransaction = (
               from_address: fromAddress,
               tx: tx,
               destination_address: destinationAddress,
-              amount: amount,
+              amount: amount.toString(),
               data_insert: data_insert,
               block_number: block_number,
               network_type: network_type,
+              is_synced: 1,
+              status: 'outgoing'
             });
           } else {
             const queryInsertTx = `INSERT INTO transactions (type, chain, token, address_id, from_address, tx, destination_address, amount, data_insert, block_number, id_utente, network_type, wallet_id)
@@ -658,11 +660,13 @@ const insertTransaction = (
                   from_address: fromAddress,
                   tx: tx,
                   destination_address: destinationAddress,
-                  amount: amount,
+                  amount: amount.toString(),
                   data_insert: data_insert,
                   block_number: block_number,
                   network_type: network_type,
                   wallet_id: wallet_id,
+                  is_synced: 1,
+                  status: 'outgoing'
                 });
               } else {
                 reject("Unable to retrieve the ID of the created record.");
@@ -1008,7 +1012,7 @@ const verifyDevice = (identifier, passkey, device_token) => {
 
       if (results.length) {
         if (results[0].passkey !== passkey) {
-            connnection.query(`UPDATE device SET is_active = 0 WHERE identifier = ?`, [identifier], (error, results)=>{
+            connection.query(`UPDATE device SET is_active = 0 WHERE identifier = ?`, [identifier], (error, results)=>{
                 if(error){
                     return reject(new Error('Failed to update device active status : '+ error.message))
                 }

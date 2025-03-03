@@ -1,8 +1,16 @@
 const service = require("../service");
-const { solanaWeb3 } = require('../../src/utils');
+const { solanaWeb3 } = require("../../src/utils");
 const dao = require("../dao");
 const crypto = require("crypto");
 const moment = require("moment");
+const CryptoJS = require("crypto-js");
+
+// Generate ECDH Key Pair (Simulated, Since crypto-js Doesn't Support ECDH)
+const generateECDHKeyPair = () => {
+  const privateKey = CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Hex); // 256-bit private key
+  const publicKey = CryptoJS.SHA256(privateKey).toString(CryptoJS.enc.Hex); // Simulating public key from private key
+  return { privateKey, publicKey };
+};
 
 const getAddresses = async (req, res) => {
   try {
@@ -175,8 +183,8 @@ const getUtilsForTransaction = async (req, res) => {
 const filterTransactions = async (req, res) => {
   try {
     const resData = await service.findDeviceDetails(req.user.identifier);
-    console.log('resData', resData)
-    console.log('resData', resData)
+    console.log("resData", resData);
+    console.log("resData", resData);
     const device_id = resData[0].id;
     let { limit, offset, wallet_id, start_date, end_date, duration_type, search, chain, network_type } = req.query;
     let invalidParamsMessage;
@@ -280,48 +288,48 @@ const doTransactionBetweenSameBC = async (req, res) => {
 const fetchLookupUrls = async (req, res) => {
   try {
     const data = {
-      quicknode_is_active: process.env.QUICKNODE_IS_ACTIVE == 'true' ? true : false,
+      quicknode_is_active: process.env.QUICKNODE_IS_ACTIVE == "true" ? true : false,
     };
     const { coin_type } = req.query;
     switch (coin_type) {
       case "BTC": {
         data["quicknode_testnet_url"] = process.env.QUICKNODE_BTC_TEST_URL;
         data["quicknode_mainnet_url"] = process.env.QUICKNODE_BTC_MAIN_URL;
-        data['testnet'] = process.env.BITCORE_TEST_URL;
-        data['mainnet'] = process.env.BITCORE_MAIN_URL;
+        data["testnet"] = process.env.BITCORE_TEST_URL;
+        data["mainnet"] = process.env.BITCORE_MAIN_URL;
         break;
       }
 
       case "ETH": {
         data["quicknode_testnet_url"] = process.env.QUICKNODE_ETH_TEST_URL;
         data["quicknode_mainnet_url"] = process.env.QUICKNODE_ETH_MAIN_URL;
-        data['testnet'] = process.env.ETH_TEST_URL;
-        data['mainnet'] = process.env.ETH_MAIN_URL;
+        data["testnet"] = process.env.ETH_TEST_URL;
+        data["mainnet"] = process.env.ETH_MAIN_URL;
         break;
       }
 
       case "BNB": {
-        data['quicknode_testnet_url'] = process.env.QUICKNODE_BNB_TEST_URL;
-        data['quicknode_mainnet_url'] = process.env.QUICKNODE_BNB_MAIN_URL;
-        data['testnet'] = process.env.BNB_TEST_URL;
-        data['mainnet'] = process.env.BNB_MAIN_URL;
+        data["quicknode_testnet_url"] = process.env.QUICKNODE_BNB_TEST_URL;
+        data["quicknode_mainnet_url"] = process.env.QUICKNODE_BNB_MAIN_URL;
+        data["testnet"] = process.env.BNB_TEST_URL;
+        data["mainnet"] = process.env.BNB_MAIN_URL;
         break;
       }
 
       case "SOL": {
-        data['quicknode_testnet_url'] = process.env.QUICKNODE_SOL_TEST_URL;
-        data['quicknode_mainnet_url'] = process.env.QUICKNODE_SOL_MAIN_URL;
-        data['testnet'] = process.env.SOL_TEST_URL;
-        data['mainnet'] = solanaWeb3.clusterApiUrl('mainnet-beta');
+        data["quicknode_testnet_url"] = process.env.QUICKNODE_SOL_TEST_URL;
+        data["quicknode_mainnet_url"] = process.env.QUICKNODE_SOL_MAIN_URL;
+        data["testnet"] = process.env.SOL_TEST_URL;
+        data["mainnet"] = solanaWeb3.clusterApiUrl("mainnet-beta");
         break;
       }
     }
 
     return res.status(200).json({
-        result: true,
-        message: 'Lookup URLs fetched successfully',
-        data
-    })
+      result: true,
+      message: "Lookup URLs fetched successfully",
+      data,
+    });
   } catch (error) {
     console.log("Error while fetching lookup urls : ", error);
     return res.status(500).json({
@@ -329,6 +337,19 @@ const fetchLookupUrls = async (req, res) => {
       message: "An error occurred while updating address name : " + error.message,
       error: error.message,
     });
+  }
+};
+
+const getPublicKey = (req, res) => {
+  try {
+    const serverKeyPair = generateECDHKeyPair();
+    return res.status(200).json({ publicKey: serverKeyPair.publicKey });
+  } catch (error) {
+    return res.status(500).json({
+      result: false,
+      message: 'Error while fetching public key : '+error.message,
+      error: error.message
+    })
   }
 };
 
@@ -341,4 +362,5 @@ module.exports = {
   filterTransactions,
   doTransactionBetweenSameBC,
   fetchLookupUrls,
+  getPublicKey,
 };

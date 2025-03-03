@@ -1298,5 +1298,7 @@ router.put('/api/addresses/update', jsonParser, auth.authenticateToken, async (r
 })
 
 router.get('/api/lookup-urls', jsonParser, auth.authenticateToken, controllers.fetchLookupUrls)
+router.get("/api/public-key", auth.authenticateToken,controllers.getPublicKey );
+
 
 module.exports = router;
