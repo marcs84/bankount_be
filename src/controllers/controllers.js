@@ -1,16 +1,9 @@
 const service = require("../service");
-const { solanaWeb3 } = require("../../src/utils");
+const { solanaWeb3, ECDH_AES_Server } = require("../../src/utils");
 const dao = require("../dao");
 const crypto = require("crypto");
 const moment = require("moment");
-const CryptoJS = require("crypto-js");
-
-// Generate ECDH Key Pair (Simulated, Since crypto-js Doesn't Support ECDH)
-const generateECDHKeyPair = () => {
-  const privateKey = CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Hex); // 256-bit private key
-  const publicKey = CryptoJS.SHA256(privateKey).toString(CryptoJS.enc.Hex); // Simulating public key from private key
-  return { privateKey, publicKey };
-};
+const { default: axios } = require("axios");
 
 const getAddresses = async (req, res) => {
   try {
@@ -287,48 +280,103 @@ const doTransactionBetweenSameBC = async (req, res) => {
 
 const fetchLookupUrls = async (req, res) => {
   try {
-    const data = {
-      quicknode_is_active: process.env.QUICKNODE_IS_ACTIVE == "true" ? true : false,
-    };
-    const { coin_type } = req.query;
-    switch (coin_type) {
-      case "BTC": {
-        data["quicknode_testnet_url"] = process.env.QUICKNODE_BTC_TEST_URL;
-        data["quicknode_mainnet_url"] = process.env.QUICKNODE_BTC_MAIN_URL;
-        data["testnet"] = process.env.BITCORE_TEST_URL;
-        data["mainnet"] = process.env.BITCORE_MAIN_URL;
-        break;
-      }
+    const data = {};
+    let { coin_type, key_type, client_public_key } = req.body;
+    if(!client_public_key){
+      client_public_key = 'BEZwUM6CGUGT5TPfNO7KBr8HK37e1Cua2Ct+/j3wRmIlwUpOliifPTK0mZoHdvYqukD22eTyT/Ka+tP+1LXxQgk='
+    }
+    if (!client_public_key || !(coin_type || key_type)) {
+      return res.status(400).json({
+        result: false,
+        message: "Missing input fields",
+        error: "Missing input fields",
+      });
+    }
+    
+    if (coin_type) {
+      data["quicknode_is_active"] = process.env.QUICKNODE_IS_ACTIVE == "true" ? true : false;
+      switch (coin_type) {
+        case "BTC": {
+          data["quicknode_testnet_url"] = process.env.QUICKNODE_BTC_TEST_URL;
+          data["quicknode_mainnet_url"] = process.env.QUICKNODE_BTC_MAIN_URL;
+          data["testnet"] = process.env.BITCORE_TEST_URL;
+          data["mainnet"] = process.env.BITCORE_MAIN_URL;
+          break;
+        }
 
-      case "ETH": {
-        data["quicknode_testnet_url"] = process.env.QUICKNODE_ETH_TEST_URL;
-        data["quicknode_mainnet_url"] = process.env.QUICKNODE_ETH_MAIN_URL;
-        data["testnet"] = process.env.ETH_TEST_URL;
-        data["mainnet"] = process.env.ETH_MAIN_URL;
-        break;
-      }
+        case "ETH": {
+          data["quicknode_testnet_url"] = process.env.QUICKNODE_ETH_TEST_URL;
+          data["quicknode_mainnet_url"] = process.env.QUICKNODE_ETH_MAIN_URL;
+          data["testnet"] = process.env.ETH_TEST_URL;
+          data["mainnet"] = process.env.ETH_MAIN_URL;
+          break;
+        }
 
-      case "BNB": {
-        data["quicknode_testnet_url"] = process.env.QUICKNODE_BNB_TEST_URL;
-        data["quicknode_mainnet_url"] = process.env.QUICKNODE_BNB_MAIN_URL;
-        data["testnet"] = process.env.BNB_TEST_URL;
-        data["mainnet"] = process.env.BNB_MAIN_URL;
-        break;
-      }
+        case "BNB": {
+          data["quicknode_testnet_url"] = process.env.QUICKNODE_BNB_TEST_URL;
+          data["quicknode_mainnet_url"] = process.env.QUICKNODE_BNB_MAIN_URL;
+          data["testnet"] = process.env.BNB_TEST_URL;
+          data["mainnet"] = process.env.BNB_MAIN_URL;
+          break;
+        }
 
-      case "SOL": {
-        data["quicknode_testnet_url"] = process.env.QUICKNODE_SOL_TEST_URL;
-        data["quicknode_mainnet_url"] = process.env.QUICKNODE_SOL_MAIN_URL;
-        data["testnet"] = process.env.SOL_TEST_URL;
-        data["mainnet"] = solanaWeb3.clusterApiUrl("mainnet-beta");
-        break;
+        case "SOL": {
+          data["quicknode_testnet_url"] = process.env.QUICKNODE_SOL_TEST_URL;
+          data["quicknode_mainnet_url"] = process.env.QUICKNODE_SOL_MAIN_URL;
+          data["testnet"] = process.env.SOL_TEST_URL;
+          data["mainnet"] = solanaWeb3.clusterApiUrl("mainnet-beta");
+          break;
+        }
       }
     }
+
+    if (key_type) {
+      let key = "";
+      const possibleTypes = ["wallet_connect", "coin_gecko", "moralis", "tatum"];
+      const isValidType = possibleTypes.includes(key_type);
+      if (!isValidType) {
+        return res.status(400).json({
+          result: false,
+          message: "Invalid type value",
+          error: "Invalid type value",
+        });
+      }
+
+      switch (key_type) {
+        case "wallet_connect":
+          key = process.env.WALLET_CONNECT_API_KEY;
+          break;
+        case "coin_gecko":
+          key = process.env.COIN_GECKO_API_KEY;
+          break;
+        case "moralis":
+          key = process.env.MORALIS_API_KEY;
+          break;
+        case "tatum":
+          key = process.env.TATUM_KEY;
+          break;
+        default:
+          throw new Error("Invalid type");
+      }
+      data.key = key;
+    }
+
+    //encrypt the data
+    const server = new ECDH_AES_Server();
+    
+    const sharedSecret = server.computeSharedSecret(client_public_key);
+    console.log('sharedSecret', sharedSecret)
+    const aesKey = server.deriveAESKey(sharedSecret);
+    console.log('aesKey', aesKey)
+    const encryptedPayload = server.encryptData(JSON.stringify(data), aesKey);
 
     return res.status(200).json({
       result: true,
       message: "Lookup URLs fetched successfully",
-      data,
+      data: {
+        data,
+        encryptedPayload,
+      },
     });
   } catch (error) {
     console.log("Error while fetching lookup urls : ", error);
@@ -342,14 +390,47 @@ const fetchLookupUrls = async (req, res) => {
 
 const getPublicKey = (req, res) => {
   try {
-    const serverKeyPair = generateECDHKeyPair();
-    return res.status(200).json({ publicKey: serverKeyPair.publicKey });
+    const server = new ECDH_AES_Server();
+    console.log("Server Public Key:", server.getPublicKey());
+
+    return res.status(200).json({
+      result: true,
+      message: "Public key fetched successfully",
+      data: { server_public_key: server.getPublicKey() },
+    });
   } catch (error) {
     return res.status(500).json({
       result: false,
-      message: 'Error while fetching public key : '+error.message,
-      error: error.message
-    })
+      message: "Error while fetching public key : " + error.message,
+      error: error.message,
+    });
+  }
+};
+
+// The API call Get ERC20 token metadata by symbols (Moralis)
+const getTokenMetaData = async (req, res) => {
+  const { chain, symbol } = req.query;
+
+  try {
+    const response = await axios.get(`${process.env.MORALIS_ERC20_TOKEN_URL}?chain=` + chain + `&symbols%5B0%5D=` + symbol, {
+      headers: {
+        Accept: "application/json",
+        "X-API-Key": `${process.env.MORALIS_API_KEY}`,
+      },
+    });
+
+    return res.status(200).json({
+      result: true,
+      message: "Token metadata fetched successfully",
+      data: response.data,
+    });
+  } catch (error) {
+    console.log("error", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error while fetching token metadata : " + error.message,
+      error: error.message,
+    });
   }
 };
 
@@ -363,4 +444,5 @@ module.exports = {
   doTransactionBetweenSameBC,
   fetchLookupUrls,
   getPublicKey,
+  getTokenMetaData,
 };

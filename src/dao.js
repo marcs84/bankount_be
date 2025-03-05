@@ -624,7 +624,7 @@ const insertTransaction = (
               destination_address: destinationAddress,
               amount: amount.toString(),
               data_insert: data_insert,
-              block_number: block_number,
+              // block_number: block_number,
               network_type: network_type,
               is_synced: 1,
               status: 'outgoing'
@@ -662,7 +662,7 @@ const insertTransaction = (
                   destination_address: destinationAddress,
                   amount: amount.toString(),
                   data_insert: data_insert,
-                  block_number: block_number,
+                  // block_number: block_number,
                   network_type: network_type,
                   wallet_id: wallet_id,
                   is_synced: 1,
@@ -1031,6 +1031,7 @@ const verifyDevice = (identifier, passkey, device_token) => {
         const insertQuery = `INSERT INTO device (identifier, passkey, device_token) VALUES (?, ?, ?)`;
         connection.query(insertQuery, [identifier, passkey, device_token], (insertError, result) => {
           if (insertError) {
+            console.log('insertError', insertError)
             const err = new Error("Failed to register device");
             err.code = "ER_DUP_ENTRY";
             return reject(err);
@@ -1073,14 +1074,6 @@ const insertUserAddress = async (userData) => {
   );
   console.log("results", results);
   return results;
-};
-
-const editUserAddress = async (addressId, data) => {
-  try {
-    console.log("data", data);
-  } catch (error) {
-    throw error;
-  }
 };
 
 const checkUserAddress = async (address, userId) => {

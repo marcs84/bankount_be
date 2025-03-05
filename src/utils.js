@@ -38,6 +38,38 @@ function createCustomError(originalError, errorText) {
     return customError;
 }
 
+class ECDH_AES_Server {
+    constructor() {
+        this.ecdh = crypto.createECDH('secp256k1'); // Using secp256k1 curve
+        this.ecdh.generateKeys();
+    }
+
+    getPublicKey() {
+        return this.ecdh.getPublicKey('base64'); // Send as Base64
+    }
+
+    computeSharedSecret(clientPublicKeyBase64) {
+        const clientPublicKey = Buffer.from(clientPublicKeyBase64, 'base64');
+        return this.ecdh.computeSecret(clientPublicKey); // Returns a Buffer
+    }
+
+    deriveAESKey(sharedSecret) {
+        return crypto.createHash('sha256').update(sharedSecret).digest().slice(0, 32); // AES-256 key
+    }
+
+    encryptData(data, aesKey) {
+        const iv = crypto.randomBytes(16); // Generate a random IV
+        const cipher = crypto.createCipheriv('aes-256-cbc', aesKey, iv);
+
+        let encrypted = cipher.update(data, 'utf8', 'base64');
+        encrypted += cipher.final('base64');
+
+        return {
+            iv: iv.toString('base64'),
+            encryptedData: encrypted
+        };
+    }
+}
 
 module.exports = {
     mysql,
@@ -59,5 +91,9 @@ module.exports = {
     bitcore,
     axios,
     MoneroNetworkType,
-    createCustomError
+    createCustomError,
+    ECDH_AES_Server
 };
+
+
+
