@@ -1568,6 +1568,20 @@ const updateAddressName = async (user_id, wallet_id, address_id, address_name) =
   });
 };
 
+const onboardUser = async (user_id)=>{
+  return new Promise((resolve, reject)=>{
+    connection.query(`UPDATE device SET onboarding_status = 1 WHERE id = ?`, [user_id], (error, results)=>{
+      if(error){
+        return reject(new Error('Failed to onboard user : '+error.message))
+      }
+      if(!results.affectedRows){
+        return reject(new Error('Failed to onboard user'))
+      }
+      resolve(true);
+    })
+  })
+}
+
 module.exports = {
   generateKeystore,
   createUser,
@@ -1636,4 +1650,5 @@ module.exports = {
   filterAddresses,
   findMultipleAddressesByIds,
   updateAddressName,
+  onboardUser
 };

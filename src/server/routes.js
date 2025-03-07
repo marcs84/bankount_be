@@ -1300,6 +1300,7 @@ router.put('/api/addresses/update', jsonParser, auth.authenticateToken, async (r
 router.post('/api/lookup-urls', jsonParser, auth.authenticateToken, controllers.fetchLookupUrls)
 router.get("/api/public-key", auth.authenticateToken,controllers.getPublicKey );
 router.get('/api/token-metadata', jsonParser, auth.authenticateToken, controllers.getTokenMetaData)
+router.put('/api/onboard-user', jsonParser,auth.authenticateToken, controllers.onboardUser)
 
 
 

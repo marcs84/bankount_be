@@ -434,6 +434,27 @@ const getTokenMetaData = async (req, res) => {
   }
 };
 
+const onboardUser = async(req, res)=>{
+  try {
+    const identifier = req.user.identifier;
+    const deviceResponse = await service.findDeviceDetails(identifier);
+    const deviceId = deviceResponse[0].id;
+    await dao.onboardUser(deviceId)
+
+    return res.status(200).json({
+      result: true, 
+      message: 'User onboarded successfully'
+    })
+
+  } catch (error) {
+    return res.status(500).json({
+      result: false,
+      message: "Error while onboarding user : " + error.message,
+      error: error.message,
+    });
+  }
+}
+
 module.exports = {
   getAddresses,
   getBalance,
@@ -445,4 +466,5 @@ module.exports = {
   fetchLookupUrls,
   getPublicKey,
   getTokenMetaData,
+  onboardUser
 };
