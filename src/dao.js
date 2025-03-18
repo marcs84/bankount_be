@@ -627,7 +627,7 @@ const insertTransaction = (
               // block_number: block_number,
               network_type: network_type,
               is_synced: 1,
-              status: 'outgoing'
+              status: "outgoing",
             });
           } else {
             const queryInsertTx = `INSERT INTO transactions (type, chain, token, address_id, from_address, tx, destination_address, amount, data_insert, block_number, id_utente, network_type, wallet_id)
@@ -666,7 +666,7 @@ const insertTransaction = (
                   network_type: network_type,
                   wallet_id: wallet_id,
                   is_synced: 1,
-                  status: 'outgoing'
+                  status: "outgoing",
                 });
               } else {
                 reject("Unable to retrieve the ID of the created record.");
@@ -1012,11 +1012,11 @@ const verifyDevice = (identifier, passkey, device_token) => {
 
       if (results.length) {
         if (results[0].passkey !== passkey) {
-            connection.query(`UPDATE device SET is_active = 0 WHERE identifier = ?`, [identifier], (error, results)=>{
-                if(error){
-                    return reject(new Error('Failed to update device active status : '+ error.message))
-                }
-            })
+          connection.query(`UPDATE device SET is_active = 0 WHERE identifier = ?`, [identifier], (error, results) => {
+            if (error) {
+              return reject(new Error("Failed to update device active status : " + error.message));
+            }
+          });
         } else {
           const updateQuery = `UPDATE device SET device_token = ? WHERE id = ?`;
           connection.query(updateQuery, [device_token, results[0].id], (updateError) => {
@@ -1031,7 +1031,7 @@ const verifyDevice = (identifier, passkey, device_token) => {
         const insertQuery = `INSERT INTO device (identifier, passkey, device_token) VALUES (?, ?, ?)`;
         connection.query(insertQuery, [identifier, passkey, device_token], (insertError, result) => {
           if (insertError) {
-            console.log('insertError', insertError)
+            console.log("insertError", insertError);
             const err = new Error("Failed to register device");
             err.code = "ER_DUP_ENTRY";
             return reject(err);
@@ -1568,16 +1568,43 @@ const updateAddressName = async (user_id, wallet_id, address_id, address_name) =
   });
 };
 
-const onboardUser = async (user_id)=>{
-  return new Promise((resolve, reject)=>{
-    connection.query(`UPDATE device SET onboarding_status = 1 WHERE id = ?`, [user_id], (error, results)=>{
-      if(error){
-        return reject(new Error('Failed to onboard user : '+error.message))
+const onboardUser = async (user_id) => {
+  return new Promise((resolve, reject) => {
+    connection.query(`UPDATE device SET onboarding_status = 1 WHERE id = ?`, [user_id], (error, results) => {
+      if (error) {
+        return reject(new Error("Failed to onboard user : " + error.message));
       }
-      if(!results.affectedRows){
-        return reject(new Error('Failed to onboard user'))
+      if (!results.affectedRows) {
+        return reject(new Error("Failed to onboard user"));
       }
       resolve(true);
+    });
+  });
+};
+
+const storeRangoBlockChains = async (name, default_decimals, type, chain_id, logo, display_name, short_name, info) => {
+  
+  return new Promise((resolve, reject) => {
+    connection.query(
+      `INSERT INTO rango_blockchains(name, default_decimals, type, chain_id, logo, display_name, short_name, info) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [name, default_decimals, type, chain_id, logo, display_name, short_name, JSON.stringify(info)],
+      (error, results) => {
+        if (error) {
+          return reject(new Error("Failed to store rango blockchains : " + error.message));
+        }
+        return resolve(results.insertId);
+      }
+    );
+  });
+};
+
+const fetchRangoBlockchainData = async ()=>{
+  return new Promise((resolve, reject)=>{
+    connection.query(`SELECT * FROM rango_blockchains`, [], (error, results)=>{
+      if(error){
+        return reject(new Error('Error while fetching rango blockchain data : '+error.message))
+      }
+      return resolve(results)
     })
   })
 }
@@ -1650,5 +1677,7 @@ module.exports = {
   filterAddresses,
   findMultipleAddressesByIds,
   updateAddressName,
-  onboardUser
+  onboardUser,
+  storeRangoBlockChains,
+  fetchRangoBlockchainData
 };

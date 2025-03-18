@@ -282,8 +282,8 @@ const fetchLookupUrls = async (req, res) => {
   try {
     const data = {};
     let { coin_type, key_type, client_public_key } = req.body;
-    if(!client_public_key){
-      client_public_key = 'BEZwUM6CGUGT5TPfNO7KBr8HK37e1Cua2Ct+/j3wRmIlwUpOliifPTK0mZoHdvYqukD22eTyT/Ka+tP+1LXxQgk='
+    if (!client_public_key) {
+      client_public_key = "BEZwUM6CGUGT5TPfNO7KBr8HK37e1Cua2Ct+/j3wRmIlwUpOliifPTK0mZoHdvYqukD22eTyT/Ka+tP+1LXxQgk=";
     }
     if (!client_public_key || !(coin_type || key_type)) {
       return res.status(400).json({
@@ -292,7 +292,7 @@ const fetchLookupUrls = async (req, res) => {
         error: "Missing input fields",
       });
     }
-    
+
     if (coin_type) {
       data["quicknode_is_active"] = process.env.QUICKNODE_IS_ACTIVE == "true" ? true : false;
       switch (coin_type) {
@@ -363,11 +363,11 @@ const fetchLookupUrls = async (req, res) => {
 
     //encrypt the data
     const server = new ECDH_AES_Server();
-    
+
     const sharedSecret = server.computeSharedSecret(client_public_key);
-    console.log('sharedSecret', sharedSecret)
+    console.log("sharedSecret", sharedSecret);
     const aesKey = server.deriveAESKey(sharedSecret);
-    console.log('aesKey', aesKey)
+    console.log("aesKey", aesKey);
     const encryptedPayload = server.encryptData(JSON.stringify(data), aesKey);
 
     return res.status(200).json({
@@ -434,22 +434,117 @@ const getTokenMetaData = async (req, res) => {
   }
 };
 
-const onboardUser = async(req, res)=>{
+const onboardUser = async (req, res) => {
   try {
     const identifier = req.user.identifier;
     const deviceResponse = await service.findDeviceDetails(identifier);
     const deviceId = deviceResponse[0].id;
-    await dao.onboardUser(deviceId)
+    await dao.onboardUser(deviceId);
 
     return res.status(200).json({
-      result: true, 
-      message: 'User onboarded successfully'
-    })
-
+      result: true,
+      message: "User onboarded successfully",
+    });
   } catch (error) {
     return res.status(500).json({
       result: false,
       message: "Error while onboarding user : " + error.message,
+      error: error.message,
+    });
+  }
+};
+
+const storeRangoBlockchainData = async (req, res) => {
+  try {
+    const url = `https://api.rango.exchange/basic/meta/blockchains?apiKey=${process.env.RANGO_API_KEY}`;
+    const response = await axios.get(url, { headers: { accept: "*/*" } });
+    const data = response.data
+      .map((obj) => {
+        if (obj.name === "SOLANA" || obj.name === "BNB" || obj.name === "ETH" || obj.name === "BSC" || obj.name === "BTC") {
+          return {
+            name: obj.name,
+            defaultDecimals: obj.defaultDecimals,
+            type: obj.type,
+            chainId: obj.chainId,
+            logo: obj.logo,
+            displayName: obj.displayName,
+            shortName: obj.shortName,
+            info: obj.info,
+          };
+        } else {
+          return null;
+        }
+      })
+      .filter((o) => o !== null);
+    console.log("data", data);
+    for (let i = 0; i < data.length; i++) {
+      await dao.storeRangoBlockChains(
+        data[i].name,
+        data[i].defaultDecimals,
+        data[i].type,
+        data[i].chainId,
+        data[i].logo,
+        data[i].displayName,
+        data[i].shortName,
+        data[i].info
+      );
+    }
+    return res.status(200).json({
+      result: true,
+      message: "Rango data stored in DB successfully",
+      data: data,
+    });
+  } catch (error) {
+    console.log("Error while storing rango blockchain data : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error storing rango blockchain data : " + error.message,
+      error: error.message,
+    });
+  }
+};
+
+const fetchRangoBlockchainData = async (req, res) => {
+  try {
+    const response = await dao.fetchRangoBlockchainData();
+    response.map((data) => {
+      if (data.info) data.info = JSON.parse(data.info);
+    });
+    return res.status(200).json({
+      result: true,
+      message: "Blockchain data fetched successfully",
+      data: response,
+    });
+  } catch (error) {
+    console.log("Error while fetching Rango blockchain data : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error while fetching Rango blockchain data : " + error.message,
+      error: error.message,
+    });
+  }
+};
+
+const fetchRangoMetadata= async (req, res)=>{
+  try {
+    const url = `https://api.rango.exchange/basic/meta?apiKey=${process.env.RANGO_API_KEY}`
+    const keys = Object.keys(req.query);
+    keys.map((key)=>{
+      url += `&${key}=${req.query[key]}`
+    })
+
+    const response = await axios.get(url);
+
+    return res.status(200).json({
+      result: true,
+      message: 'Rango metadata fetched successfully',
+      data: response.data
+    })
+  } catch (error) {
+    console.log("Error while fetching Rango metadata : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error while fetching Rango metadata : " + error.message,
       error: error.message,
     });
   }
@@ -466,5 +561,8 @@ module.exports = {
   fetchLookupUrls,
   getPublicKey,
   getTokenMetaData,
-  onboardUser
+  onboardUser,
+  storeRangoBlockchainData,
+  fetchRangoBlockchainData,
+  fetchRangoMetadata
 };

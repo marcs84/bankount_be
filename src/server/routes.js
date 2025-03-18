@@ -790,6 +790,7 @@ router.get('/.well-known/assetlinks.json', (req, res) => {
 router.post('/api/deviceLogin', jsonParser, async (req, res) => {
     const dati = req.body;
     const {identifier, passkey, device_token} = dati;
+    console.log('dati', dati)
     const token = auth.generateToken({
         identifier,
         device_token
@@ -1301,6 +1302,10 @@ router.post('/api/lookup-urls', jsonParser, auth.authenticateToken, controllers.
 router.get("/api/public-key", auth.authenticateToken,controllers.getPublicKey );
 router.get('/api/token-metadata', jsonParser, auth.authenticateToken, controllers.getTokenMetaData)
 router.put('/api/onboard-user', jsonParser,auth.authenticateToken, controllers.onboardUser)
+
+router.post('/api/store-rango-bc-data', jsonParser, controllers.storeRangoBlockchainData)
+router.get('/api/rango-blockchain-data', jsonParser, auth.authenticateToken, controllers.fetchRangoBlockchainData)
+router.get('/api/rango-metadata', jsonParser, auth.authenticateToken, controllers.fetchRangoMetadata)
 
 
 
