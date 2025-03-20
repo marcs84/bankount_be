@@ -29,122 +29,17 @@ router.get('/', (req, res) => {
 });
 
 // Route for email verification
-router.get('/api/verify', async (req, res) => {
-    try {
-        const dati = req.query;
-        const token = dati.token; // Get the token from the query string        
-        // Check if the token is valid in the database and activate the account
-        const user = await dao.getUserByVerificationToken(token);
-
-        if (!user) {
-            if (dati.app != undefined && dati.app === "true") {
-                res.status(400).json({
-                    result: false,
-                    message: "Invalid verification token"
-                });
-                return
-            } else {
-                // Invalid token, display an error message
-                return res.status(400).send('Invalid verification token.');  // 400 Bad Request
-            }
-        }
-        // Valid token, activate the user's account in the database
-        await dao.activateUser(user.id);
-
-        if (dati.app != undefined && dati.app === "true") {
-            res.status(200).json({
-                result: true,
-                message: "Account activated successfully"
-            });
-            return
-        } else {
-            res.redirect(process.env.REACT_APP_BASE_URL + `/login?confirm=${true}`);
-        }
-    } catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "Server error during verification"
-        });
-    }
-});
+router.get('/api/verify', controllers.emailVerification);
 
 // Route to restore the user after retrieving from the mnemonic
-router.post('/api/restoreUser', urlencodedParser, auth.authenticateToken, async (req, res) => {
-    const dati = req.body;
-
-    // Genera un token di verifica univoco
-    let tokenVerifica = crypto.randomBytes(20).toString('hex');
-
-    await service.userRestore(req.user.id, dati.nome, dati.cognome, dati.email, dati.password, tokenVerifica)
-        .then(async (result) => {
-
-            mailer.sendEmailCreateUser(dati.email, tokenVerifica);
-
-            res.json({
-                result: true,
-                data: result
-            });
-        })
-        .catch(async error => {
-            await dao.deleteUserById(req.user.id);
-
-            res.status(500).json({
-                result: false,
-                message: error.message,
-                error: error.message,
-                code_route: serverErrors.ERROR_CREATE_USER,
-                code: error.code,
-            });
-        });
-});
+router.post('/api/restoreUser', urlencodedParser, auth.authenticateToken, controllers.restoreUser);
 
 //Route per importare un wallet tramite il mnemonic
 //Route to import a wallet via the mnemonic
-router.post('/api/generateMasternodeFromMmenomnic', urlencodedParser, auth.authenticateTokenApp, async (req, res) => {
-    try {
-        const dati = req.body;
-        const userId = await service.generateMasternodeFromMmenomnicService(dati.mnemonic, dati.network)
-
-        const user = await dao.getUserById(userId)
-
-        // Generate a JWT token with user data
-        const token = auth.generateToken({
-            id: user.id,
-            email: user.email,
-            masternode: user.masternode,
-        });
-
-        res.status(200).json({
-            result: true,
-            data: token,
-        });
-    }
-    catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "An error occurred while importing the wallet: " + error.message,
-            error: error.message
-        });
-    }
-})
+router.post('/api/generateMasternodeFromMmenomnic', urlencodedParser, auth.authenticateTokenApp, controllers.generateMasternodeFromMmenomnic)
 
 // Route per cancellare un utente
-router.post('/api/deleteUser', urlencodedParser, auth.authenticateToken, async (req, res) => {
-    const dati = req.body;
-    try {
-        await dao.deleteUser(req.user.id);
-        res.status(200).json({
-            result: true
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "An error occurred while deleting the user: " + error.message,
-            error: error.message
-        });
-    }
-});
+router.post('/api/deleteUser', urlencodedParser, auth.authenticateToken, controllers.deleteUser);
 
 // Route to retrieve the user's addresses
 router.post('/api/getAddresses', urlencodedParser, auth.authenticateToken, controllers.getAddresses);
@@ -156,337 +51,46 @@ router.post('/api/getBalance', urlencodedParser, auth.authenticateToken, control
 router.post('/api/getAllBalances', urlencodedParser, auth.authenticateToken, controllers.getAllBalances);
 
 // Route to send coins to other address
-router.post('/api/exchangeCoinBetweenSameBc', urlencodedParser, auth.authenticateToken, async (req, res) => {
-    try {
-        const data = req.body;
-        let user, Masternode, decryptedMasternode
-        user = await dao.getUserById(req.user.id);
-        if (!user) {
-            return res.status(400).json({
-                result: false,
-                message: "User not found"
-            });
-        }
-
-        let isAddressOwnedByUser = await dao.isAddressOwnedByUser(req.user.id, data.fromaddress, data.cointype)
-        if (!isAddressOwnedByUser) {
-            return res.status(500).json({
-                result: false,
-                message: "The sender address is not part of the logged in user"
-            });
-        }
-
-        decryptedMasternode = decryptXpriv(req.user.masternode, user.password);
-
-        if (data.network == "TESTNET") {
-            Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.testnet);
-        } else {
-            Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.bitcoin);
-        }
-
-        const exchangeResult = await service.exchangeCoinBetweenSameBc(data.cointype, data.fromaddress, data.toaddress, data.amount, data.network, Masternode);
-
-        res.status(200).json({
-            result: true,
-            data: exchangeResult
-        });
-    } catch (e) {
-        res.status(500).json({
-            result: false,
-            message: "An error occurred during coin exchange: " + e.message,
-            error: e.error
-        });
-    }
-});
+router.post('/api/exchangeCoinBetweenSameBc', urlencodedParser, auth.authenticateToken, controllers.exchangeCoinBetweenSameBc);
 
 router.post('/api/coin-exchange-utils', jsonParser, auth.authenticateToken, controllers.getUtilsForTransaction)
 router.post('/api/transact-coins', jsonParser, auth.authenticateToken, controllers.doTransactionBetweenSameBC)
 
 // Route to add a new account for a specific blockchain
-router.post('/api/addCryptoToAccount', urlencodedParser, auth.authenticateToken, async (req, res) => {
-    const data = req.body;
-    try {
-        const user = await dao.getUserById(req.user.id);
-        const decryptedMasternode = decryptXpriv(req.user.masternode, user.password);
-        const Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.testnet);
-        const result = await service.addCryptoAccountService(req.user.id, data.cointype, Masternode, data.network);
-        res.status(200).json({
-            result: true,
-            data: result
-        });
-    } catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "An error occurred while adding crypto account: " + error.message,
-            error: error.message
-        });
-    }
-});
+router.post('/api/addCryptoToAccount', urlencodedParser, auth.authenticateToken, controllers.addCryptoToAccount);
 
 // Route to get a user's tokens
-router.post('/api/getTokens', jsonParser, auth.authenticateToken, async (req, res) => {
-    const data = req.body;
-    try {
-        const result = await service.getTokens(data.chain, data.symbol, data.address, data.network);
-        res.status(200).json({
-            result: true,
-            data: result
-        });
-    } catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "An error occurred while getting tokens: " + error.message,
-            error: error.message
-        });
-    }
-});
+router.post('/api/getTokens', jsonParser, auth.authenticateToken, controllers.getTokens);
 
 // Route to exchange tokens within the same blockchain
-router.post('/api/exchangeTokenBetweenSameBc', urlencodedParser, auth.authenticateToken, async (req, res) => {
-    const data = req.body;
-    try {
-        let Masternode, decryptedMasternode, user
-        user = await dao.getUserById(req.user.id)
-
-        if (!user) {
-            return res.status(400).json({
-                result: false,
-                message: "User not found"
-            });
-        }
-
-        let isAddressOwnedByUser = await dao.isAddressOwnedByUser(req.user.id, data.fromaddress, data.cointype)
-        if (!isAddressOwnedByUser) {
-            return res.status(500).json({
-                result: false,
-                message: "The sender address is not part of the logged in user"
-            });
-        }
-        decryptedMasternode = decryptXpriv(req.user.masternode, user.password);
-        if (data.network == "TESTNET") {
-            Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.testnet);
-        } else {
-            Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.bitcoin);
-        }
-        const result = await service.exchangeTokenBetweenSameBc(data.chain, data.symbol, data.toaddress, data.fromaddress, data.amount, Masternode, data.network);
-        res.status(200).json({
-            result: true,
-            data: result
-        });
-    } catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "An error occurred during token exchange: " + error.message,
-            error: error.message
-        });
-    }
-});
+router.post('/api/exchangeTokenBetweenSameBc', urlencodedParser, auth.authenticateToken, controllers.exchangeTokenBetweenSameBc);
 
 // Route to activate token accounts for Solana
-router.post('/api/sol/activateTokenAccounts', urlencodedParser, auth.authenticateToken, async (req, res) => {
-    try {
-        const user = await dao.getUserById(req.user.id);
-        const decryptedMasternode = decryptXpriv(req.user.masternode, user.password);
-        const Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.testnet);
-
-        const result = await service.activateTokenAccounts(req.user.id, Masternode);
-        res.status(200).json({
-            result: true,
-            data: result
-        });
-    } catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "An error occurred while activating token accounts: " + error.message,
-            error: error.message
-        });
-    }
-});
+router.post('/api/sol/activateTokenAccounts', urlencodedParser, auth.authenticateToken, controllers.activateTokenAccounts);
 
 // Route to get the list of supported tokens for a specific blockchain (excluding BTC and XMR)
-router.post('/api/getListOfSupportedTokens', urlencodedParser, auth.authenticateToken, async (req, res) => {
-    try {
-        const dati = req.body;
-
-        // Validate the blockchain option
-        const validChains = ["ETH", "BNB", "SOL"];
-        if (!validChains.includes(dati.chain)) {
-            throw new Error("Invalid blockchain option");
-        }
-
-        const result = await service.getListOfSupportedTokens(dati.chain);
-        res.status(200).json({
-            result: true,
-            data: result
-        });
-    } catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "An error occurred while retrieving list of supported tokens: " + error.message,
-            error: error.message
-        });
-    }
-});
+router.post('/api/getListOfSupportedTokens', urlencodedParser, auth.authenticateToken, controllers.getListOfSupportedTokens);
 
 // Route per la restituzione della lista delle transazioni memorizzate
-router.post('/api/getTransactions', jsonParser, auth.authenticateToken, async (req, res) => {
-    try {
-        const dati = req.body;
-        const resData = await service.findDeviceDetails(req.user.identifier);
-        const userId = resData[0].id;
-        const addressArray = await service.findPublicAddress(userId);
-        let { totalCount, transactions } = await service.getTransactions(userId, dati.network_type, parseInt(dati.limit), parseInt(dati.offset))
-        //   console.log("transactions", transactions, totalCount)
-        transactions.forEach(transactionItem => {
-            const { from_address, destination_address } = transactionItem;
-            const isOutgoing = addressArray.includes(from_address);
-            // Check for incoming
-            const isIncoming = addressArray.includes(destination_address);
-            // console.log("from_address", from_address, "destination_address", destination_address, "isOutgoing", isOutgoing, "isIncoming",isIncoming)
-            let status;
-            if (isOutgoing && isIncoming) {
-                status = 'self-transfer';
-            } else if (isOutgoing) {
-                status = 'outgoing';
-            } else if (isIncoming) {
-                status = 'incoming';
-            } else {
-                status = 'none';
-            }
-            transactionItem.status = status;
-        });
-        res.status(200).json({
-            result: true,
-            data: {
-                totalCount: totalCount,
-                transactions: transactions
-            }
-        });
-    } catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "An error occurred while retrieving list of transactions: " + error.message,
-            error: error.message
-        });
-    }
-});
+router.post('/api/getTransactions', jsonParser, auth.authenticateToken, controllers.getTransactions);
 
 router.get('/api/filter-transactions', urlencodedParser, auth.authenticateToken, controllers.filterTransactions)
 
 // Route per la restituzione della lista delle transazioni memorizzate per un dato indirizzo
-router.post('/api/getTransactionsByAddress', jsonParser, auth.authenticateToken, async (req, res) => {
-    try {
-        const dati = req.body;
-        let { totalCount, transactions } = await service.getTransactionsByAddress(dati.address, parseInt(dati.limit), parseInt(dati.offset))
-        const resData = await service.findDeviceDetails(req.user.identifier);
-        const userId = resData[0].id
-        const addressArray = await service.findPublicAddress(userId);
-        transactions.forEach(transactionItem => {
-            const { from_address, destination_address } = transactionItem;
-            const isOutgoing = addressArray.includes(from_address);
-            // Check for incoming
-            const isIncoming = addressArray.includes(destination_address);
-            let status;
-            if (isOutgoing && isIncoming) {
-                status = 'self-transfer';
-            } else if (isOutgoing) {
-                status = 'outgoing';
-            } else if (isIncoming) {
-                status = 'incoming';
-            } else {
-                status = 'none';
-            }
-            transactionItem.status = status;
-        });
-        res.status(200).json({
-            result: true,
-            data: {
-                totalCount: totalCount,
-                transactions: transactions
-            }
-        });
-    } catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "An error occurred while retrieving list of transactions by address: " + error.message,
-            error: error.message
-        });
-    }
-});
+router.post('/api/getTransactionsByAddress', jsonParser, auth.authenticateToken, controllers.getTransactionsByAddress);
 
 /* Pericolosa */
 // Route to get all transactions for a user
-router.post('/api/getAllTransactions', urlencodedParser, auth.authenticateToken, async (req, res) => {
-    try {
-        const addresses = await dao.getAddresses(req.user.id)
-        const result = await service.getAllTransactions(addresses);
-        res.status(200).json({
-            result: true,
-            data: result
-        });
-    } catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "An error occurred while getting all transactions: " + error.message,
-            error: error.message
-        });
-    }
-});
+router.post('/api/getAllTransactions', urlencodedParser, auth.authenticateToken, controllers.getAllTransactions);
 
 // Route to get all transactions for a user
-router.post('/api/getLatestTransactionsFromDB', urlencodedParser, auth.authenticateToken, async (req, res) => {
-    try {
-        const data = req.body
-        const result = await service.getLatestTransactionsFromDB(data.limit);
-        res.status(200).json({
-            result: true,
-            data: result
-        });
-    } catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "An error occurred while getting latest transactions: " + error.message,
-            error: error.message
-        });
-    }
-});
+router.post('/api/getLatestTransactionsFromDB', urlencodedParser, auth.authenticateToken, controllers.getLatestTransactionsFromDB );
 
 //Route to get all transaction for an address
-router.post('/api/getAllTransactionsForAddress', urlencodedParser, auth.authenticateToken, async (req, res) => {
-    try {
-        const data = req.body
-        const result = await service.getAllTransactionsForAddress(data.address);
-        res.status(200).json({
-            result: true,
-            data: result
-        });
-    } catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "An error occurred while getting all transactions for an address: " + error.message,
-            error: error.message
-        });
-    }
-});
+router.post('/api/getAllTransactionsForAddress', urlencodedParser, auth.authenticateToken, controllers.getAllTransactionsForAddress);
 
 // Route to change password for a logged-in user
-router.post('/api/changePassword', urlencodedParser, auth.authenticateToken, async (req, res) => {
-    try {
-        const dati = req.body;
-        const userId = req.user.id;
-        const result = await service.changePasswordForLoggedUser(dati.old_password, dati.new_password, userId);
-        res.status(200).json({
-            result: true,
-            message: result
-        });
-    } catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "An error occurred while changing password: " + error.message,
-            error: error.message
-        });
-    }
-});
+router.post('/api/changePassword', urlencodedParser, auth.authenticateToken, controllers.changePassword);
 
 // Route to change password for a logged-in user
 router.post('/api/changePasswordForNoLoggedUser', urlencodedParser, async (req, res) => {
@@ -795,8 +399,9 @@ router.post('/api/deviceLogin', jsonParser, async (req, res) => {
         identifier,
         device_token
     });
+    console.log('token', token)
     await service.devicelogin(dati.identifier, dati.passkey, dati.device_token)
-        .then(async (responseId) => {
+        .then((responseId) => {
             res.json({
                 result: true,
                 data: {
@@ -805,7 +410,7 @@ router.post('/api/deviceLogin', jsonParser, async (req, res) => {
                 }
             });
         })
-        .catch(async (error) => {
+        .catch((error) => {
             res.status(500).json({
                 result: false,
                 message: error.message ? error.message : error,

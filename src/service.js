@@ -865,7 +865,7 @@ const devicelogin = (identifier, passkey, device_token) => {
   return new Promise((resolve, reject) => {
     dao
       .verifyDevice(identifier, passkey, device_token)
-      .then(async (data) => {
+      .then((data) => {
         resolve(data);
       })
       .catch((error) => {
