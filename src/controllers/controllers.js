@@ -10,10 +10,7 @@ const serverErrors = require('../server/serverErrors');
 const { decryptXpriv } = require('../config/Keystore');
 const utils = require("../../src/utils");
 const speakeasy = require("speakeasy");
-const fs = require('fs');
-const path = require('path');
 const notification = require('../../Helpers/sendNotification')
-const smartContract = require("../contracts/smartContractController")
 
 const emailVerification = async (req, res) => {
     try {
@@ -1696,6 +1693,89 @@ const fetchRangoMetadata = async (req, res) => {
   }
 };
 
+const initiateSwap  = async (req, res)=>{
+  try {
+    let url = `https://api.rango.exchange/basic/swap?apiKey=${process.env.RANGO_API_KEY}`
+    const {from, to, amount, slippage, fromAddress, toAddress} = req.body;
+    // Object.keys(req.body).map(key=>{
+    //   url += `&${key}=${req.body[key]}`;
+    // })
+    url += `&from=${from}&to=${to}&amount=${amount}&slippage=${slippage}&fromAddress=${fromAddress}&toAddress=${toAddress}`
+    let response;
+    try {
+      response = await axios.get(url, {headers: {accept: '*/*'}})
+    } catch (error) {
+      if(error.response.data.error){
+        throw new Error(error.response.data.error)
+      }else{
+        throw error;
+      }
+    }
+    return res.status(200).json({
+      result: true,
+      message: 'Swap initiated successfully',
+      data: response.data
+    })
+  } catch (error) {
+    console.log("Error while initiating swap : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error while initiating swap : " + error.message,
+      error: error.message,
+    });
+  }
+}
+
+const getSwapRoutes = async (req, res)=>{
+  try {
+    
+    let url = `https://api.rango.exchange/basic/quote?apiKey=${process.env.RANGO_API_KEY}`
+    const {from, to, amount} = req.query;
+    url += `&from=${from}&to=${to}&amount=${amount}`
+    let response;
+    let i=0;
+    setInterval(async () => {
+      try {
+        response = await axios.get(url, {headers: {
+          accept: '*/*'
+        }})
+        console.log(i++, 'i++')
+        } catch (error) {
+          if(error.response.data.error){
+            throw new Error(error.response.data.error)
+          }else{
+            throw error.message;
+          }
+        }
+      }, 100);
+    // try {
+    //   response = await axios.get(url, {headers: {
+    //     accept: '*/*'
+    //   }})
+    // } catch (error) {
+    //   if(error.response.data.error){
+    //     throw new Error(error.response.data.error)
+    //   }else{
+    //     throw error;
+    //   }
+    // }
+
+    // return res.status(200).json({
+    //   result: true,
+    //   message: 'Swap routes fetched successfully',
+    //   data: response.data
+    // })
+
+  } catch (error) {
+    console.log("Error while fetching swap routes : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error while fetchihng swap routes : " + error.message,
+      error: error.message,
+    });
+  }
+}
+
 module.exports = {
   emailVerification,
   restoreUser,
@@ -1746,4 +1826,6 @@ module.exports = {
   storeRangoBlockchainData,
   fetchRangoBlockchainData,
   fetchRangoMetadata,
+  initiateSwap,
+  getSwapRoutes
 };
