@@ -1733,38 +1733,38 @@ const getSwapRoutes = async (req, res)=>{
     const {from, to, amount} = req.query;
     url += `&from=${from}&to=${to}&amount=${amount}`
     let response;
-    let i=0;
-    setInterval(async () => {
-      try {
-        response = await axios.get(url, {headers: {
-          accept: '*/*'
-        }})
-        console.log(i++, 'i++')
-        } catch (error) {
-          if(error.response.data.error){
-            throw new Error(error.response.data.error)
-          }else{
-            throw error.message;
-          }
-        }
-      }, 100);
-    // try {
-    //   response = await axios.get(url, {headers: {
-    //     accept: '*/*'
-    //   }})
-    // } catch (error) {
-    //   if(error.response.data.error){
-    //     throw new Error(error.response.data.error)
-    //   }else{
-    //     throw error;
-    //   }
-    // }
+    // let i=0;
+    // setInterval(async () => {
+    //   try {
+    //     response = await axios.get(url, {headers: {
+    //       accept: '*/*'
+    //     }})
+    //     console.log(i++, 'i++')
+    //     } catch (error) {
+    //       if(error.response.data.error){
+    //         throw new Error(error.response.data.error)
+    //       }else{
+    //         throw error.message;
+    //       }
+    //     }
+    //   }, 100);
+    try {
+      response = await axios.get(url, {headers: {
+        accept: '*/*'
+      }})
+    } catch (error) {
+      if(error.response.data.error){
+        throw new Error(error.response.data.error)
+      }else{
+        throw error;
+      }
+    }
 
-    // return res.status(200).json({
-    //   result: true,
-    //   message: 'Swap routes fetched successfully',
-    //   data: response.data
-    // })
+    return res.status(200).json({
+      result: true,
+      message: 'Swap routes fetched successfully',
+      data: response.data
+    })
 
   } catch (error) {
     console.log("Error while fetching swap routes : ", error);

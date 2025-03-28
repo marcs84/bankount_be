@@ -716,6 +716,8 @@ router.put("/api/sync-address", jsonParser, auth.authenticateToken, controllers.
  *     operationId: createNewWallet
  *     tags:
  *       - Wallet
+ *     security:
+ *       - bearerAuth: []  # <-- Add this line for JWT authentication
  *     requestBody:
  *       description: Wallet details required for creating a new wallet
  *       content:
@@ -775,6 +777,8 @@ router.post("/api/wallet/new", jsonParser, auth.authenticateToken, controllers.c
  *     operationId: updateWallet
  *     tags:
  *       - Wallet
+ *     security:
+ *       - bearerAuth: []  # <-- Add this line for JWT authentication
  *     requestBody:
  *       description: Wallet details to be updated
  *       content:
@@ -839,8 +843,187 @@ router.post("/api/wallet/new", jsonParser, auth.authenticateToken, controllers.c
  */
 router.put("/api/wallet/update", jsonParser, auth.authenticateToken, controllers.updateWallet);
 
+/**
+ * @swagger
+ * /api/wallet/fetch:
+ *   get:
+ *     summary: Fetch wallet(s) based on provided parameters
+ *     description: Retrieve wallet details using wallet_id, device_id, or user_id.
+ *     operationId: fetchWallets
+ *     tags:
+ *       - Wallet
+ *     security:
+ *       - bearerAuth: []  # <-- Add this line for JWT authentication
+ *     parameters:
+ *       - in: query
+ *         name: wallet_id
+ *         schema:
+ *           type: integer
+ *         required: false
+ *         description: The ID of the wallet to fetch.
+ *       - in: query
+ *         name: device_id
+ *         schema:
+ *           type: integer
+ *         required: false
+ *         description: The ID of the device to fetch associated wallets.
+ *       - in: query
+ *         name: user_id
+ *         schema:
+ *           type: integer
+ *         required: false
+ *         description: The ID of the user to fetch associated wallets.
+ *     responses:
+ *       200:
+ *         description: Wallet(s) fetched successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Wallet(s) fetched successfully"
+ *                 data:
+ *                   type: array
+ *                   description: The fetched wallet(s)
+ *       400:
+ *         description: Bad request - No valid parameters provided.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Please provide valid parameters to fetch wallet"
+ *                 error:
+ *                   type: string
+ *                   example: "Please provide valid parameters to fetch wallet"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'  # <-- Unauthorized (Missing/Invalid token)
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'  # <-- Forbidden (Not enough permissions)
+ *       500:
+ *         $ref: '#/components/responses/ServerError'  # <-- Internal server error response
+ */
 router.get("/api/wallet", jsonParser, auth.authenticateToken, controllers.fetchWallets);
 
+/**
+ * @swagger
+ * /api/addresses:
+ *   get:
+ *     summary: Fetch filtered addresses
+ *     description: Retrieve addresses based on filters like user_id, wallet_id, coin_type, etc.
+ *     operationId: filterAddresses
+ *     tags:
+ *       - Address
+ *     security:
+ *       - bearerAuth: []  # <-- JWT authentication required
+ *     parameters:
+ *       - in: query
+ *         name: user_id
+ *         schema:
+ *           type: integer
+ *         required: false
+ *         description: ID of the user to fetch addresses for.
+ *       - in: query
+ *         name: wallet_id
+ *         schema:
+ *           type: integer
+ *         required: false
+ *         description: ID of the wallet to fetch addresses for.
+ *       - in: query
+ *         name: coin_type
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Coin type (e.g., BTC, ETH) to filter addresses.
+ *       - in: query
+ *         name: has_positive_address
+ *         schema:
+ *           type: boolean
+ *         required: false
+ *         description: If true, only returns addresses with a positive balance.
+ *       - in: query
+ *         name: network
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Blockchain network (e.g., Ethereum, Binance Smart Chain).
+ *       - in: query
+ *         name: selected_currency
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Convert balance to this currency (e.g., USD, EUR).
+ *     responses:
+ *       200:
+ *         description: Addresses fetched successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Addresses fetched successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     addresses:
+ *                       type: array
+ *                       description: List of filtered addresses.
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           address:
+ *                             type: string
+ *                             example: "0x1234abcd..."
+ *                           coin_type:
+ *                             type: string
+ *                             example: "ETH"
+ *                           balance:
+ *                             type: number
+ *                             example: 1.234
+ *                     coins_sum:
+ *                       type: number
+ *                       example: 10.5
+ *                     coins_sum_converted:
+ *                       type: number
+ *                       example: 105.0
+ *                     coin_type:
+ *                       type: string
+ *                       example: "ETH"
+ *       400:
+ *         description: Invalid filters provided.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid filters"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'  # <-- Unauthorized (Missing/Invalid token)
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'  # <-- Forbidden (Not enough permissions)
+ *       500:
+ *         $ref: '#/components/responses/ServerError'  # <-- Internal server error response
+ */
 router.get("/api/addresses", jsonParser, auth.authenticateToken, controllers.filterAddresses);
 
 /**
@@ -974,18 +1157,134 @@ router.get("/api/addresses", jsonParser, auth.authenticateToken, controllers.fil
  */
 router.get("/api/assets", jsonParser, auth.authenticateToken, controllers.fetchAssets);
 
+/**
+ * @swagger
+ * /api/addresses/update:
+ *   put:
+ *     summary: Update an address name
+ *     description: Allows users to update the name of an existing address.
+ *     operationId: updateAddress
+ *     tags:
+ *       - Address
+ *     security:
+ *       - bearerAuth: []  # <-- JWT authentication required
+ *     requestBody:
+ *       description: Address details to be updated
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - user_id
+ *               - wallet_id
+ *               - address_id
+ *               - address_name
+ *             properties:
+ *               user_id:
+ *                 type: integer
+ *                 description: ID of the user who owns the address
+ *               wallet_id:
+ *                 type: integer
+ *                 description: ID of the wallet containing the address
+ *               address_id:
+ *                 type: integer
+ *                 description: ID of the address to be updated
+ *               address_name:
+ *                 type: string
+ *                 description: New name for the address
+ *             example:
+ *               user_id: 156
+ *               wallet_id: 1
+ *               address_id: 10
+ *               address_name: "Address 2"
+ *     responses:
+ *       200:
+ *         description: Address name updated successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Address name updated successfully"
+ *                 data:
+ *                   type: object
+ *                   description: Updated address details
+ *       400:
+ *         description: Bad request - Invalid parameters.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid parameters"
+ *                 error:
+ *                   type: string
+ *                   example: "Invalid parameters"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'  # <-- Unauthorized (Missing/Invalid token)
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'  # <-- Forbidden (Not enough permissions)
+ *       500:
+ *         $ref: '#/components/responses/ServerError'  # <-- Internal server error response
+ */
 router.put("/api/addresses/update", jsonParser, auth.authenticateToken, controllers.updateAddress);
 
 router.post("/api/lookup-urls", jsonParser, auth.authenticateToken, controllers.fetchLookupUrls);
 router.get("/api/public-key", auth.authenticateToken, controllers.getPublicKey);
 router.get("/api/token-metadata", jsonParser, auth.authenticateToken, controllers.getTokenMetaData);
+
+/**
+ * @swagger
+ * /api/onboard-user:
+ *   put:
+ *     summary: Onboard a user
+ *     description: This API onboards a user based on the identifier extracted from the authenticated request.
+ *     operationId: onboardUser
+ *     tags:
+ *       - User
+ *     security:
+ *       - bearerAuth: []  # <-- JWT authentication required
+ *     responses:
+ *       200:
+ *         description: User onboarded successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "User onboarded successfully"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'  # <-- Unauthorized (Missing/Invalid token)
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'  # <-- Forbidden (Not enough permissions)
+ *       500:
+ *         $ref: '#/components/responses/ServerError'  # <-- Internal server error response
+ */
 router.put("/api/onboard-user", jsonParser, auth.authenticateToken, controllers.onboardUser);
 
 router.post("/api/store-rango-bc-data", jsonParser, controllers.storeRangoBlockchainData);
+
+
 router.get("/api/rango-blockchain-data", jsonParser, auth.authenticateToken, controllers.fetchRangoBlockchainData);
 router.get("/api/rango-metadata", jsonParser, auth.authenticateToken, controllers.fetchRangoMetadata);
 
 router.post("/api/initiate-swap", jsonParser, auth.authenticateToken, controllers.initiateSwap);
-router.get("/api/swap-routes", jsonParser, controllers.getSwapRoutes);
+router.get("/api/swap-routes", jsonParser, auth.authenticateToken, controllers.getSwapRoutes);
 
 module.exports = router;
