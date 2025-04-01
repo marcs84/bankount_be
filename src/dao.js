@@ -1016,6 +1016,12 @@ const verifyDevice = (identifier, passkey, device_token) => {
             if (error) {
               return reject(new Error("Failed to update device active status : " + error.message));
             }
+            connection.query(`INSERT INTO device (identifier, passkey, device_token) VALUES (?, ?, ?)`, [identifier, passkey, device_token], (err, results)=>{
+              if(err){
+                return reject(new Error('Failed to insert device : '+error.message));
+              }
+              return resolve(results.insertId)
+            })
           });
         } else {
           const updateQuery = `UPDATE device SET device_token = ? WHERE id = ?`;

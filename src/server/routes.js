@@ -1287,4 +1287,82 @@ router.get("/api/rango-metadata", jsonParser, auth.authenticateToken, controller
 router.post("/api/initiate-swap", jsonParser, auth.authenticateToken, controllers.initiateSwap);
 router.get("/api/swap-routes", jsonParser, auth.authenticateToken, controllers.getSwapRoutes);
 
+/**
+ * @swagger
+ * /api/token-balance:
+ *   get:
+ *     summary: Fetch token balance
+ *     description: Retrieves the balance of a specific token for a given wallet address and blockchain.
+ *     operationId: getTokenBalance
+ *     tags:
+ *       - Token
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: wallet_address
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The wallet address to fetch token balance for.
+ *       - in: query
+ *         name: blockchain
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The blockchain network (e.g., Ethereum, Binance Smart Chain).
+ *       - in: query
+ *         name: symbol
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The symbol of the token (e.g., ETH, BNB).
+ *       - in: query
+ *         name: token_address
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: The contract address of the token (if applicable).
+ *     responses:
+ *       200:
+ *         description: Token balance fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Token balance fetched successfully"
+ *                 data:
+ *                   type: object
+ *                   description: The token balance details
+ *       400:
+ *         description: Bad request - Missing required parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "wallet_address, blockchain, symbol are required"
+ *                 error:
+ *                   type: string
+ *                   example: "wallet_address, blockchain, symbol are required"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'  # <-- Unauthorized (Missing/Invalid token)
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'  # <-- Forbidden (Not enough permissions)
+ *       500:
+ *         $ref: '#/components/responses/ServerError'  # <-- Server error response
+ */
+router.get('/api/token-balance', jsonParser, auth.authenticateToken, controllers.getTokenBalance);
+
 module.exports = router;

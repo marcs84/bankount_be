@@ -6,124 +6,122 @@ const moment = require("moment");
 const { default: axios } = require("axios");
 const mailer = require("../mailer");
 const auth = require("../auth");
-const serverErrors = require('../server/serverErrors');
-const { decryptXpriv } = require('../config/Keystore');
+const serverErrors = require("../server/serverErrors");
+const { decryptXpriv } = require("../config/Keystore");
 const utils = require("../../src/utils");
 const speakeasy = require("speakeasy");
-const notification = require('../../Helpers/sendNotification')
+const notification = require("../../Helpers/sendNotification");
 
 const emailVerification = async (req, res) => {
-    try {
-        const dati = req.query;
-        const token = dati.token; // Get the token from the query string        
-        // Check if the token is valid in the database and activate the account
-        const user = await dao.getUserByVerificationToken(token);
+  try {
+    const dati = req.query;
+    const token = dati.token; // Get the token from the query string
+    // Check if the token is valid in the database and activate the account
+    const user = await dao.getUserByVerificationToken(token);
 
-        if (!user) {
-            if (dati.app != undefined && dati.app === "true") {
-                res.status(400).json({
-                    result: false,
-                    message: "Invalid verification token"
-                });
-                return
-            } else {
-                // Invalid token, display an error message
-                return res.status(400).send('Invalid verification token.');  // 400 Bad Request
-            }
-        }
-        // Valid token, activate the user's account in the database
-        await dao.activateUser(user.id);
-
-        if (dati.app != undefined && dati.app === "true") {
-            res.status(200).json({
-                result: true,
-                message: "Account activated successfully"
-            });
-            return
-        } else {
-            res.redirect(process.env.REACT_APP_BASE_URL + `/login?confirm=${true}`);
-        }
-    } catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "Server error during verification"
+    if (!user) {
+      if (dati.app != undefined && dati.app === "true") {
+        res.status(400).json({
+          result: false,
+          message: "Invalid verification token",
         });
+        return;
+      } else {
+        // Invalid token, display an error message
+        return res.status(400).send("Invalid verification token."); // 400 Bad Request
+      }
     }
-}
+    // Valid token, activate the user's account in the database
+    await dao.activateUser(user.id);
+
+    if (dati.app != undefined && dati.app === "true") {
+      res.status(200).json({
+        result: true,
+        message: "Account activated successfully",
+      });
+      return;
+    } else {
+      res.redirect(process.env.REACT_APP_BASE_URL + `/login?confirm=${true}`);
+    }
+  } catch (error) {
+    res.status(500).json({
+      result: false,
+      message: "Server error during verification",
+    });
+  }
+};
 
 const restoreUser = async (req, res) => {
-    const dati = req.body;
+  const dati = req.body;
 
-    // Genera un token di verifica univoco
-    let tokenVerifica = crypto.randomBytes(20).toString('hex');
+  // Genera un token di verifica univoco
+  let tokenVerifica = crypto.randomBytes(20).toString("hex");
 
-    await service.userRestore(req.user.id, dati.nome, dati.cognome, dati.email, dati.password, tokenVerifica)
-        .then(async (result) => {
+  await service
+    .userRestore(req.user.id, dati.nome, dati.cognome, dati.email, dati.password, tokenVerifica)
+    .then(async (result) => {
+      mailer.sendEmailCreateUser(dati.email, tokenVerifica);
 
-            mailer.sendEmailCreateUser(dati.email, tokenVerifica);
+      res.json({
+        result: true,
+        data: result,
+      });
+    })
+    .catch(async (error) => {
+      await dao.deleteUserById(req.user.id);
 
-            res.json({
-                result: true,
-                data: result
-            });
-        })
-        .catch(async error => {
-            await dao.deleteUserById(req.user.id);
-
-            res.status(500).json({
-                result: false,
-                message: error.message,
-                error: error.message,
-                code_route: serverErrors.ERROR_CREATE_USER,
-                code: error.code,
-            });
-        });
-}
+      res.status(500).json({
+        result: false,
+        message: error.message,
+        error: error.message,
+        code_route: serverErrors.ERROR_CREATE_USER,
+        code: error.code,
+      });
+    });
+};
 
 const generateMasternodeFromMmenomnic = async (req, res) => {
   try {
-      const dati = req.body;
-      const userId = await service.generateMasternodeFromMmenomnicService(dati.mnemonic, dati.network)
+    const dati = req.body;
+    const userId = await service.generateMasternodeFromMmenomnicService(dati.mnemonic, dati.network);
 
-      const user = await dao.getUserById(userId)
+    const user = await dao.getUserById(userId);
 
-      // Generate a JWT token with user data
-      const token = auth.generateToken({
-          id: user.id,
-          email: user.email,
-          masternode: user.masternode,
-      });
+    // Generate a JWT token with user data
+    const token = auth.generateToken({
+      id: user.id,
+      email: user.email,
+      masternode: user.masternode,
+    });
 
-      res.status(200).json({
-          result: true,
-          data: token,
-      });
+    res.status(200).json({
+      result: true,
+      data: token,
+    });
+  } catch (error) {
+    res.status(500).json({
+      result: false,
+      message: "An error occurred while importing the wallet: " + error.message,
+      error: error.message,
+    });
   }
-  catch (error) {
-      res.status(500).json({
-          result: false,
-          message: "An error occurred while importing the wallet: " + error.message,
-          error: error.message
-      });
-  }
-}
+};
 
 const deleteUser = async (req, res) => {
-    const dati = req.body;
-    try {
-        await dao.deleteUser(req.user.id);
-        res.status(200).json({
-            result: true
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "An error occurred while deleting the user: " + error.message,
-            error: error.message
-        });
-    }
-}
+  const dati = req.body;
+  try {
+    await dao.deleteUser(req.user.id);
+    res.status(200).json({
+      result: true,
+    });
+  } catch (error) {
+    res.status(500).json({
+      result: false,
+      message: "An error occurred while deleting the user: " + error.message,
+      error: error.message,
+    });
+  }
+};
 
 const getAddresses = async (req, res) => {
   try {
@@ -400,440 +398,455 @@ const doTransactionBetweenSameBC = async (req, res) => {
 
 const exchangeCoinBetweenSameBc = async (req, res) => {
   try {
-      const data = req.body;
-      let user, Masternode, decryptedMasternode
-      user = await dao.getUserById(req.user.id);
-      if (!user) {
-          return res.status(400).json({
-              result: false,
-              message: "User not found"
-          });
-      }
-
-      let isAddressOwnedByUser = await dao.isAddressOwnedByUser(req.user.id, data.fromaddress, data.cointype)
-      if (!isAddressOwnedByUser) {
-          return res.status(500).json({
-              result: false,
-              message: "The sender address is not part of the logged in user"
-          });
-      }
-
-      decryptedMasternode = decryptXpriv(req.user.masternode, user.password);
-
-      if (data.network == "TESTNET") {
-          Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.testnet);
-      } else {
-          Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.bitcoin);
-      }
-
-      const exchangeResult = await service.exchangeCoinBetweenSameBc(data.cointype, data.fromaddress, data.toaddress, data.amount, data.network, Masternode);
-
-      res.status(200).json({
-          result: true,
-          data: exchangeResult
+    const data = req.body;
+    let user, Masternode, decryptedMasternode;
+    user = await dao.getUserById(req.user.id);
+    if (!user) {
+      return res.status(400).json({
+        result: false,
+        message: "User not found",
       });
+    }
+
+    let isAddressOwnedByUser = await dao.isAddressOwnedByUser(req.user.id, data.fromaddress, data.cointype);
+    if (!isAddressOwnedByUser) {
+      return res.status(500).json({
+        result: false,
+        message: "The sender address is not part of the logged in user",
+      });
+    }
+
+    decryptedMasternode = decryptXpriv(req.user.masternode, user.password);
+
+    if (data.network == "TESTNET") {
+      Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.testnet);
+    } else {
+      Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.bitcoin);
+    }
+
+    const exchangeResult = await service.exchangeCoinBetweenSameBc(
+      data.cointype,
+      data.fromaddress,
+      data.toaddress,
+      data.amount,
+      data.network,
+      Masternode
+    );
+
+    res.status(200).json({
+      result: true,
+      data: exchangeResult,
+    });
   } catch (e) {
-      res.status(500).json({
-          result: false,
-          message: "An error occurred during coin exchange: " + e.message,
-          error: e.error
-      });
+    res.status(500).json({
+      result: false,
+      message: "An error occurred during coin exchange: " + e.message,
+      error: e.error,
+    });
   }
-}
+};
 
 const addCryptoToAccount = async (req, res) => {
   const data = req.body;
   try {
-      const user = await dao.getUserById(req.user.id);
-      const decryptedMasternode = decryptXpriv(req.user.masternode, user.password);
-      const Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.testnet);
-      const result = await service.addCryptoAccountService(req.user.id, data.cointype, Masternode, data.network);
-      res.status(200).json({
-          result: true,
-          data: result
-      });
+    const user = await dao.getUserById(req.user.id);
+    const decryptedMasternode = decryptXpriv(req.user.masternode, user.password);
+    const Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.testnet);
+    const result = await service.addCryptoAccountService(req.user.id, data.cointype, Masternode, data.network);
+    res.status(200).json({
+      result: true,
+      data: result,
+    });
   } catch (error) {
-      res.status(500).json({
-          result: false,
-          message: "An error occurred while adding crypto account: " + error.message,
-          error: error.message
-      });
+    res.status(500).json({
+      result: false,
+      message: "An error occurred while adding crypto account: " + error.message,
+      error: error.message,
+    });
   }
-}
+};
 
 const getTokens = async (req, res) => {
-    const data = req.body;
-    try {
-        const result = await service.getTokens(data.chain, data.symbol, data.address, data.network);
-        res.status(200).json({
-            result: true,
-            data: result
-        });
-    } catch (error) {
-        res.status(500).json({
-            result: false,
-            message: "An error occurred while getting tokens: " + error.message,
-            error: error.message
-        });
-    }
-}
+  const data = req.body;
+  try {
+    const result = await service.getTokens(data.chain, data.symbol, data.address, data.network);
+    res.status(200).json({
+      result: true,
+      data: result,
+    });
+  } catch (error) {
+    res.status(500).json({
+      result: false,
+      message: "An error occurred while getting tokens: " + error.message,
+      error: error.message,
+    });
+  }
+};
 
 const exchangeTokenBetweenSameBc = async (req, res) => {
   const data = req.body;
   try {
-      let Masternode, decryptedMasternode, user
-      user = await dao.getUserById(req.user.id)
+    let Masternode, decryptedMasternode, user;
+    user = await dao.getUserById(req.user.id);
 
-      if (!user) {
-          return res.status(400).json({
-              result: false,
-              message: "User not found"
-          });
-      }
-
-      let isAddressOwnedByUser = await dao.isAddressOwnedByUser(req.user.id, data.fromaddress, data.cointype)
-      if (!isAddressOwnedByUser) {
-          return res.status(500).json({
-              result: false,
-              message: "The sender address is not part of the logged in user"
-          });
-      }
-      decryptedMasternode = decryptXpriv(req.user.masternode, user.password);
-      if (data.network == "TESTNET") {
-          Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.testnet);
-      } else {
-          Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.bitcoin);
-      }
-      const result = await service.exchangeTokenBetweenSameBc(data.chain, data.symbol, data.toaddress, data.fromaddress, data.amount, Masternode, data.network);
-      res.status(200).json({
-          result: true,
-          data: result
+    if (!user) {
+      return res.status(400).json({
+        result: false,
+        message: "User not found",
       });
+    }
+
+    let isAddressOwnedByUser = await dao.isAddressOwnedByUser(req.user.id, data.fromaddress, data.cointype);
+    if (!isAddressOwnedByUser) {
+      return res.status(500).json({
+        result: false,
+        message: "The sender address is not part of the logged in user",
+      });
+    }
+    decryptedMasternode = decryptXpriv(req.user.masternode, user.password);
+    if (data.network == "TESTNET") {
+      Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.testnet);
+    } else {
+      Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.bitcoin);
+    }
+    const result = await service.exchangeTokenBetweenSameBc(
+      data.chain,
+      data.symbol,
+      data.toaddress,
+      data.fromaddress,
+      data.amount,
+      Masternode,
+      data.network
+    );
+    res.status(200).json({
+      result: true,
+      data: result,
+    });
   } catch (error) {
-      res.status(500).json({
-          result: false,
-          message: "An error occurred during token exchange: " + error.message,
-          error: error.message
-      });
+    res.status(500).json({
+      result: false,
+      message: "An error occurred during token exchange: " + error.message,
+      error: error.message,
+    });
   }
-}
+};
 
 const activateTokenAccounts = async (req, res) => {
   try {
-      const user = await dao.getUserById(req.user.id);
-      const decryptedMasternode = decryptXpriv(req.user.masternode, user.password);
-      const Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.testnet);
+    const user = await dao.getUserById(req.user.id);
+    const decryptedMasternode = decryptXpriv(req.user.masternode, user.password);
+    const Masternode = utils.bip32.fromBase58(decryptedMasternode, utils.bitcoin.networks.testnet);
 
-      const result = await service.activateTokenAccounts(req.user.id, Masternode);
-      res.status(200).json({
-          result: true,
-          data: result
-      });
+    const result = await service.activateTokenAccounts(req.user.id, Masternode);
+    res.status(200).json({
+      result: true,
+      data: result,
+    });
   } catch (error) {
-      res.status(500).json({
-          result: false,
-          message: "An error occurred while activating token accounts: " + error.message,
-          error: error.message
-      });
+    res.status(500).json({
+      result: false,
+      message: "An error occurred while activating token accounts: " + error.message,
+      error: error.message,
+    });
   }
-}
+};
 
 const getListOfSupportedTokens = async (req, res) => {
   try {
-      const dati = req.body;
+    const dati = req.body;
 
-      // Validate the blockchain option
-      const validChains = ["ETH", "BNB", "SOL"];
-      if (!validChains.includes(dati.chain)) {
-          throw new Error("Invalid blockchain option");
-      }
+    // Validate the blockchain option
+    const validChains = ["ETH", "BNB", "SOL"];
+    if (!validChains.includes(dati.chain)) {
+      throw new Error("Invalid blockchain option");
+    }
 
-      const result = await service.getListOfSupportedTokens(dati.chain);
-      res.status(200).json({
-          result: true,
-          data: result
-      });
+    const result = await service.getListOfSupportedTokens(dati.chain);
+    res.status(200).json({
+      result: true,
+      data: result,
+    });
   } catch (error) {
-      res.status(500).json({
-          result: false,
-          message: "An error occurred while retrieving list of supported tokens: " + error.message,
-          error: error.message
-      });
+    res.status(500).json({
+      result: false,
+      message: "An error occurred while retrieving list of supported tokens: " + error.message,
+      error: error.message,
+    });
   }
-}
+};
 
 const getTransactions = async (req, res) => {
   try {
-      const dati = req.body;
-      const resData = await service.findDeviceDetails(req.user.identifier);
-      const userId = resData[0].id;
-      const addressArray = await service.findPublicAddress(userId);
-      let { totalCount, transactions } = await service.getTransactions(userId, dati.network_type, parseInt(dati.limit), parseInt(dati.offset))
-      //   console.log("transactions", transactions, totalCount)
-      transactions.forEach(transactionItem => {
-          const { from_address, destination_address } = transactionItem;
-          const isOutgoing = addressArray.includes(from_address);
-          // Check for incoming
-          const isIncoming = addressArray.includes(destination_address);
-          // console.log("from_address", from_address, "destination_address", destination_address, "isOutgoing", isOutgoing, "isIncoming",isIncoming)
-          let status;
-          if (isOutgoing && isIncoming) {
-              status = 'self-transfer';
-          } else if (isOutgoing) {
-              status = 'outgoing';
-          } else if (isIncoming) {
-              status = 'incoming';
-          } else {
-              status = 'none';
-          }
-          transactionItem.status = status;
-      });
-      res.status(200).json({
-          result: true,
-          data: {
-              totalCount: totalCount,
-              transactions: transactions
-          }
-      });
+    const dati = req.body;
+    const resData = await service.findDeviceDetails(req.user.identifier);
+    const userId = resData[0].id;
+    const addressArray = await service.findPublicAddress(userId);
+    let { totalCount, transactions } = await service.getTransactions(userId, dati.network_type, parseInt(dati.limit), parseInt(dati.offset));
+    //   console.log("transactions", transactions, totalCount)
+    transactions.forEach((transactionItem) => {
+      const { from_address, destination_address } = transactionItem;
+      const isOutgoing = addressArray.includes(from_address);
+      // Check for incoming
+      const isIncoming = addressArray.includes(destination_address);
+      // console.log("from_address", from_address, "destination_address", destination_address, "isOutgoing", isOutgoing, "isIncoming",isIncoming)
+      let status;
+      if (isOutgoing && isIncoming) {
+        status = "self-transfer";
+      } else if (isOutgoing) {
+        status = "outgoing";
+      } else if (isIncoming) {
+        status = "incoming";
+      } else {
+        status = "none";
+      }
+      transactionItem.status = status;
+    });
+    res.status(200).json({
+      result: true,
+      data: {
+        totalCount: totalCount,
+        transactions: transactions,
+      },
+    });
   } catch (error) {
-      res.status(500).json({
-          result: false,
-          message: "An error occurred while retrieving list of transactions: " + error.message,
-          error: error.message
-      });
+    res.status(500).json({
+      result: false,
+      message: "An error occurred while retrieving list of transactions: " + error.message,
+      error: error.message,
+    });
   }
-}
+};
 
 const getTransactionsByAddress = async (req, res) => {
   try {
-      const dati = req.body;
-      let { totalCount, transactions } = await service.getTransactionsByAddress(dati.address, parseInt(dati.limit), parseInt(dati.offset))
-      const resData = await service.findDeviceDetails(req.user.identifier);
-      const userId = resData[0].id
-      const addressArray = await service.findPublicAddress(userId);
-      transactions.forEach(transactionItem => {
-          const { from_address, destination_address } = transactionItem;
-          const isOutgoing = addressArray.includes(from_address);
-          // Check for incoming
-          const isIncoming = addressArray.includes(destination_address);
-          let status;
-          if (isOutgoing && isIncoming) {
-              status = 'self-transfer';
-          } else if (isOutgoing) {
-              status = 'outgoing';
-          } else if (isIncoming) {
-              status = 'incoming';
-          } else {
-              status = 'none';
-          }
-          transactionItem.status = status;
-      });
-      res.status(200).json({
-          result: true,
-          data: {
-              totalCount: totalCount,
-              transactions: transactions
-          }
-      });
+    const dati = req.body;
+    let { totalCount, transactions } = await service.getTransactionsByAddress(dati.address, parseInt(dati.limit), parseInt(dati.offset));
+    const resData = await service.findDeviceDetails(req.user.identifier);
+    const userId = resData[0].id;
+    const addressArray = await service.findPublicAddress(userId);
+    transactions.forEach((transactionItem) => {
+      const { from_address, destination_address } = transactionItem;
+      const isOutgoing = addressArray.includes(from_address);
+      // Check for incoming
+      const isIncoming = addressArray.includes(destination_address);
+      let status;
+      if (isOutgoing && isIncoming) {
+        status = "self-transfer";
+      } else if (isOutgoing) {
+        status = "outgoing";
+      } else if (isIncoming) {
+        status = "incoming";
+      } else {
+        status = "none";
+      }
+      transactionItem.status = status;
+    });
+    res.status(200).json({
+      result: true,
+      data: {
+        totalCount: totalCount,
+        transactions: transactions,
+      },
+    });
   } catch (error) {
-      res.status(500).json({
-          result: false,
-          message: "An error occurred while retrieving list of transactions by address: " + error.message,
-          error: error.message
-      });
+    res.status(500).json({
+      result: false,
+      message: "An error occurred while retrieving list of transactions by address: " + error.message,
+      error: error.message,
+    });
   }
-}
+};
 
 const getAllTransactions = async (req, res) => {
   try {
-      const addresses = await dao.getAddresses(req.user.id)
-      const result = await service.getAllTransactions(addresses);
-      res.status(200).json({
-          result: true,
-          data: result
-      });
+    const addresses = await dao.getAddresses(req.user.id);
+    const result = await service.getAllTransactions(addresses);
+    res.status(200).json({
+      result: true,
+      data: result,
+    });
   } catch (error) {
-      res.status(500).json({
-          result: false,
-          message: "An error occurred while getting all transactions: " + error.message,
-          error: error.message
-      });
+    res.status(500).json({
+      result: false,
+      message: "An error occurred while getting all transactions: " + error.message,
+      error: error.message,
+    });
   }
-}
+};
 
 const getLatestTransactionsFromDB = async (req, res) => {
   try {
-      const data = req.body
-      const result = await service.getLatestTransactionsFromDB(data.limit);
-      res.status(200).json({
-          result: true,
-          data: result
-      });
+    const data = req.body;
+    const result = await service.getLatestTransactionsFromDB(data.limit);
+    res.status(200).json({
+      result: true,
+      data: result,
+    });
   } catch (error) {
-      res.status(500).json({
-          result: false,
-          message: "An error occurred while getting latest transactions: " + error.message,
-          error: error.message
-      });
+    res.status(500).json({
+      result: false,
+      message: "An error occurred while getting latest transactions: " + error.message,
+      error: error.message,
+    });
   }
-}
+};
 
 const getAllTransactionsForAddress = async (req, res) => {
   try {
-      const data = req.body
-      const result = await service.getAllTransactionsForAddress(data.address);
-      res.status(200).json({
-          result: true,
-          data: result
-      });
+    const data = req.body;
+    const result = await service.getAllTransactionsForAddress(data.address);
+    res.status(200).json({
+      result: true,
+      data: result,
+    });
   } catch (error) {
-      res.status(500).json({
-          result: false,
-          message: "An error occurred while getting all transactions for an address: " + error.message,
-          error: error.message
-      });
+    res.status(500).json({
+      result: false,
+      message: "An error occurred while getting all transactions for an address: " + error.message,
+      error: error.message,
+    });
   }
-}
+};
 
 const changePassword = async (req, res) => {
   try {
-      const dati = req.body;
-      const userId = req.user.id;
-      const result = await service.changePasswordForLoggedUser(dati.old_password, dati.new_password, userId);
-      res.status(200).json({
-          result: true,
-          message: result
-      });
+    const dati = req.body;
+    const userId = req.user.id;
+    const result = await service.changePasswordForLoggedUser(dati.old_password, dati.new_password, userId);
+    res.status(200).json({
+      result: true,
+      message: result,
+    });
   } catch (error) {
-      res.status(500).json({
-          result: false,
-          message: "An error occurred while changing password: " + error.message,
-          error: error.message
-      });
+    res.status(500).json({
+      result: false,
+      message: "An error occurred while changing password: " + error.message,
+      error: error.message,
+    });
   }
-}
+};
 
 const changePasswordForNoLoggedUser = async (req, res) => {
   try {
-      const dati = req.body;
-      const result = await service.changePasswordForNoLoggedUser(dati.token, dati.new_password);
-      res.status(200).json({
-          result: true,
-          message: result
-      });
+    const dati = req.body;
+    const result = await service.changePasswordForNoLoggedUser(dati.token, dati.new_password);
+    res.status(200).json({
+      result: true,
+      message: result,
+    });
   } catch (error) {
-      res.status(500).json({
-          result: false,
-          message: "An error occurred while changing password " + error.message,
-          error: error.message
-      });
+    res.status(500).json({
+      result: false,
+      message: "An error occurred while changing password " + error.message,
+      error: error.message,
+    });
   }
-}
+};
 
 const sendChangePasswordEmail = async (req, res) => {
   try {
-      const dati = req.body;
-      let user = await dao.selectUserByEmail(dati.email);
-      if (user) {
-          const tokenVerifica = crypto.randomBytes(20).toString('hex');
-          mailer.sendEmailRecoverPassword(dati.email, tokenVerifica);
-          await dao.saveTokenDataForUser(tokenVerifica, dati.email)
-          res.status(200).json({
-              result: true,
-              message: "Email sent succsessfully"
-          });
-      } else {
-          res.status(500).json({
-              result: false,
-              message: "The email entered is not present in our system"
-          });
-      }
-  } catch (error) {
-      res.status(500).json({
-          result: false,
-          message: "An error occurred while changing password: " + error.message,
-          error: error.message
+    const dati = req.body;
+    let user = await dao.selectUserByEmail(dati.email);
+    if (user) {
+      const tokenVerifica = crypto.randomBytes(20).toString("hex");
+      mailer.sendEmailRecoverPassword(dati.email, tokenVerifica);
+      await dao.saveTokenDataForUser(tokenVerifica, dati.email);
+      res.status(200).json({
+        result: true,
+        message: "Email sent succsessfully",
       });
+    } else {
+      res.status(500).json({
+        result: false,
+        message: "The email entered is not present in our system",
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      result: false,
+      message: "An error occurred while changing password: " + error.message,
+      error: error.message,
+    });
   }
-}
+};
 
 const verifyTokenChangePassword = async (req, res) => {
   try {
-      const dati = req.query;
-      let user = await dao.selectUserByToken(dati.token);
-      if (!user) {
-          res.status(400).json({
-              result: false,
-              message: "User not found"
-          });
-          return
-      }
-      if (user.token_verifica === null) {
-          res.status(400).json({
-              result: false,
-              message: "The token is not valid"
-          });
-          return
-      }
-
-      if (user.token_verifica === dati.token) {
-          if (dati.app != undefined && dati.app === "true") {
-              res.status(200).json({
-                  result: true,
-                  message: "Token verified"
-              });
-              return
-          } else {
-              res.redirect(process.env.REACT_APP_BASE_URL + `/recover?token=${dati.token}`);
-          }
-      } else {
-          res.status(400).json({
-              result: false,
-              message: "The token does not match the user's token"
-          });
-      }
-  } catch (error) {
-      res.status(500).json({
-          result: false,
-          message: "An error occurred while verifying token: " + error.message,
-          error: error.message
+    const dati = req.query;
+    let user = await dao.selectUserByToken(dati.token);
+    if (!user) {
+      res.status(400).json({
+        result: false,
+        message: "User not found",
       });
+      return;
+    }
+    if (user.token_verifica === null) {
+      res.status(400).json({
+        result: false,
+        message: "The token is not valid",
+      });
+      return;
+    }
+
+    if (user.token_verifica === dati.token) {
+      if (dati.app != undefined && dati.app === "true") {
+        res.status(200).json({
+          result: true,
+          message: "Token verified",
+        });
+        return;
+      } else {
+        res.redirect(process.env.REACT_APP_BASE_URL + `/recover?token=${dati.token}`);
+      }
+    } else {
+      res.status(400).json({
+        result: false,
+        message: "The token does not match the user's token",
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      result: false,
+      message: "An error occurred while verifying token: " + error.message,
+      error: error.message,
+    });
   }
-}
+};
 
 const generateTotp = async (req, res) => {
   try {
-      let user = await dao.getUserById(req.user.id);
+    let user = await dao.getUserById(req.user.id);
 
-      if (!user) {
-          return res.status(400).json({
-              result: false,
-              message: "User not found"
-          });
-      }
-
-      // genero il totp per google authenticator
-      var secret = speakeasy.generateSecret({ length: 20 });
-      let totp = secret.base32;
-
-      // genero l'URL per il QR Code
-      var otpAuthUrl = speakeasy.otpauthURL({ secret: totp, encoding: 'base32', label: 'Banckount' });
-      await dao.saveUserTotp(user.id, totp)
-      res.status(200).json({
-          result: true,
-          data: {
-              totp: totp,
-              qrCodeUrl: otpAuthUrl,
-          }
+    if (!user) {
+      return res.status(400).json({
+        result: false,
+        message: "User not found",
       });
+    }
+
+    // genero il totp per google authenticator
+    var secret = speakeasy.generateSecret({ length: 20 });
+    let totp = secret.base32;
+
+    // genero l'URL per il QR Code
+    var otpAuthUrl = speakeasy.otpauthURL({ secret: totp, encoding: "base32", label: "Banckount" });
+    await dao.saveUserTotp(user.id, totp);
+    res.status(200).json({
+      result: true,
+      data: {
+        totp: totp,
+        qrCodeUrl: otpAuthUrl,
+      },
+    });
   } catch (error) {
-      res.status(500).json({
-          result: false,
-          message: "An error occurred while save TOTP status: " + error.message,
-          error: error.message
-      });
+    res.status(500).json({
+      result: false,
+      message: "An error occurred while save TOTP status: " + error.message,
+      error: error.message,
+    });
   }
-}
+};
 
 const enable2FA = async (req, res) => {
   try {
@@ -855,7 +868,7 @@ const enable2FA = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
 
 const disable2FA = async (req, res) => {
   try {
@@ -878,7 +891,7 @@ const disable2FA = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
 
 const verifyOTP = async (req, res) => {
   try {
@@ -915,7 +928,7 @@ const verifyOTP = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
 
 const deviceLogin = async (req, res) => {
   const dati = req.body;
@@ -946,7 +959,7 @@ const deviceLogin = async (req, res) => {
         code: error.code,
       });
     });
-}
+};
 
 const insertAddress = async (req, res) => {
   const addresses = req.body;
@@ -985,7 +998,7 @@ const insertAddress = async (req, res) => {
         code: error.code,
       });
     });
-}
+};
 
 const insertTransaction = async (req, res) => {
   const dati = req.body;
@@ -1024,7 +1037,7 @@ const insertTransaction = async (req, res) => {
         code: error.code,
       });
     });
-}
+};
 
 const findAddressBySearchField = async (req, res) => {
   try {
@@ -1063,7 +1076,7 @@ const findAddressBySearchField = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
 
 const tatumTransactionWebhook = async (req, res) => {
   try {
@@ -1128,7 +1141,7 @@ const tatumTransactionWebhook = async (req, res) => {
       error: "An error occurred while retrieving list of transactions by address: ",
     });
   }
-}
+};
 
 const sendTransaction = async (req, res) => {
   const data = req.body;
@@ -1153,7 +1166,7 @@ const sendTransaction = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
 
 const createNewWallet = async (req, res) => {
   try {
@@ -1174,7 +1187,7 @@ const createNewWallet = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
 
 const updateWallet = async (req, res) => {
   try {
@@ -1196,7 +1209,7 @@ const updateWallet = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
 
 const fetchWallets = async (req, res) => {
   try {
@@ -1236,7 +1249,7 @@ const fetchWallets = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
 
 const filterAddresses = async (req, res) => {
   try {
@@ -1299,7 +1312,7 @@ const filterAddresses = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
 
 const fetchAssets = async (req, res) => {
   try {
@@ -1389,7 +1402,7 @@ const fetchAssets = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
 
 const updateAddress = async (req, res) => {
   try {
@@ -1415,7 +1428,7 @@ const updateAddress = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
 
 const fetchLookupUrls = async (req, res) => {
   try {
@@ -1693,29 +1706,29 @@ const fetchRangoMetadata = async (req, res) => {
   }
 };
 
-const initiateSwap  = async (req, res)=>{
+const initiateSwap = async (req, res) => {
   try {
-    let url = `https://api.rango.exchange/basic/swap?apiKey=${process.env.RANGO_API_KEY}`
-    const {from, to, amount, slippage, fromAddress, toAddress} = req.body;
+    let url = `https://api.rango.exchange/basic/swap?apiKey=${process.env.RANGO_API_KEY}`;
+    const { from, to, amount, slippage, fromAddress, toAddress } = req.body;
     // Object.keys(req.body).map(key=>{
     //   url += `&${key}=${req.body[key]}`;
     // })
-    url += `&from=${from}&to=${to}&amount=${amount}&slippage=${slippage}&fromAddress=${fromAddress}&toAddress=${toAddress}`
+    url += `&from=${from}&to=${to}&amount=${amount}&slippage=${slippage}&fromAddress=${fromAddress}&toAddress=${toAddress}`;
     let response;
     try {
-      response = await axios.get(url, {headers: {accept: '*/*'}})
+      response = await axios.get(url, { headers: { accept: "*/*" } });
     } catch (error) {
-      if(error.response.data.error){
-        throw new Error(error.response.data.error)
-      }else{
+      if (error?.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      } else {
         throw error;
       }
     }
     return res.status(200).json({
       result: true,
-      message: 'Swap initiated successfully',
-      data: response.data
-    })
+      message: "Swap initiated successfully",
+      data: response.data,
+    });
   } catch (error) {
     console.log("Error while initiating swap : ", error);
     return res.status(500).json({
@@ -1724,14 +1737,13 @@ const initiateSwap  = async (req, res)=>{
       error: error.message,
     });
   }
-}
+};
 
-const getSwapRoutes = async (req, res)=>{
+const getSwapRoutes = async (req, res) => {
   try {
-    
-    let url = `https://api.rango.exchange/basic/quote?apiKey=${process.env.RANGO_API_KEY}`
-    const {from, to, amount} = req.query;
-    url += `&from=${from}&to=${to}&amount=${amount}`
+    let url = `https://api.rango.exchange/basic/quote?apiKey=${process.env.RANGO_API_KEY}`;
+    const { from, to, amount } = req.query;
+    url += `&from=${from}&to=${to}&amount=${amount}`;
     let response;
     // let i=0;
     // setInterval(async () => {
@@ -1749,23 +1761,24 @@ const getSwapRoutes = async (req, res)=>{
     //     }
     //   }, 100);
     try {
-      response = await axios.get(url, {headers: {
-        accept: '*/*'
-      }})
+      response = await axios.get(url, {
+        headers: {
+          accept: "*/*",
+        },
+      });
     } catch (error) {
-      if(error.response.data.error){
-        throw new Error(error.response.data.error)
-      }else{
+      if (error?.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      } else {
         throw error;
       }
     }
 
     return res.status(200).json({
       result: true,
-      message: 'Swap routes fetched successfully',
-      data: response.data
-    })
-
+      message: "Swap routes fetched successfully",
+      data: response.data,
+    });
   } catch (error) {
     console.log("Error while fetching swap routes : ", error);
     return res.status(500).json({
@@ -1774,7 +1787,50 @@ const getSwapRoutes = async (req, res)=>{
       error: error.message,
     });
   }
-}
+};
+
+const getTokenBalance = async (req, res) => {
+  const { wallet_address, blockchain, symbol, token_address } = req.query;
+  if (!wallet_address || !blockchain || !symbol) {
+    return res.status(400).json({
+      result: false,
+      message: "wallet_address, blockchain, symbol are required",
+      error: "wallet_address, blockchain, symbol are required",
+    });
+  }
+  try {
+    let url = `https://api.rango.exchange/basic/token-balance?apiKey=${process.env.RANGO_API_KEY}&walletAddress=${wallet_address}&blockchain=${blockchain}&symbol=${symbol}`;
+    if(token_address || token_address != null){
+      url += `&address=${token_address}`;
+    }
+    console.log('url', url)
+    let response;
+    try {
+      response = await axios.get(url, {
+        headers: {
+          accept: "*/*",
+        },
+      });
+    } catch (error) {
+      if (error?.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      } else {
+        throw error;
+      }
+    }
+    return res.status(200).json({
+      result: true,
+      message: 'Token balance fetched successfully',
+      data: response.data
+    })
+  } catch (error) {
+    console.log("Error while fetching token balance : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error while fetching token balance : " + error.message,
+    });
+  }
+};
 
 module.exports = {
   emailVerification,
@@ -1827,5 +1883,6 @@ module.exports = {
   fetchRangoBlockchainData,
   fetchRangoMetadata,
   initiateSwap,
-  getSwapRoutes
+  getSwapRoutes,
+  getTokenBalance
 };
