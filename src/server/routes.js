@@ -1280,12 +1280,80 @@ router.put("/api/onboard-user", jsonParser, auth.authenticateToken, controllers.
 
 router.post("/api/store-rango-bc-data", jsonParser, controllers.storeRangoBlockchainData);
 
-
+/**
+ * @swagger
+ * /api/rango-blockchain-data:
+ *   get:
+ *     summary: Fetch Rango Blockchain Data
+ *     description: Retrieves blockchain metadata stored in the database from the Rango API.
+ *     operationId: fetchRangoBlockchainData
+ *     tags:
+ *       - Blockchain
+ *     security:
+ *       - bearerAuth: []  # JWT Bearer Token Authentication
+ *     responses:
+ *       200:
+ *         description: Blockchain data fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Blockchain data fetched successfully"
+ *                 data:
+ *                   type: array
+ *                   description: List of blockchain data stored in the database
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       name:
+ *                         type: string
+ *                         example: "ETH"
+ *                       defaultDecimals:
+ *                         type: integer
+ *                         example: 18
+ *                       type:
+ *                         type: string
+ *                         example: "EVM"
+ *                       chainId:
+ *                         type: string
+ *                         example: "1"
+ *                       logo:
+ *                         type: string
+ *                         example: "https://example.com/eth-logo.png"
+ *                       displayName:
+ *                         type: string
+ *                         example: "Ethereum"
+ *                       shortName:
+ *                         type: string
+ *                         example: "ETH"
+ *                       info:
+ *                         type: object
+ *                         description: Additional blockchain info
+ *                         example:
+ *                           explorerUrl: "https://etherscan.io"
+ *                           networkStatus: "Active"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'  # Unauthorized (Missing/Invalid token)
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'  # Forbidden (Not enough permissions)
+ *       500:
+ *         $ref: '#/components/responses/ServerError'  # Server error response
+ */
 router.get("/api/rango-blockchain-data", jsonParser, auth.authenticateToken, controllers.fetchRangoBlockchainData);
+
+
 router.get("/api/rango-metadata", jsonParser, auth.authenticateToken, controllers.fetchRangoMetadata);
 
 router.post("/api/initiate-swap", jsonParser, auth.authenticateToken, controllers.initiateSwap);
 router.get("/api/swap-routes", jsonParser, auth.authenticateToken, controllers.getSwapRoutes);
+
+router.post('/api/check-swap-status', jsonParser, auth.authenticateToken, controllers.checkTxStatus)
 
 /**
  * @swagger

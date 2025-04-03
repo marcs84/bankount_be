@@ -11,6 +11,8 @@ const { decryptXpriv } = require("../config/Keystore");
 const utils = require("../../src/utils");
 const speakeasy = require("speakeasy");
 const notification = require("../../Helpers/sendNotification");
+const { RangoClient } = require("rango-sdk-basic");
+const rango = new RangoClient(process.env.RANGO_API_KEY);
 
 const emailVerification = async (req, res) => {
   try {
@@ -1608,9 +1610,8 @@ const onboardUser = async (req, res) => {
 
 const storeRangoBlockchainData = async (req, res) => {
   try {
-    const url = `https://api.rango.exchange/basic/meta/blockchains?apiKey=${process.env.RANGO_API_KEY}`;
-    const response = await axios.get(url, { headers: { accept: "*/*" } });
-    const data = response.data
+    const response = await rango.chains();
+    const data = response
       .map((obj) => {
         if (obj.name === "SOLANA" || obj.name === "BNB" || obj.name === "ETH" || obj.name === "BSC" || obj.name === "BTC") {
           return {
@@ -1679,7 +1680,6 @@ const fetchRangoBlockchainData = async (req, res) => {
 
 const fetchRangoMetadata = async (req, res) => {
   try {
-    let url = `https://api.rango.exchange/basic/meta?apiKey=${process.env.RANGO_API_KEY}&excludeNonPopulars=true`;
     const { blockchains } = req.query;
     if (!blockchains) {
       return res.status(400).json({
@@ -1688,13 +1688,20 @@ const fetchRangoMetadata = async (req, res) => {
         error: "Invalid parameters",
       });
     }
-    url += `&blockchains=${blockchains}`;
-    const response = await axios.get(url);
-
+    let response;
+    try {
+      response = await rango.meta({blockchains: [blockchains], excludeNonPopulars: true})   
+    } catch (error) {
+      if (error?.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      } else {
+        throw error;
+      }
+    }
     return res.status(200).json({
       result: true,
       message: "Rango metadata fetched successfully",
-      data: response.data.tokens,
+      data: response.tokens,
     });
   } catch (error) {
     console.log("Error while fetching Rango metadata : ", error);
@@ -1708,15 +1715,18 @@ const fetchRangoMetadata = async (req, res) => {
 
 const initiateSwap = async (req, res) => {
   try {
-    let url = `https://api.rango.exchange/basic/swap?apiKey=${process.env.RANGO_API_KEY}`;
-    const { from, to, amount, slippage, fromAddress, toAddress } = req.body;
-    // Object.keys(req.body).map(key=>{
-    //   url += `&${key}=${req.body[key]}`;
-    // })
-    url += `&from=${from}&to=${to}&amount=${amount}&slippage=${slippage}&fromAddress=${fromAddress}&toAddress=${toAddress}`;
+    const {from_blockchain, from_token_address, to_blockchain, to_token_address, amount, from_wallet_address, to_wallet_address, slippage} = req.body;
     let response;
     try {
-      response = await axios.get(url, { headers: { accept: "*/*" } });
+      response = await rango.swap({
+        from: {"blockchain": from_blockchain, "address": from_token_address},
+        to: {"blockchain": to_blockchain, "address": to_token_address},
+        amount: amount,
+        fromAddress: from_wallet_address,
+        toAddress: to_wallet_address,
+        disableEstimate: true,
+        slippage: slippage,
+    })
     } catch (error) {
       if (error?.response?.data?.error) {
         throw new Error(error.response.data.error);
@@ -1727,7 +1737,7 @@ const initiateSwap = async (req, res) => {
     return res.status(200).json({
       result: true,
       message: "Swap initiated successfully",
-      data: response.data,
+      data: response,
     });
   } catch (error) {
     console.log("Error while initiating swap : ", error);
@@ -1741,31 +1751,15 @@ const initiateSwap = async (req, res) => {
 
 const getSwapRoutes = async (req, res) => {
   try {
-    let url = `https://api.rango.exchange/basic/quote?apiKey=${process.env.RANGO_API_KEY}`;
-    const { from, to, amount } = req.query;
-    url += `&from=${from}&to=${to}&amount=${amount}`;
+    const {from_blockchain, from_address, to_blockchain, to_address, amount, slippage} = req.query;
     let response;
-    // let i=0;
-    // setInterval(async () => {
-    //   try {
-    //     response = await axios.get(url, {headers: {
-    //       accept: '*/*'
-    //     }})
-    //     console.log(i++, 'i++')
-    //     } catch (error) {
-    //       if(error.response.data.error){
-    //         throw new Error(error.response.data.error)
-    //       }else{
-    //         throw error.message;
-    //       }
-    //     }
-    //   }, 100);
     try {
-      response = await axios.get(url, {
-        headers: {
-          accept: "*/*",
-        },
-      });
+      response = await rango.quote({
+        from: {"blockchain": from_blockchain, "address": from_address},
+        to: {"blockchain": to_blockchain, "address": to_address},
+        amount: amount,
+        slippage: slippage
+    })
     } catch (error) {
       if (error?.response?.data?.error) {
         throw new Error(error.response.data.error);
@@ -1777,7 +1771,7 @@ const getSwapRoutes = async (req, res) => {
     return res.status(200).json({
       result: true,
       message: "Swap routes fetched successfully",
-      data: response.data,
+      data: response,
     });
   } catch (error) {
     console.log("Error while fetching swap routes : ", error);
@@ -1799,18 +1793,14 @@ const getTokenBalance = async (req, res) => {
     });
   }
   try {
-    let url = `https://api.rango.exchange/basic/token-balance?apiKey=${process.env.RANGO_API_KEY}&walletAddress=${wallet_address}&blockchain=${blockchain}&symbol=${symbol}`;
-    if(token_address || token_address != null){
-      url += `&address=${token_address}`;
-    }
-    console.log('url', url)
     let response;
     try {
-      response = await axios.get(url, {
-        headers: {
-          accept: "*/*",
-        },
-      });
+      response = await rango.tokenBalance({
+        walletAddress: wallet_address,
+        blockchain: blockchain, 
+        symbol: symbol,
+        address: token_address,
+    })
     } catch (error) {
       if (error?.response?.data?.error) {
         throw new Error(error.response.data.error);
@@ -1820,9 +1810,9 @@ const getTokenBalance = async (req, res) => {
     }
     return res.status(200).json({
       result: true,
-      message: 'Token balance fetched successfully',
-      data: response.data
-    })
+      message: "Token balance fetched successfully",
+      data: response.data,
+    });
   } catch (error) {
     console.log("Error while fetching token balance : ", error);
     return res.status(500).json({
@@ -1831,6 +1821,40 @@ const getTokenBalance = async (req, res) => {
     });
   }
 };
+
+const checkTxStatus = async (req, res)=> {
+  try {
+    const {request_id, tx_id} = req.body;
+    if (!request_id || !tx_id) {
+      return res.status(400).json({
+        result: false,
+        message: "wallet_address, blockchain, symbol are required",
+        error: "wallet_address, blockchain, symbol are required",
+      });
+    }
+    let response;
+    try {
+      response = await rango.status({requestId: request_id, txId: tx_id});
+    } catch (error) {
+      if (error?.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      } else {
+        throw error;
+      }
+    }
+
+    return res.status(200).json({
+      result: true,
+      data: response
+    })
+  } catch (error) {
+    console.log("Error while checking tx status : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error while checking tx status : " + error.message,
+    });
+  }
+}
 
 module.exports = {
   emailVerification,
@@ -1884,5 +1908,6 @@ module.exports = {
   fetchRangoMetadata,
   initiateSwap,
   getSwapRoutes,
-  getTokenBalance
+  getTokenBalance,
+  checkTxStatus
 };

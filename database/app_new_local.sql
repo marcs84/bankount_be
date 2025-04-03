@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 28, 2025 at 10:24 AM
+-- Generation Time: Apr 03, 2025 at 12:15 PM
 -- Server version: 8.0.40
 -- PHP Version: 8.2.12
 
@@ -267,16 +267,40 @@ INSERT INTO `addresses` (`id`, `cointype`, `address`, `address_name`, `id_utente
 (438, 'BNB', '0x60c647a722d7aca818f07c829a91cbcf39a33b44', 'Address 2', 263, 2, NULL, '2025-03-25 11:23:14', 'SYNCED', 'Inactive', 39),
 (439, 'SOL', '4H6gdx37iJdFZ2Z6PqSJxi8vFDzjnNVAhr5eNRQhNbPA', 'Address 3', 263, 3, NULL, '2025-03-25 11:23:14', 'SYNCED', 'Inactive', 39),
 (440, 'BTC', 'n3AZibZzeJZNUxBi8QRE7A8T2FSgnjs74E', 'Address 4', 263, 4, NULL, '2025-03-25 11:23:14', 'SYNCED', 'Inactive', 39),
-(441, 'ETH', '0xe19f79722e264b9673ac5630940d894edfc192e0', 'Address 1', 264, 1, NULL, '2025-03-26 14:39:07', 'SYNCED', 'Active', 40),
-(442, 'BNB', '0x3c3ccf6c4ac1e32407dfeb8c63ed90a8bbb10ee9', 'Address 2', 264, 2, NULL, '2025-03-26 14:39:07', 'SYNCED', 'Active', 40),
-(443, 'SOL', '5Ep7uR79qf5HSYMUuM2FPBXHzDuhyZ2f2wS94Z8aEvFv', 'Address 3', 264, 3, NULL, '2025-03-26 14:39:08', 'SYNCED', 'Active', 40),
-(444, 'BTC', 'mh7Y2FjSF4Xqqr2qEagu9dDbnq6LdjfU4C', 'Address 4', 264, 4, NULL, '2025-03-26 14:39:08', 'SYNCED', 'Active', 40),
-(445, 'ETH', '0xcda522c4e678d7edb6c923a1c330b91733dd8896', 'my address 1', 264, 5, NULL, '2025-03-28 08:37:09', 'SYNCED', 'Active', 40),
-(446, 'ETH', '0x681143edaf2645a472fd0100883bbdb3df9b3555', '', 264, 6, NULL, '2025-03-28 08:39:43', 'SYNCED', 'Active', 40),
-(447, 'ETH', '0xdbf0163a87ab00c59195521530e44533397d9d20', 'new add', 264, 7, NULL, '2025-03-28 08:42:39', 'SYNCED', 'Active', 40),
-(448, 'ETH', '0xdf034773a253af8b445f44c600f2eaddb13cf72a', 'hfhffhf', 264, 8, NULL, '2025-03-28 08:43:34', 'SYNCED', 'Active', 40),
-(449, 'ETH', '0x8416c5779be12cd634c18f7955d3142a61e60891', 'my2', 264, 9, NULL, '2025-03-28 08:50:27', 'SYNCED', 'Active', 40),
-(450, 'ETH', '0x100f84beb14446de2944bf0b5ed9ffbaf01b4188', 'jdjdnnsns', 264, 10, NULL, '2025-03-28 08:51:05', 'SYNCED', 'Active', 40);
+(441, 'ETH', '0xe19f79722e264b9673ac5630940d894edfc192e0', 'Address 1', 264, 1, NULL, '2025-03-26 14:39:07', 'SYNCED', 'Inactive', 40),
+(442, 'BNB', '0x3c3ccf6c4ac1e32407dfeb8c63ed90a8bbb10ee9', 'Address 2', 264, 2, NULL, '2025-03-26 14:39:07', 'SYNCED', 'Inactive', 40),
+(443, 'SOL', '5Ep7uR79qf5HSYMUuM2FPBXHzDuhyZ2f2wS94Z8aEvFv', 'Address 3', 264, 3, NULL, '2025-03-26 14:39:08', 'SYNCED', 'Inactive', 40),
+(444, 'BTC', 'mh7Y2FjSF4Xqqr2qEagu9dDbnq6LdjfU4C', 'Address 4', 264, 4, NULL, '2025-03-26 14:39:08', 'SYNCED', 'Inactive', 40),
+(445, 'ETH', '0xcda522c4e678d7edb6c923a1c330b91733dd8896', 'my address 1', 264, 5, NULL, '2025-03-28 08:37:09', 'SYNCED', 'Inactive', 40),
+(446, 'ETH', '0x681143edaf2645a472fd0100883bbdb3df9b3555', '', 264, 6, NULL, '2025-03-28 08:39:43', 'SYNCED', 'Inactive', 40),
+(447, 'ETH', '0xdbf0163a87ab00c59195521530e44533397d9d20', 'new add', 264, 7, NULL, '2025-03-28 08:42:39', 'SYNCED', 'Inactive', 40),
+(448, 'ETH', '0xdf034773a253af8b445f44c600f2eaddb13cf72a', 'hfhffhf', 264, 8, NULL, '2025-03-28 08:43:34', 'SYNCED', 'Inactive', 40),
+(449, 'ETH', '0x8416c5779be12cd634c18f7955d3142a61e60891', 'my2', 264, 9, NULL, '2025-03-28 08:50:27', 'SYNCED', 'Inactive', 40),
+(450, 'ETH', '0x100f84beb14446de2944bf0b5ed9ffbaf01b4188', 'jdjdnnsns', 264, 10, NULL, '2025-03-28 08:51:05', 'SYNCED', 'Inactive', 40),
+(451, 'ETH', '0x444b8e183d8d828b256b2ef408143928167ce170', 'Address 1', 264, 1, NULL, '2025-03-28 10:24:46', 'SYNCED', 'Active', 41),
+(452, 'BNB', '0x2b9e99043fdb4e91a9972dfa612c05a7dcf41c59', 'Address 2', 264, 2, NULL, '2025-03-28 10:24:46', 'SYNCED', 'Active', 41),
+(453, 'SOL', '4aiZR2bb9Ra1Gqon1qrvm5T2zeFLERDZg1G1WsuSamms', 'Address 3', 264, 3, NULL, '2025-03-28 10:24:46', 'SYNCED', 'Active', 41),
+(454, 'BTC', 'mrf9Q2wKKCjS1n62J8DUqQe2rJDQKo7BWC', 'Address 4', 264, 4, NULL, '2025-03-28 10:24:46', 'SYNCED', 'Active', 41),
+(455, 'ETH', '0xebd1bbd5e7e6fc78c8b33a91086d34fed1c4a230', 'Address 1', 265, 1, NULL, '2025-03-31 12:58:28', 'SYNCED', 'Active', 42),
+(456, 'BNB', '0x8bb63cb8749e9def5d6f68bf767ae66f2ecb62d0', 'Address 2', 265, 2, NULL, '2025-03-31 12:58:28', 'SYNCED', 'Active', 42),
+(457, 'SOL', '5vXEDD49mkRKWeXJMhC29GBrA9mCmaSpvn2bsfmESvr2', 'Address 3', 265, 3, NULL, '2025-03-31 12:58:28', 'SYNCED', 'Active', 42),
+(458, 'BTC', 'mzSm2PYtmT6k9S79wBofvbSX1r8YYnWt6u', 'Address 4', 265, 4, NULL, '2025-03-31 12:58:28', 'SYNCED', 'Active', 42),
+(459, 'ETH', '0xf59caad119797196c7b2135591d0b8adaa0d676e', 'Address 1', 266, 1, NULL, '2025-04-01 06:02:58', 'SYNCED', 'Active', 43),
+(460, 'BNB', '0x2966cb68c2f96e67b280d2446a1ee48e4bf7aeca', 'Address 2', 266, 2, NULL, '2025-04-01 06:02:58', 'SYNCED', 'Active', 43),
+(461, 'SOL', '3k9UFjasDpdrvjdZmDrErFSHn4Ua8GMoWdVQeeELij4p', 'Address 3', 266, 3, NULL, '2025-04-01 06:02:58', 'SYNCED', 'Active', 43),
+(462, 'BTC', 'mgvqzyszYjY2EH1wL4pKfQcStLtYDu1V4w', 'Address 4', 266, 4, NULL, '2025-04-01 06:02:58', 'SYNCED', 'Active', 43),
+(463, 'ETH', '0x09e83beb50043f645d226603a86b6e65c4f90df2', 'Address 1', 272, 1, NULL, '2025-04-01 08:07:26', 'SYNCED', 'Active', 44),
+(464, 'BNB', '0x1c4e6d670cdf1b50e162757907437f75bbd9e9e3', 'Address 2', 272, 2, NULL, '2025-04-01 08:07:26', 'SYNCED', 'Active', 44),
+(465, 'SOL', '8GVCrUuvb3qKRAJwwKG5YhFNGFuNqaXim8yapcvjRsFm', 'Address 3', 272, 3, NULL, '2025-04-01 08:07:26', 'SYNCED', 'Active', 44),
+(466, 'BTC', 'muzjyVmz7JX95X8mdHJtX3KCiKrgsSH8ek', 'Address 4', 272, 4, NULL, '2025-04-01 08:07:26', 'SYNCED', 'Active', 44),
+(467, 'ETH', '0x988e206a4a9cf900d7f9e26b9cfbe67742447f8e', 'Address 1', 276, 1, NULL, '2025-04-02 07:45:44', 'SYNCED', 'Active', 45),
+(468, 'BNB', '0x415638a24dc28ae40913d8c3a2efc40fd45035e6', 'Address 2', 276, 2, NULL, '2025-04-02 07:45:44', 'SYNCED', 'Active', 45),
+(469, 'SOL', 'CfVWGL3fNsAGLYHkNJKBcQcoR7SHDkynTXJrNtxUSYBx', 'Address 3', 276, 3, NULL, '2025-04-02 07:45:44', 'SYNCED', 'Active', 45),
+(470, 'BTC', 'mxrbqhVGgfsCjw5J5YoAuTeuyWdidpTh49', 'Address 4', 276, 4, NULL, '2025-04-02 07:45:44', 'SYNCED', 'Active', 45),
+(471, 'ETH', '0x26fa6fcc1204c95fc6726f699f8ad44580bba06c', 'Address 1', 277, 1, NULL, '2025-04-02 11:51:01', 'SYNCED', 'Active', 46),
+(472, 'BNB', '0x023e60f0e5fe08a5cc37cbaeea145b5cbb850182', 'Address 2', 277, 2, NULL, '2025-04-02 11:51:01', 'SYNCED', 'Active', 46),
+(473, 'SOL', '4pQ45S6PTUvVX5JnyPMsizNYkJcQyVGjSXDtqNccPg8a', 'Address 3', 277, 3, NULL, '2025-04-02 11:51:01', 'SYNCED', 'Active', 46),
+(474, 'BTC', 'mvGW5YBbEzSR3UAHjH6nqp3pj8yyj6UosF', 'Address 4', 277, 4, NULL, '2025-04-02 11:51:01', 'SYNCED', 'Active', 46);
 
 -- --------------------------------------------------------
 
@@ -361,7 +385,7 @@ INSERT INTO `device` (`id`, `identifier`, `passkey`, `date_insert`, `device_toke
 (225, '96b7ada2bded2c72', '5i1wu0B3lEeUpJl', '2025-03-04 19:13:53', 'c7GtYlePTkmXlxKuUBawXW:APA91bGURXnJD8cbjaF3IFZfrp7G8SuXoS87_Ei4HKvp-tU9mOpSnLtN1yuKVCNk3vyhLRprxP5ByMYHdVsElfkNg0BgFhy4jd7TKq6H8zpoUTYcQcI4CRM', 0, 0),
 (226, '96b7ada2bded2c72', '5DEaJjLItNGW6kCa', '2025-03-05 13:31:25', 'dBTm74ddTfSKgEmu3bUGsn:APA91bFJ0lKAUJPYQlpqmjrLr299-Tl1Q1ly7oOMT42EDQ1CoChEkQdaumgxQKUFCjn7v5IfIArnN70a0hYfW-l71M0k1qls05Fn-A8BRV8MFXIrZGjPhc0', 0, 0),
 (227, '51afcbc91440895c', 'enbwbuRnTdq9tf0w', '2025-03-06 12:48:40', 'dKCO6dzoSEKzbOXoBbxq1S:APA91bE2w0BlgW063WgXsm-14B0laVMSuWHUqg_QMuEpkAOMFI5bTxgrdLBg3NiEPqTdkOrxNMrFKB-q658Q55ZGAMHD3sJHvdiC3pD3ja-GNYtSa4E4IV4', 1, 1),
-(228, '38c69b0f6d0c4084', 'clqi81CRl2MbRReg', '2025-03-06 12:50:05', 'c2x_dvX7ToWwdKqPgKXfSJ:APA91bFrgJTEFez623qO1ApfMGgjNq1FAqPs-PvkFmbpv_NOlnK0zAV4IsyhN_UiESTQQS1P0zThfSVuNJBNMSsYkPdfhwTuy6-I7IlLbAjqayUb14F7XMc', 1, 0),
+(228, '38c69b0f6d0c4084', 'clqi81CRl2MbRReg', '2025-03-06 12:50:05', 'c2x_dvX7ToWwdKqPgKXfSJ:APA91bFrgJTEFez623qO1ApfMGgjNq1FAqPs-PvkFmbpv_NOlnK0zAV4IsyhN_UiESTQQS1P0zThfSVuNJBNMSsYkPdfhwTuy6-I7IlLbAjqayUb14F7XMc', 0, 0),
 (229, 'e2851a2da07e645e', 'PBlDfGhry9hoXcdK', '2025-03-06 19:37:00', 'dB3bK2elRLeRLjSDb2-E3A:APA91bFege284wD14iavRESEqOBlhjoZLawA4aoxVF5AxJ_GX-NHb5EhpnBRb54AEaBngEADwuxvDlpd-vebCbyDNuebinohRmet2HFTwS_aI6jWnIwItBY', 0, 0),
 (230, '96b7ada2bded2c72', '3vPfDSFc3qFAIeU', '2025-03-07 12:33:26', 'dbldLZoxSXam8weJvufdYU:APA91bEcHQ2KsLQI1O8qAvPo28Pn4Knx0-338F_efD5dIN9eAgp3PdAS5mr3rRWbEK1fB_5YeJvQWt1a3Wg0nRPDVEp-OYJiyW25_3-V15wDYjtp9DV7dfY', 0, 0),
 (231, 'd5abc35bf85c100e', '2XxT28i7RpepVtzC', '2025-03-07 13:23:24', 'fs3ye5sUQjmDFKgpUeZk4M:APA91bGETLgrPqgkjia_uMVzT1meaGJoNpO3cYKTC_D-ueV4fONEmzFUuS8MNjA_0VInRwi4C-xQSOqFRYzzlTGpj833iQtmhOljTK_s94Okjfl4Sp8GDpY', 1, 0),
@@ -396,7 +420,20 @@ INSERT INTO `device` (`id`, `identifier`, `passkey`, `date_insert`, `device_toke
 (261, '6eba948042dec281', 'uy18LUEaJNcVfcc', '2025-03-24 15:21:35', 'cIE2D8grTrWbvsL58srk63:APA91bFYickK1P-QrsCoxfki9-x_t0B7jgpM_HjBDneuXbhj3ceXPYjAZYOGt8MQaZQeD1aYDoMc1M-EtA_4znCPY-wH4PKdFgv2nHg64889b_rhw0LM45g', 0, 0),
 (262, '6eba948042dec281', 'VEXIAcJbppFbMJ', '2025-03-25 11:30:35', 'dr22_q7FS1OCS6pR78QlB-:APA91bGNqGYPl91evDd7tX5_VBi3RkwEEiCFpn3kt19TJaf95oU0hrPxkaDOSkrc_VOeda2DEpErwVeqBjUT_XN1tsJE9M1E2p3E4W6Ayattyt6lUzGhhfc', 0, 0),
 (263, '6eba948042dec281', 'iM9f4dKhE0n2FeOf', '2025-03-25 16:48:43', 'chcGnsShQOKsJYzc2T_xDb:APA91bEyftVqT0IWY7ni10eHIevT8XxoKlz0gja1UzUc0Rj_XkGaEILcykrzAwpLo39MMOl1GTDI3eBqm2p_vbsf17q47jtO6rYQ90k3gOOnzIMNwd4CWpI', 1, 0),
-(264, '96b7ada2bded2c72', 's6iUd0ykhcLnqo', '2025-03-26 12:01:07', 'eaPei2btSbOgixdn-AZce2:APA91bG_GIvCT8425SwZib0L9rW9VLeyTO46tnXP5FCyloRUVRRfpz2Kf8xMDAfMwfJYFMTM-l5ayGv4vsj-kSpe-36VfXX4ngXWLYe_ef2bs8emo1hC4WI', 1, 0);
+(264, '96b7ada2bded2c72', 's6iUd0ykhcLnqo', '2025-03-26 12:01:07', 'eaPei2btSbOgixdn-AZce2:APA91bG_GIvCT8425SwZib0L9rW9VLeyTO46tnXP5FCyloRUVRRfpz2Kf8xMDAfMwfJYFMTM-l5ayGv4vsj-kSpe-36VfXX4ngXWLYe_ef2bs8emo1hC4WI', 0, 0),
+(265, '672ca56b02b253a4', 'cihuLaBLvYcDypi', '2025-03-31 18:27:56', 'f2ggbuKES7OsmUatlsmLTH:APA91bH5OVCER57gGrvwZzps3r63_4lvUiLIQ18FWTnK3SrLw-nKjEllcLP34RiImNX1uNDYGWkm_0dqqKE-gpzr0W9koMMZwNltBxmKPhZnp-35tW_KWOg', 1, 0),
+(266, '21ddd4f9fb1e56e3', 'l7lT7uaUO4855cyc', '2025-04-01 11:29:51', 'dEcr9jPxToWZQ3RWEPT9Mh:APA91bEkMVuqHcf9oLLNKvgUlAO1FilPl8RV97U8kv3-IO6SBlAhi5Z8Zue5n0d8fAUlNq16WHUoSwry35jk5K4J_y6X29X2PljcC42jwiVI4bjZMpkgFUs', 0, 0),
+(267, '96b7ada2bded2c72', 'M2FXVlztZvTkDxu', '2025-04-01 11:58:16', 'e59qlIVoSHihW2ePuHsgYq:APA91bF4MyFbFzZ8h4dixstI5SgybE1UIHhZYpTOzT56M5TYSoD-1OrB7hw7bXfNs5RQCY619Ukaayhrq-J_ZNkBoL7m1iuMIdb0I20JrZ5ZI2ggJlTfyhc', 0, 0),
+(268, '96b7ada2bded2c72', 'M2FXVlztZvTkDxu', '2025-04-01 12:08:47', 'e59qlIVoSHihW2ePuHsgYq:APA91bF4MyFbFzZ8h4dixstI5SgybE1UIHhZYpTOzT56M5TYSoD-1OrB7hw7bXfNs5RQCY619Ukaayhrq-J_ZNkBoL7m1iuMIdb0I20JrZ5ZI2ggJlTfyhc', 0, 0),
+(269, '96b7ada2bded2c72', 'udbNtwsrfxqYZHZEY', '2025-04-01 12:10:39', 'cX4emMOgTLKEToTKq4cmtG:APA91bEHQb2mgl5pQw1pe3ZTPySY0TDHm2tUIJM_NO9c4JfCUDRF6PkBA5gUZEOuyvZyXZGoTdQb-E_K7Xg0E3vt11VG0jOnzsvjVlIXQWXLJGQH3IkxmRU', 0, 0),
+(270, '96b7ada2bded2c73', 'udbNtwsrfxqYZHZEY', '2025-04-01 12:12:09', 'cX4emMOgTLKEToTKq4cmtG:APA91bEHQb2mgl5pQw1pe3ZTPySY0TDHm2tUIJM_NO9c4JfCUDRF6PkBA5gUZEOuyvZyXZGoTdQb-E_K7Xg0E3vt11VG0jOnzsvjVlIXQWXLJGQH3IkxmRU', 0, 0),
+(271, 'ee', 'udbNtwsrfxqYZHZEY', '2025-04-01 12:12:15', 'cX4emMOgTLKEToTKq4cmtG:APA91bEHQb2mgl5pQw1pe3ZTPySY0TDHm2tUIJM_NO9c4JfCUDRF6PkBA5gUZEOuyvZyXZGoTdQb-E_K7Xg0E3vt11VG0jOnzsvjVlIXQWXLJGQH3IkxmRU', 1, 0),
+(272, '96b7ada2bded2c72', 'M2FXVlztZvTkDxu', '2025-04-01 12:17:16', 'e59qlIVoSHihW2ePuHsgYq:APA91bF4MyFbFzZ8h4dixstI5SgybE1UIHhZYpTOzT56M5TYSoD-1OrB7hw7bXfNs5RQCY619Ukaayhrq-J_ZNkBoL7m1iuMIdb0I20JrZ5ZI2ggJlTfyhc', 1, 0),
+(273, '96b7ada2bded2c73', 'udbNtwsrfxqYZHZEI', '2025-04-01 12:27:37', 'cX4emMOgTLKEToTKq4cmtG:APA91bEHQb2mgl5pQw1pe3ZTPySY0TDHm2tUIJM_NO9c4JfCUDRF6PkBA5gUZEOuyvZyXZGoTdQb-E_K7Xg0E3vt11VG0jOnzsvjVlIXQWXLJGQH3IkxmRU', 0, 0),
+(274, '96b7ada2bded2c73', 'udbNtwsrfxqYZHZEU', '2025-04-01 12:27:45', 'cX4emMOgTLKEToTKq4cmtG:APA91bEHQb2mgl5pQw1pe3ZTPySY0TDHm2tUIJM_NO9c4JfCUDRF6PkBA5gUZEOuyvZyXZGoTdQb-E_K7Xg0E3vt11VG0jOnzsvjVlIXQWXLJGQH3IkxmRU', 0, 0),
+(275, '96b7ada2bded2c73', 'udbNtwsrfxqYZHZEi', '2025-04-01 12:28:23', 'cX4emMOgTLKEToTKq4cmtG:APA91bEHQb2mgl5pQw1pe3ZTPySY0TDHm2tUIJM_NO9c4JfCUDRF6PkBA5gUZEOuyvZyXZGoTdQb-E_K7Xg0E3vt11VG0jOnzsvjVlIXQWXLJGQH3IkxmRU', 1, 0),
+(276, '21ddd4f9fb1e56e3', 'iojgbBIDzCuZcfU', '2025-04-02 13:06:40', 'cZFm5DydSUqF1R6FoRyaxf:APA91bEkEX9HK7iJ_s5VwCIfoSkL00DCEaLBUtyJZMODVIojxsh2URDv0pwpSS62UaXCekJr7OPvph3YFaa7pLV-niSc6ntQKc54tgenwNy0IlV0tvz33-s', 1, 0),
+(277, '38c69b0f6d0c4084', 'gAOK191oZbuQTWK9', '2025-04-02 17:20:21', 'dcDGKULjT9yP8MhNLW8Ml_:APA91bHpTLL2pzL5cV4GGuQnsOX_4ALeFqJpGjJ9XlawClv1BQE5sFnkGmuHVfpvUawC4AHsgi8DegoIUs1y8IpnEEqkZw74BpKEjWKXdOZhunMp_LBGItI', 1, 0);
 
 -- --------------------------------------------------------
 
@@ -413,23 +450,20 @@ CREATE TABLE `rango_blockchains` (
   `logo` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `display_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `short_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `info` json NOT NULL
+  `info` json NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 
 --
 -- Dumping data for table `rango_blockchains`
 --
 
-INSERT INTO `rango_blockchains` (`id`, `name`, `default_decimals`, `type`, `chain_id`, `logo`, `display_name`, `short_name`, `info`) VALUES
-(1, 'ETH', 18, 'EVM', '0x1', 'https://raw.githubusercontent.com/rango-exchange/assets/main/blockchains/ETH/icon.svg', 'Ethereum', 'ETH', '{\"rpcUrls\": [\"https://rpc.ankr.com/eth\"], \"infoType\": \"EvmMetaInfo\", \"chainName\": \"Ethereum Mainnet\", \"addressUrl\": \"https://etherscan.io/address/{wallet}\", \"enableGasV2\": true, \"nativeCurrency\": {\"name\": \"ETH\", \"symbol\": \"ETH\", \"decimals\": 18}, \"transactionUrl\": \"https://etherscan.io/tx/{txHash}\", \"blockExplorerUrls\": [\"https://etherscan.io\"]}'),
-(2, 'BSC', 18, 'EVM', '0x38', 'https://raw.githubusercontent.com/rango-exchange/assets/main/blockchains/BSC/icon.svg', 'BNB Smart Chain', 'BSC', '{\"rpcUrls\": [\"https://bsc-dataseed1.ninicoin.io\"], \"infoType\": \"EvmMetaInfo\", \"chainName\": \"Binance Smart Chain Mainnet\", \"addressUrl\": \"https://bscscan.com/address/{wallet}\", \"enableGasV2\": false, \"nativeCurrency\": {\"name\": \"BNB\", \"symbol\": \"BNB\", \"decimals\": 18}, \"transactionUrl\": \"https://bscscan.com/tx/{txHash}\", \"blockExplorerUrls\": [\"https://bscscan.com\"]}'),
-(3, 'ETH', 18, 'EVM', '0x1', 'https://raw.githubusercontent.com/rango-exchange/assets/main/blockchains/ETH/icon.svg', 'Ethereum', 'ETH', '{\"rpcUrls\": [\"https://rpc.ankr.com/eth\"], \"infoType\": \"EvmMetaInfo\", \"chainName\": \"Ethereum Mainnet\", \"addressUrl\": \"https://etherscan.io/address/{wallet}\", \"enableGasV2\": true, \"nativeCurrency\": {\"name\": \"ETH\", \"symbol\": \"ETH\", \"decimals\": 18}, \"transactionUrl\": \"https://etherscan.io/tx/{txHash}\", \"blockExplorerUrls\": [\"https://etherscan.io\"]}'),
-(4, 'BSC', 18, 'EVM', '0x38', 'https://raw.githubusercontent.com/rango-exchange/assets/main/blockchains/BSC/icon.svg', 'BNB Smart Chain', 'BSC', '{\"rpcUrls\": [\"https://bsc-dataseed1.ninicoin.io\"], \"infoType\": \"EvmMetaInfo\", \"chainName\": \"Binance Smart Chain Mainnet\", \"addressUrl\": \"https://bscscan.com/address/{wallet}\", \"enableGasV2\": false, \"nativeCurrency\": {\"name\": \"BNB\", \"symbol\": \"BNB\", \"decimals\": 18}, \"transactionUrl\": \"https://bscscan.com/tx/{txHash}\", \"blockExplorerUrls\": [\"https://bscscan.com\"]}'),
-(5, 'ETH', 18, 'EVM', '0x1', 'https://raw.githubusercontent.com/rango-exchange/assets/main/blockchains/ETH/icon.svg', 'Ethereum', 'ETH', '{\"rpcUrls\": [\"https://rpc.ankr.com/eth\"], \"infoType\": \"EvmMetaInfo\", \"chainName\": \"Ethereum Mainnet\", \"addressUrl\": \"https://etherscan.io/address/{wallet}\", \"enableGasV2\": true, \"nativeCurrency\": {\"name\": \"ETH\", \"symbol\": \"ETH\", \"decimals\": 18}, \"transactionUrl\": \"https://etherscan.io/tx/{txHash}\", \"blockExplorerUrls\": [\"https://etherscan.io\"]}'),
-(6, 'BSC', 18, 'EVM', '0x38', 'https://raw.githubusercontent.com/rango-exchange/assets/main/blockchains/BSC/icon.svg', 'BNB Smart Chain', 'BSC', '{\"rpcUrls\": [\"https://bsc-dataseed1.ninicoin.io\"], \"infoType\": \"EvmMetaInfo\", \"chainName\": \"Binance Smart Chain Mainnet\", \"addressUrl\": \"https://bscscan.com/address/{wallet}\", \"enableGasV2\": false, \"nativeCurrency\": {\"name\": \"BNB\", \"symbol\": \"BNB\", \"decimals\": 18}, \"transactionUrl\": \"https://bscscan.com/tx/{txHash}\", \"blockExplorerUrls\": [\"https://bscscan.com\"]}'),
-(7, 'BTC', 8, 'TRANSFER', NULL, 'https://raw.githubusercontent.com/rango-exchange/assets/main/blockchains/BTC/icon.svg', 'Bitcoin', 'BTC', '{\"infoType\": \"TransferMetaInfo\", \"addressUrl\": \"https://www.blockchain.com/btc/address/{wallet}\", \"transactionUrl\": \"https://www.blockchain.com/btc/tx/{txHash}\", \"blockExplorerUrls\": [\"https://www.blockchain.com/btc/\"]}'),
-(8, 'SOLANA', 9, 'SOLANA', 'mainnet-beta', 'https://raw.githubusercontent.com/rango-exchange/assets/main/blockchains/SOLANA/icon.svg', 'Solana', 'Solana', '{\"infoType\": \"SolanaMetaInfo\", \"addressUrl\": \"https://solscan.io/account/{wallet}\", \"transactionUrl\": \"https://solscan.io/tx/{txHash}\", \"blockExplorerUrls\": [\"https://solscan.io/\"]}'),
-(9, 'BNB', 8, 'COSMOS', NULL, 'https://raw.githubusercontent.com/rango-exchange/assets/main/blockchains/BNB/icon.svg', 'Binance Chain', 'BNB', 'null');
+INSERT INTO `rango_blockchains` (`id`, `name`, `default_decimals`, `type`, `chain_id`, `logo`, `display_name`, `short_name`, `info`, `created_at`) VALUES
+(1, 'ETH', 18, 'EVM', '0x1', 'https://raw.githubusercontent.com/rango-exchange/assets/main/blockchains/ETH/icon.svg', 'Ethereum', 'ETH', '{\"rpcUrls\": [\"https://rpc.ankr.com/eth\"], \"infoType\": \"EvmMetaInfo\", \"chainName\": \"Ethereum Mainnet\", \"addressUrl\": \"https://etherscan.io/address/{wallet}\", \"enableGasV2\": true, \"nativeCurrency\": {\"name\": \"ETH\", \"symbol\": \"ETH\", \"decimals\": 18}, \"transactionUrl\": \"https://etherscan.io/tx/{txHash}\", \"blockExplorerUrls\": [\"https://etherscan.io\"]}', '2025-04-02 06:57:26'),
+(2, 'BSC', 18, 'EVM', '0x38', 'https://raw.githubusercontent.com/rango-exchange/assets/main/blockchains/BSC/icon.svg', 'BNB Smart Chain', 'BSC', '{\"rpcUrls\": [\"https://bsc-dataseed1.ninicoin.io\"], \"infoType\": \"EvmMetaInfo\", \"chainName\": \"Binance Smart Chain Mainnet\", \"addressUrl\": \"https://bscscan.com/address/{wallet}\", \"enableGasV2\": false, \"nativeCurrency\": {\"name\": \"BNB\", \"symbol\": \"BNB\", \"decimals\": 18}, \"transactionUrl\": \"https://bscscan.com/tx/{txHash}\", \"blockExplorerUrls\": [\"https://bscscan.com\"]}', '2025-04-02 06:57:26'),
+(3, 'BTC', 8, 'TRANSFER', NULL, 'https://raw.githubusercontent.com/rango-exchange/assets/main/blockchains/BTC/icon.svg', 'Bitcoin', 'BTC', '{\"infoType\": \"TransferMetaInfo\", \"addressUrl\": \"https://www.blockchain.com/btc/address/{wallet}\", \"transactionUrl\": \"https://www.blockchain.com/btc/tx/{txHash}\", \"blockExplorerUrls\": [\"https://www.blockchain.com/btc/\"]}', '2025-04-02 06:57:26'),
+(4, 'SOLANA', 9, 'SOLANA', 'mainnet-beta', 'https://raw.githubusercontent.com/rango-exchange/assets/main/blockchains/SOLANA/icon.svg', 'Solana', 'Solana', '{\"infoType\": \"SolanaMetaInfo\", \"addressUrl\": \"https://solscan.io/account/{wallet}\", \"transactionUrl\": \"https://solscan.io/tx/{txHash}\", \"blockExplorerUrls\": [\"https://solscan.io/\"]}', '2025-04-02 06:57:26'),
+(5, 'BNB', 8, 'COSMOS', NULL, 'https://raw.githubusercontent.com/rango-exchange/assets/main/blockchains/BNB/icon.svg', 'Binance Chain', 'BNB', 'null', '2025-04-02 06:57:26');
 
 -- --------------------------------------------------------
 
@@ -597,7 +631,13 @@ INSERT INTO `wallet` (`id`, `name`, `wallet_type`, `is_active`, `device_id`, `us
 (37, 'Wallet 1', 'phone', 1, 262, 262, '2025-03-25 06:01:10', '2025-03-25 06:01:10'),
 (38, 'Wallet 1', 'phone', 1, 263, 263, '2025-03-25 11:19:16', '2025-03-25 11:19:16'),
 (39, 'Wallet 2', 'phone', 0, 263, 263, '2025-03-25 11:23:04', '2025-03-25 11:23:04'),
-(40, 'Wallet u', 'phone', 1, 264, 264, '2025-03-26 14:39:01', '2025-03-26 14:39:01');
+(40, 'My wallet', 'phone', 0, 264, 264, '2025-03-26 14:39:01', '2025-03-26 14:39:01'),
+(41, 'Wallet 212', 'phone', 1, 264, 264, '2025-03-28 10:24:41', '2025-03-28 10:24:41'),
+(42, 'Wallet 1', 'phone', 1, 265, 265, '2025-03-31 12:58:20', '2025-03-31 12:58:20'),
+(43, 'Wallet 1', 'phone', 1, 266, 266, '2025-04-01 06:02:50', '2025-04-01 06:02:50'),
+(44, 'Wallet 1', 'phone', 1, 272, 272, '2025-04-01 08:07:21', '2025-04-01 08:07:21'),
+(45, 'Wallet 1', 'phone', 1, 276, 276, '2025-04-02 07:45:36', '2025-04-02 07:45:36'),
+(46, 'Wallet 1', 'phone', 1, 277, 277, '2025-04-02 11:50:51', '2025-04-02 11:50:51');
 
 --
 -- Indexes for dumped tables
@@ -647,19 +687,19 @@ ALTER TABLE `wallet`
 -- AUTO_INCREMENT for table `addresses`
 --
 ALTER TABLE `addresses`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=451;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=475;
 
 --
 -- AUTO_INCREMENT for table `device`
 --
 ALTER TABLE `device`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=265;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=278;
 
 --
 -- AUTO_INCREMENT for table `rango_blockchains`
 --
 ALTER TABLE `rango_blockchains`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `transactions`
@@ -677,7 +717,7 @@ ALTER TABLE `utenti`
 -- AUTO_INCREMENT for table `wallet`
 --
 ALTER TABLE `wallet`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=41;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=47;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
