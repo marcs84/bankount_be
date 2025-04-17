@@ -406,7 +406,7 @@ const filterTransactions = (data) => {
 
     if (offset) {
       query += " OFFSET ?";
-      params.push(offset);
+      params.push(offset*limit);
     }
 
     return new Promise((resolve, reject) => {
@@ -1016,12 +1016,16 @@ const verifyDevice = (identifier, passkey, device_token) => {
             if (error) {
               return reject(new Error("Failed to update device active status : " + error.message));
             }
-            connection.query(`INSERT INTO device (identifier, passkey, device_token) VALUES (?, ?, ?)`, [identifier, passkey, device_token], (err, results)=>{
-              if(err){
-                return reject(new Error('Failed to insert device : '+error.message));
+            connection.query(
+              `INSERT INTO device (identifier, passkey, device_token) VALUES (?, ?, ?)`,
+              [identifier, passkey, device_token],
+              (err, results) => {
+                if (err) {
+                  return reject(new Error("Failed to insert device : " + error.message));
+                }
+                return resolve(results.insertId);
               }
-              return resolve(results.insertId)
-            })
+            );
           });
         } else {
           const updateQuery = `UPDATE device SET device_token = ? WHERE id = ?`;
@@ -1589,7 +1593,6 @@ const onboardUser = async (user_id) => {
 };
 
 const storeRangoBlockChains = async (name, default_decimals, type, chain_id, logo, display_name, short_name, info) => {
-  
   return new Promise((resolve, reject) => {
     connection.query(
       `INSERT INTO rango_blockchains(name, default_decimals, type, chain_id, logo, display_name, short_name, info) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1604,13 +1607,194 @@ const storeRangoBlockChains = async (name, default_decimals, type, chain_id, log
   });
 };
 
-const fetchRangoBlockchainData = async ()=>{
-  return new Promise((resolve, reject)=>{
-    connection.query(`SELECT * FROM rango_blockchains`, [], (error, results)=>{
-      if(error){
-        return reject(new Error('Error while fetching rango blockchain data : '+error.message))
+const fetchRangoBlockchainData = async () => {
+  return new Promise((resolve, reject) => {
+    connection.query(`SELECT * FROM rango_blockchains`, [], (error, results) => {
+      if (error) {
+        return reject(new Error("Error while fetching rango blockchain data : " + error.message));
       }
-      return resolve(results)
+      return resolve(results);
+    });
+  });
+};
+
+const bookmarkToken = async (token_id, wallet_id, user_id, name, symbol, rank, rev, type, chain, address, asset_type, logo) => {
+  return new Promise((resolve, reject) => {
+    connection.query(
+      "INSERT INTO bookmarked_tokens(token_id, wallet_id, user_id, name, symbol, `rank`, rev, `type`, chain, address, asset_type, logo) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [token_id, wallet_id, user_id, name, symbol, rank, rev, type, chain, address, asset_type, logo],
+      (error, results) => {
+        if (error) {
+          return reject(new Error(`Error while bookmark token : ${error.message}`));
+        }
+        if (results.insertId) {
+          connection.query(`SELECT * FROM bookmarked_tokens WHERE id = ?`, results.insertId, (err, result) => {
+            if (err) {
+              return reject(new Error("Error while fetching bookmarked token : " + error.message));
+            }
+            return resolve(result[0]);
+          });
+        }
+      }
+    );
+  });
+};
+
+const removeBookmarkedToken = async (id) => {
+  return new Promise((resolve, reject) => {
+    connection.query(`DELETE FROM bookmarked_tokens WHERE id = ?`, [id], (error, results) => {
+      if (error) {
+        return reject(new Error("Error while removing bookmarked token : " + error.message));
+      }
+      return resolve(results);
+    });
+  });
+};
+
+const fetchBookmarkedTokens = async (user_id, wallet_id) => {
+  return new Promise((resolve, reject) => {
+    connection.query(`SELECT * FROM bookmarked_tokens WHERE user_id = ? AND wallet_id = ?`, [user_id, wallet_id], (error, results) => {
+      if (error) {
+        return reject(new Error("Error while fetching bookmarked tokens : " + error.message));
+      }
+      return resolve(results);
+    });
+  });
+};
+
+const checkExistingCustomChainUrl = async (user_id, wallet_id, blockchain_name) => {
+  return new Promise((resolve, reject) => {
+    connection.query(
+      `SELECT * FROM custom_urls WHERE user_id = ? AND wallet_id = ? AND blockchain_name = ?`,
+      [user_id, wallet_id, blockchain_name],
+      (error, results) => {
+        if (error) {
+          return reject(new Error("Error while fetching custom url : " + error.message));
+        }
+        if (results.length) {
+          return resolve(results[0]);
+        } else {
+          return resolve(null);
+        }
+      }
+    );
+  });
+};
+
+const fetchCustomChainUrlsByWallet = async (user_id, wallet_id)=>{
+  return new Promise((resolve, reject)=>{
+    connection.query(`SELECT * FROM custom_urls WHERE user_id = ? AND wallet_id = ?`, [user_id, wallet_id], (err, results)=>{
+      if(err){
+        return reject(new Error('Error while fetching custom chain urls : ', err));
+      }
+      return resolve(results);
+    })
+  })
+}
+
+const storeCustomChainUrls = async (user_id, wallet_id, blockchain_name, node_url, explorer_url, crypto_currency_ticker, chain_id) => {
+  return new Promise((resolve, reject) => {
+    connection.query(
+      `INSERT INTO custom_urls(user_id, wallet_id, blockchain_name, node_url, explorer_url, crypto_currency_ticker, chain_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [user_id, wallet_id, blockchain_name, node_url, explorer_url, crypto_currency_ticker, chain_id],
+      (error, results) => {
+        if (error) {
+          return reject(new Error("Error while storing custom chain urls : " + error.message));
+        }
+        if(results.insertId){
+          connection.query(`SELECT * FROM custom_urls WHERE id = ?`, [results.insertId], (err, result)=>{
+            if(err){
+              return reject(new Error('Error while fetching custom chain url : '+error.message));
+            }
+            return resolve(result[0]);
+          })
+        }else{
+          return resolve(null)
+        }
+      }
+    );
+  });
+};
+
+const updateCustomChainUrl = async (id, node_url, explorer_url) => {
+  return new Promise((resolve, reject) => {
+    let values = [];
+
+    let url = `UPDATE custom_urls SET `;
+    if (node_url && explorer_url) {
+      url += "node_url = ?, explorer_url = ?";
+      values.push(node_url, explorer_url);
+    } else if (node_url && !explorer_url) {
+      url += "node_url = ?";
+      values.push(node_url);
+    } else if (!node_url && explorer_url) {
+      url += "explorer_url = ? ";
+      values.push(explorer_url);
+    }
+    url += `WHERE id = ?`;
+    values.push(id);
+    connection.query(url, values, (error, results) => {
+      if (error) {
+        return reject(new Error("Error while updating custom chain url : " + error.message));
+      }
+      connection.query(`SELECT * FROM custom_urls WHERE id = ?`, [id], (err, result) => {
+        if (err) {
+          return reject(new Error("Error whlie updating custom chain urls : " + error.message));
+        }
+        return resolve(result[0]);
+      });
+    });
+  });
+};
+
+const deleteCustomChainUrl = async (id) => {
+  return new Promise((resolve, reject) => {
+    connection.query(`DELETE FROM custom_urls WHERE id = ?`, [id], (error, results) => {
+      if (error) return reject(new Error("Error while deleting custom chain url : " + error.message));
+      return resolve(results);
+    });
+  });
+};
+
+const storeDappsList = async (dapps)=>{
+  const values = dapps.map(dapp => [
+    dapp.title,
+    dapp.icon_url,
+    dapp.url,
+    dapp.description,
+    dapp.back_url,
+    dapp.tag_info
+  ]);
+  
+  return new Promise((resolve, reject)=>{
+    connection.query(`INSERT INTO dapps_list (title, icon_url, url, description, back_url, tag_info) VALUES ?
+`, [values], (error, results)=>{
+      if(error){
+        return reject(new Error('Error while storing dapps list : '+error.message))
+      }
+      return resolve(results);
+    })
+  })
+}
+
+const fetchDappsList = async (page, limit)=>{
+  return new Promise((resolve, reject)=>{
+    connection.query(`SELECT * FROM dapps_list LIMIT ? OFFSET ?`, [limit, (page-1)*limit], (err, results)=>{
+      if(err){
+        return reject(new Error('Error while fetching dapps list : '+err.message));
+      }
+      const data = {dappsList: results}
+      connection.query(`SELECT COUNT(*) as count FROM dapps_list`, (error, result)=>{
+        console.log('result', result)
+        const totalCount = result[0].count
+        data.totalPages = Math.ceil(totalCount/limit);
+        data.totalCount = totalCount;
+        data.page = page;
+        data.limit = limit;
+        data.hasNextPage = page < data.totalPages;
+        
+        return resolve(data);
+      })
     })
   })
 }
@@ -1685,5 +1869,15 @@ module.exports = {
   updateAddressName,
   onboardUser,
   storeRangoBlockChains,
-  fetchRangoBlockchainData
+  fetchRangoBlockchainData,
+  bookmarkToken,
+  removeBookmarkedToken,
+  fetchBookmarkedTokens,
+  storeCustomChainUrls,
+  fetchCustomChainUrlsByWallet,
+  checkExistingCustomChainUrl,
+  updateCustomChainUrl,
+  deleteCustomChainUrl,
+  storeDappsList,
+  fetchDappsList
 };

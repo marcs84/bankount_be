@@ -431,17 +431,7 @@ const txUtilsForExchangeCoinBetweenSameBc = (cointype, fromAddress, toAddress, a
   });
 };
 
-const doTransactionBetweenSameBC = (
-  signed_tx,
-  user_id,
-  wallet_id,
-  coin_type,
-  amount,
-  from_address,
-  to_address,
-  latest_block,
-  network_type
-) => {
+const doTransactionBetweenSameBC = (signed_tx, user_id, wallet_id, coin_type, amount, from_address, to_address, latest_block, network_type) => {
   return new Promise(async (resolve, reject) => {
     let txId;
     const userAddress = await dao.getAddressByAddress(from_address);
@@ -502,9 +492,23 @@ const doTransactionBetweenSameBC = (
       finalTx = txId;
     }
     // type, chain, token, address_id, from_address, tx, destination_address, amount, data_insert, block_number, id_utente, network_type, wallet_id
-    const date = new Date()
-    const response = await dao.insertTransaction(tranasactionType.COIN, coin_type, coin_type, userAddress.id, from_address, txId, to_address, amount, date, latest_block, user_id, network_type, wallet_id);
-    return resolve(response)
+    const date = new Date();
+    const response = await dao.insertTransaction(
+      tranasactionType.COIN,
+      coin_type,
+      coin_type,
+      userAddress.id,
+      from_address,
+      txId,
+      to_address,
+      amount,
+      date,
+      latest_block,
+      user_id,
+      network_type,
+      wallet_id
+    );
+    return resolve(response);
   });
 };
 
@@ -1113,11 +1117,30 @@ const convertCoinsToAmount = async (coinType, coins, currency, coinRates) => {
       return coinRates.solana[currency] * coins;
     } else if (coinType === "Bitcoin" || coinType === "BTC") {
       return coinRates.bitcoin[currency] * coins;
-    } else if (coinType === "Binance" || coinType === "BNB") {
+    } else if (coinType === "Binance" || coinType === "BNB" || coinType === "BSC") {
       return coinRates.binancecoin[currency] * coins;
     }
   } catch (error) {
     throw error;
+  }
+};
+
+const storeAddressInQuicknode = async (address) => {
+  try {
+    const response = await axios.post(
+      "https://api.quicknode.com/kv/rest/v1/lists",
+      {
+        key: "registered-addresses",
+        items: [address],
+      },
+      { headers: { Accept: "application/json", "Content-Type": "application/json", "x-api-key": process.env.QUICKNODE_API_KEY } }
+    );
+    if (response.data.code === 200) {
+      return true;
+    }
+  } catch (error) {
+    console.log("Error whlie storing address in Quicknode Key-Value Store : ", error);
+    return false;
   }
 };
 
@@ -1157,4 +1180,5 @@ module.exports = {
   getDeviceTokenByFromAddress,
   getLatestCoinRates,
   convertCoinsToAmount,
+  storeAddressInQuicknode,
 };

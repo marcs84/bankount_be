@@ -192,7 +192,6 @@ const syncAddresses = async (req, res) => {
   const data = req.body;
   const userId = data.userId;
   const addressList = data.addressList;
-  console.log("addressList", addressList);
 
   try {
     if (addressList.length === 0) {
@@ -216,10 +215,12 @@ const syncAddresses = async (req, res) => {
 
       if (!userAddress) {
         const newCoinType = checkChain == "BNB" ? "BSC" : checkChain;
-        const tatumResponse = await service.registerTatumAddress(newCoinType, checkAddress);
-        console.log("tatumResponse", tatumResponse.body);
+        // https://api.quicknode.com/kv/rest/v1/lists
 
-        const tatumStatus = tatumResponse.body.id ? "SYNCED" : "NOT-SYNCED";
+        // const tatumResponse = await service.registerTatumAddress(newCoinType, checkAddress);
+        const quicknodeResponse = await service.storeAddressInQuicknode(checkAddress);
+
+        const tatumStatus = quicknodeResponse ? "SYNCED" : "NOT-SYNCED";
         const payload = {
           coin_type: checkChain,
           address: checkAddress,
@@ -296,8 +297,6 @@ const getUtilsForTransaction = async (req, res) => {
 const filterTransactions = async (req, res) => {
   try {
     const resData = await service.findDeviceDetails(req.user.identifier);
-    console.log("resData", resData);
-    console.log("resData", resData);
     const device_id = resData[0].id;
     let { limit, offset, wallet_id, start_date, end_date, duration_type, search, chain, network_type } = req.query;
     let invalidParamsMessage;
@@ -337,7 +336,7 @@ const filterTransactions = async (req, res) => {
 
     const data = {
       limit: parseInt(limit) || 20,
-      offset: parseInt(offset) || 1,
+      offset: parseInt(offset) || 0,
       wallet_id: parseInt(wallet_id),
       start_date,
       end_date,
@@ -348,7 +347,6 @@ const filterTransactions = async (req, res) => {
     };
 
     const { transactions, totalCount } = await dao.filterTransactions(data);
-
     return res.status(200).json({
       result: true,
       data: { totalCount, transactions },
@@ -975,9 +973,10 @@ const insertAddress = async (req, res) => {
 
   for (const address of addresses) {
     const newCoinType = address.coin_type == "BNB" ? "BSC" : address.coin_type;
-    const tatumResponse = await service.registerTatumAddress(newCoinType, address.address);
-    console.log("tatumResponse", tatumResponse.body);
-    address.tatumStatus = tatumResponse.body.id ? "SYNCED" : "NOT-SYNCED";
+    // const tatumResponse = await service.registerTatumAddress(newCoinType, address.address);
+    const quicknodeResponse = await service.storeAddressInQuicknode(address.address);
+    address.tatumStatus = quicknodeResponse ? "SYNCED" : "NOT-SYNCED";
+    // address.tatumStatus = tatumResponse.body.id ? "SYNCED" : "NOT-SYNCED";
   }
 
   await service
@@ -1082,6 +1081,7 @@ const findAddressBySearchField = async (req, res) => {
 
 const tatumTransactionWebhook = async (req, res) => {
   try {
+    console.log("req.body", req.body);
     let reqData = req.body;
     const addressDetails = await service.checkAddressDetails(reqData.counterAddress);
     const objLength = Object.keys(addressDetails).length;
@@ -1126,14 +1126,13 @@ const tatumTransactionWebhook = async (req, res) => {
         data: responseData,
       });
     } else {
-      res.status(500).json({
-        result: false,
-        message: "Transaction not stored successfully",
-      });
-
       notification.sendNotification(fromAddress, {
         notificationTitle: "Transaction Failed",
         notificationBody: "Your transaction could not be completed.",
+      });
+      res.status(500).json({
+        result: false,
+        message: "Transaction not stored successfully",
       });
     }
   } catch (error) {
@@ -1267,6 +1266,7 @@ const filterAddresses = async (req, res) => {
       }
     }
     const { user_id, wallet_id, coin_type, has_positive_address, network, selected_currency } = req.query;
+    const coinRates = await service.getLatestCoinRates(selected_currency);
     const filter1 = {};
     if (user_id) {
       filter1.id_utente = user_id;
@@ -1291,7 +1291,7 @@ const filterAddresses = async (req, res) => {
       for (const address of addresses) {
         coinsSum += address.balance;
       }
-      const coinRates = await service.getLatestCoinRates(selected_currency);
+      
       data.coins_sum = coinsSum;
       data.coins_sum_converted = await service.convertCoinsToAmount(coin_type, coinsSum, selected_currency, coinRates);
       data.coin_type = coin_type;
@@ -1327,10 +1327,10 @@ const fetchAssets = async (req, res) => {
     }
     const filters = { id_utente: user_id, wallet_id: wallet_id };
     const addresses = await dao.filterAddresses(filters);
+
     const assets = {};
     for (const index in addresses) {
       let balance;
-      console.log("addresses[index]", addresses[index]);
       try {
         balance = await service.getBalance(addresses[index].coin_type, addresses[index].address, network);
       } catch (error) {
@@ -1385,10 +1385,36 @@ const fetchAssets = async (req, res) => {
       convertedTotalAmount += converted_amount;
       delete assets[key]["addresses"]; //remove addresses field in response as not required in frontend
     }
+
+    const bookmarkedTokens = await dao.fetchBookmarkedTokens(user_id, wallet_id);
+
+    if (addresses && bookmarkedTokens) {
+      for (const token of bookmarkedTokens) {
+        const index = addresses.findIndex((obj) => obj.coin_type === token.chain);
+        if (index === -1) {
+          continue;
+        }
+        token.balance = await rango.tokenBalance({
+          walletAddress: addresses[index].address,
+          blockchain: addresses[index].coin_type === "BNB" ? "BSC" : addresses[index].coin_type,
+          symbol: token.symbol,
+          // address: token.address,
+        });
+        // console.log('addresses[index].chain', addresses[index].coin_type)
+        token.balance.converted_balance = await service.convertCoinsToAmount(
+          addresses[index].coin_type,
+          token.balance.balance,
+          selected_currency,
+          coinRates
+        );
+      }
+    }
+
     const data = {
       total_balance: walletTotalBalance,
       converted_total_balance: convertedTotalAmount,
       assets,
+      bookmarked_tokens: bookmarkedTokens,
     };
 
     return res.status(200).json({
@@ -1690,7 +1716,7 @@ const fetchRangoMetadata = async (req, res) => {
     }
     let response;
     try {
-      response = await rango.meta({blockchains: [blockchains], excludeNonPopulars: true})   
+      response = await rango.meta({ blockchains: [blockchains], excludeNonPopulars: true });
     } catch (error) {
       if (error?.response?.data?.error) {
         throw new Error(error.response.data.error);
@@ -1715,18 +1741,19 @@ const fetchRangoMetadata = async (req, res) => {
 
 const initiateSwap = async (req, res) => {
   try {
-    const {from_blockchain, from_token_address, to_blockchain, to_token_address, amount, from_wallet_address, to_wallet_address, slippage} = req.body;
+    const { from_blockchain, from_token_address, to_blockchain, to_token_address, amount, from_wallet_address, to_wallet_address, slippage } =
+      req.body;
     let response;
     try {
       response = await rango.swap({
-        from: {"blockchain": from_blockchain, "address": from_token_address},
-        to: {"blockchain": to_blockchain, "address": to_token_address},
+        from: { blockchain: from_blockchain, address: from_token_address },
+        to: { blockchain: to_blockchain, address: to_token_address },
         amount: amount,
         fromAddress: from_wallet_address,
         toAddress: to_wallet_address,
         disableEstimate: true,
         slippage: slippage,
-    })
+      });
     } catch (error) {
       if (error?.response?.data?.error) {
         throw new Error(error.response.data.error);
@@ -1751,15 +1778,15 @@ const initiateSwap = async (req, res) => {
 
 const getSwapRoutes = async (req, res) => {
   try {
-    const {from_blockchain, from_address, to_blockchain, to_address, amount, slippage} = req.query;
+    const { from_blockchain, from_address, to_blockchain, to_address, amount, slippage } = req.query;
     let response;
     try {
       response = await rango.quote({
-        from: {"blockchain": from_blockchain, "address": from_address},
-        to: {"blockchain": to_blockchain, "address": to_address},
+        from: { blockchain: from_blockchain, address: from_address },
+        to: { blockchain: to_blockchain, address: to_address },
         amount: amount,
-        slippage: slippage
-    })
+        slippage: slippage,
+      });
     } catch (error) {
       if (error?.response?.data?.error) {
         throw new Error(error.response.data.error);
@@ -1797,10 +1824,10 @@ const getTokenBalance = async (req, res) => {
     try {
       response = await rango.tokenBalance({
         walletAddress: wallet_address,
-        blockchain: blockchain, 
+        blockchain: blockchain,
         symbol: symbol,
         address: token_address,
-    })
+      });
     } catch (error) {
       if (error?.response?.data?.error) {
         throw new Error(error.response.data.error);
@@ -1811,20 +1838,21 @@ const getTokenBalance = async (req, res) => {
     return res.status(200).json({
       result: true,
       message: "Token balance fetched successfully",
-      data: response.data,
+      data: response,
     });
   } catch (error) {
     console.log("Error while fetching token balance : ", error);
     return res.status(500).json({
       result: false,
       message: "Error while fetching token balance : " + error.message,
+      error: error.message,
     });
   }
 };
 
-const checkTxStatus = async (req, res)=> {
+const checkTxStatus = async (req, res) => {
   try {
-    const {request_id, tx_id} = req.body;
+    const { request_id, tx_id } = req.body;
     if (!request_id || !tx_id) {
       return res.status(400).json({
         result: false,
@@ -1834,7 +1862,7 @@ const checkTxStatus = async (req, res)=> {
     }
     let response;
     try {
-      response = await rango.status({requestId: request_id, txId: tx_id});
+      response = await rango.status({ requestId: request_id, txId: tx_id });
     } catch (error) {
       if (error?.response?.data?.error) {
         throw new Error(error.response.data.error);
@@ -1845,16 +1873,423 @@ const checkTxStatus = async (req, res)=> {
 
     return res.status(200).json({
       result: true,
-      data: response
-    })
+      data: response,
+    });
   } catch (error) {
     console.log("Error while checking tx status : ", error);
     return res.status(500).json({
       result: false,
       message: "Error while checking tx status : " + error.message,
+      error: error.message,
     });
   }
-}
+};
+
+const searchTokensUsingQuicknode = async (req, res) => {
+  try {
+    let url = `https://thrumming-white-reel.btc.quiknode.pro/c4ba0c80a1d10dfca5420e8a4bdf020a820d4608/addon/748/v1/search`;
+    const { q } = req.query;
+    url += `?q=${q}&limit=250&c=currencies`;
+    const response = await axios.get(url);
+
+    // filter response to only contain token type currency
+    // const updatedResponse = { currencies: [] };
+    // for (let currency of response.data.currencies) {
+    //   if (currency.type === "token") {
+    //     updatedResponse.currencies.push(currency);
+    //   }
+    // }
+
+    // for (const currency of updatedResponse.currencies) {
+    //   const coinData = await axios.get(
+    //     `https://thrumming-white-reel.btc.quiknode.pro/c4ba0c80a1d10dfca5420e8a4bdf020a820d4608/addon/748/v1/coins/${currency.id}`
+    //   );
+    //   currency["logo"] = coinData.data.logo;
+    // }
+    return res.status(200).json({
+      result: true,
+      message: "Tokens fetched successfully",
+      data: response.data,
+    });
+  } catch (error) {
+    console.log("Error while searching tokens : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error while searching tokens : " + error.message,
+      error: error.message,
+    });
+  }
+};
+
+const quicknodeTransactionWebhook = async (req, res) => {
+  try {
+    const transactions = req.body;
+    for (let transaction of transactions) {
+      const addressDetails = await service.checkAddressDetails(counterAddress);
+    }
+
+    return res.status(200).json({
+      result: true,
+      message: "ok",
+    });
+    // let reqData = req.body;
+    // const addressDetails = await service.checkAddressDetails(reqData.counterAddress);
+    // const objLength = Object.keys(addressDetails).length;
+    // const addresId = objLength > 0 ? addressDetails.id : null;
+    // const userID = objLength > 0 ? addressDetails.idUtente : 0;
+    // reqData.tx = reqData.txId;
+    // reqData.address_id = addresId;
+    // reqData.idUtente = userID;
+    // reqData.chain = reqData.asset;
+    // reqData.token = reqData.asset;
+    // reqData.from_address = reqData.counterAddress;
+    // reqData.destination_address = reqData.address;
+    // reqData.block_number = reqData.blockNumber;
+    // reqData.type = reqData.type == "native" ? "COIN" : "TOKEN";
+    // reqData.network_type = "TESTNET";
+
+    // if (reqData.subscriptionType == "ADDRESS_EVENT") {
+    //   const responseData = await service.insertTransactionDetails(reqData);
+    //   console.log("responseData", responseData);
+    //   const fromAddress = await service.getDeviceTokenByFromAddress(responseData.from_address);
+    //   const designationAddress = await service.getDeviceTokenByFromAddress(responseData.destination_address);
+
+    //   if (fromAddress) {
+    //     notification.sendNotification(fromAddress, {
+    //       notificationTitle: "Transaction Sent",
+    //       notificationBody: `The transaction successfully sent ${responseData.amount} ${responseData.chain} to address ${responseData.destination_address}.
+    //                                            Transaction ID: ${responseData.tx}`,
+    //     });
+    //   }
+
+    //   if (designationAddress) {
+    //     notification.sendNotification(designationAddress, {
+    //       notificationTitle: "Transaction Received",
+    //       notificationBody: `The transaction successfully received ${responseData.amount} ${responseData.chain} from address ${responseData.from_address}.
+    //                                            Transaction ID: ${responseData.tx}.`,
+    //     });
+    //   }
+
+    //   res.json({
+    //     result: true,
+    //     message: "Transaction stored successfully",
+    //     data: responseData,
+    //   });
+    // } else {
+    //   notification.sendNotification(fromAddress, {
+    //     notificationTitle: "Transaction Failed",
+    //     notificationBody: "Your transaction could not be completed.",
+    //   });
+    //   res.status(500).json({
+    //     result: false,
+    //     message: "Transaction not stored successfully",
+    //   });
+    // }
+  } catch (error) {
+    return res.status(500).json({
+      result: false,
+      message: "An error occurred while retrieving list of transactions by address: ",
+      error: "An error occurred while retrieving list of transactions by address: ",
+    });
+  }
+};
+
+const fetchChainURLs = async (req, res) => {
+  try {
+    const { wallet_id } = req.query;
+    const identifier = req.user.identifier;
+    const deviceResponse = await service.findDeviceDetails(identifier);
+    const deviceId = deviceResponse[0].id;
+    const customUrls = await dao.fetchCustomChainUrlsByWallet(deviceId, wallet_id);
+
+    const existingCustomUrl = (blockchain_name) => {
+      const index = customUrls.findIndex((obj) => obj.blockchain_name === blockchain_name);
+      if (index !== -1) {
+        const data = {
+          id: customUrls[index].id,
+          blockchain_name: customUrls[index].blockchain_name,
+          node_url: customUrls[index].node_url,
+          explorer_url: customUrls[index].explorer_url,
+          crypto_currency_ticker: customUrls[index].crypto_currency_ticker,
+          chain_id: customUrls[index].chain_id,
+        };
+        return data;
+      } else {
+        return null;
+      }
+    };
+
+    const data = {
+      quicknode_btc_test: existingCustomUrl("Bitcoin Testnet") ?? {
+        id: null,
+        blockchain_name: "Bitcoin Testnet",
+        node_url: process.env.QUICKNODE_BTC_TEST_URL,
+        explorer_url: process.env.QUICKNODE_BTC_TEST_EXPLORER_URL,
+        crypto_currency_ticker: "BTC",
+        chain_id: "",
+      },
+      quicknode_eth_test: existingCustomUrl("Ethereum Testnet") ?? {
+        id: null,
+        blockchain_name: "Ethereum Testnet",
+        node_url: process.env.QUICKNODE_ETH_TEST_URL,
+        explorer_url: process.env.QUICKNODE_ETH_TEST_EXPLORER_URL,
+        crypto_currency_ticker: "ETH",
+        chain_id: "11155111",
+      },
+      quicknode_bnb_test: existingCustomUrl("Binance Testnet") ?? {
+        id: null,
+        blockchain_name: "Binance Testnet",
+        node_url: process.env.QUICKNODE_BNB_TEST_URL,
+        explorer_url: process.env.QUICKNODE_BNB_TEST_EXPLORER_URL,
+        crypto_currency_ticker: "BNB",
+        chain_id: "97",
+      },
+      quicknode_sol_test: existingCustomUrl("Solana Testnet") ?? {
+        id: null,
+        blockchain_name: "Solana Testnet",
+        node_url: process.env.QUICKNODE_SOL_TEST_URL,
+        explorer_url: process.env.QUICKNODE_SOL_TEST_EXPLORER_URL,
+        crypto_currency_ticker: "SOL",
+        chain_id: "",
+      },
+      quicknode_btc_main: existingCustomUrl("Bitcoin Mainnet") ?? {
+        id: null,
+        blockchain_name: "Bitcoin Mainnet",
+        node_url: process.env.QUICKNODE_BTC_MAIN_URL,
+        explorer_url: process.env.QUICKNODE_BTC_MAIN_EXPLORER_URL,
+        crypto_currency_ticker: "BTC",
+        chain_id: "",
+      },
+      quicknode_eth_main: existingCustomUrl("Ethereum Mainnet") ?? {
+        id: null,
+        blockchain_name: "Ethereum Mainnet",
+        node_url: process.env.QUICKNODE_ETH_MAIN_URL,
+        explorer_url: process.env.QUICKNODE_ETH_MAIN_EXPLORER_URL,
+        crypto_currency_ticker: "ETH",
+        chain_id: "1 (0x1)",
+      },
+      quicknode_bnb_main: existingCustomUrl("Binance Mainnet") ?? {
+        id: null,
+        blockchain_name: "Binance Mainnet",
+        node_url: process.env.QUICKNODE_BNB_MAIN_URL,
+        explorer_url: process.env.QUICKNODE_BNB_MAIN_EXPLORER_URL,
+        crypto_currency_ticker: "BNB",
+        chain_id: "56 (0x38)",
+      },
+      quicknode_sol_main: existingCustomUrl("Solana Mainnet") ?? {
+        id: null,
+        blockchain_name: "Solana Mainnet",
+        node_url: process.env.QUICKNODE_SOL_MAIN_URL,
+        explorer_url: process.env.QUICKNODE_SOL_MAIN_EXPLORER_URL,
+        crypto_currency_ticker: "SOL",
+        chain_id: "",
+      },
+    };
+
+    return res.status(200).json({
+      result: true,
+      message: "Chain URLs and data fetched successfully",
+      data,
+    });
+  } catch (error) {
+    console.log("Error while fetching chain urls : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "An error occurred while retrieving chain urls : " + error.message,
+      error: error.message,
+    });
+  }
+};
+
+const getTokenDetails = async (req, res) => {
+  try {
+    const { blockchain, address } = req.query;
+    const tokenResponse = await rango.token({
+      blockchain: blockchain === "BNB" || blockchain === "BSC" ? "BSC" : blockchain === "SOL" ? "SOLANA" : blockchain,
+      address: address,
+    });
+
+    return res.status(200).json({
+      result: true,
+      message: "Token data fetched successfully",
+      data: tokenResponse,
+    });
+  } catch (error) {
+    console.log("Error while fetching token details : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "An error occurred while fetching token details : " + error.message,
+      error: error.message,
+    });
+  }
+};
+
+const bookmarkToken = async (req, res) => {
+  try {
+    const identifier = req.user.identifier;
+    const deviceResponse = await service.findDeviceDetails(identifier);
+    const deviceId = deviceResponse[0].id;
+    const { token_id, wallet_id, name, symbol, rank, rev, type, chain, address, asset_type } = req.body;
+    const tokenDetails = await axios.get(
+      `https://thrumming-white-reel.btc.quiknode.pro/c4ba0c80a1d10dfca5420e8a4bdf020a820d4608/addon/748/v1/coins/${token_id}`
+    );
+    const logo = tokenDetails.data.logo;
+    const data = await dao.bookmarkToken(token_id, wallet_id, deviceId, name, symbol, rank, rev, type, chain, address, asset_type, logo);
+
+    return res.status(200).json({
+      result: true,
+      message: "Token bookmarked successfully",
+      data,
+    });
+  } catch (error) {
+    console.log("Error while bookmarking token details : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "An error occurred while bookmarking token details : " + error.message,
+      error: error.message,
+    });
+  }
+};
+
+const storeCustomChainUrl = async (req, res) => {
+  try {
+    const { wallet_id, blockchain_name, node_url, explorer_url, crypto_currency_ticker, chain_id } = req.body;
+    const identifier = req.user.identifier;
+    const deviceResponse = await service.findDeviceDetails(identifier);
+    const user_id = deviceResponse[0].id;
+    const existingCustomUrl = await dao.checkExistingCustomChainUrl(user_id, wallet_id, blockchain_name);
+    // console.log('existingCustomUrl', existingCustomUrl)
+    if (existingCustomUrl) {
+      const data = await dao.updateCustomChainUrl(existingCustomUrl.id, node_url, explorer_url);
+      return res.status(200).json({
+        result: true,
+        message: "Custom chain url updated successfully",
+        data,
+      });
+    }
+    const data = await dao.storeCustomChainUrls(user_id, wallet_id, blockchain_name, node_url, explorer_url, crypto_currency_ticker, chain_id);
+
+    return res.status(200).json({
+      result: true,
+      message: "Custom chain url stored successfully",
+      data,
+    });
+  } catch (error) {
+    console.log("Error while storing custom chain url : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error while storing chain url : " + error.message,
+      error: error.message,
+    });
+  }
+};
+
+const updateCustomChainUrl = async (req, res) => {
+  try {
+    const { id, node_url, explorer_url } = req.body;
+    const data = await dao.updateCustomChainUrl(id, node_url, explorer_url);
+
+    return res.status(200).json({
+      result: true,
+      message: "Custom chain url updated successfully",
+      data,
+    });
+  } catch (error) {
+    console.log("Error while updating custom chain url : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error while updating chain url : " + error.message,
+      error: error.message,
+    });
+  }
+};
+
+const removeBookmarkedToken = async (req, res) => {
+  try {
+    const { tokenId } = req.params;
+    const response = await dao.removeBookmarkedToken(tokenId);
+    return res.status(200).json({
+      result: true,
+      message: "Token removed from bookmarked list successfully",
+    });
+  } catch (error) {
+    console.log("Error while removing bookmarked token : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error while removing bookmarked token : " + error.message,
+      error: error.message,
+    });
+  }
+};
+
+const deleteCustomChainUrl = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await dao.deleteCustomChainUrl(id);
+
+    return res.status(200).json({
+      result: true,
+      message: "Custom chain url removed successfully",
+    });
+  } catch (error) {
+    console.log("Error while deleting custom chain url : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error while deleting custom chain url : " + error.message,
+      error: error.message,
+    });
+  }
+};
+
+const storeDappsList = async (req, res) => {
+  try {
+    const response = await axios.get(`https://preserver.mytokenpocket.vip/v1/application/category_dapplist?category_id=207&count=500&offset=0`);
+    const payload = [];
+    response.data.data.dapp_list.map((dapp) => {
+      payload.push({
+        title: dapp.title,
+        icon_url: dapp.icon_url,
+        url: dapp.url,
+        description: dapp.desc,
+        back_url: dapp.back_url,
+        tag_info: dapp.tag_info,
+      });
+    });
+
+    await dao.storeDappsList(payload);
+
+    return res.status(200).json({
+      result: true,
+      message: "Dapps list stored successfully into DB",
+    });
+  } catch (error) {
+    console.log("Error while storing dapps list : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error while storing dapps list : " + error.message,
+      error: error.message,
+    });
+  }
+};
+
+const fetchDappsList = async (req, res) => {
+  try {
+    const { page = 1, limit = 100 } = req.query;
+    const data = await dao.fetchDappsList(parseInt(page), parseInt(limit));
+    return res.status(200).json({
+      result: true,
+      message: "Dapps list fetched successfully",
+      data,
+    });
+  } catch (error) {
+    console.log("Error while fetching dapps list : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error while fetching dapps list : " + error.message,
+      error: error.message,
+    });
+  }
+};
 
 module.exports = {
   emailVerification,
@@ -1909,5 +2344,16 @@ module.exports = {
   initiateSwap,
   getSwapRoutes,
   getTokenBalance,
-  checkTxStatus
+  checkTxStatus,
+  searchTokensUsingQuicknode,
+  quicknodeTransactionWebhook,
+  fetchChainURLs,
+  getTokenDetails,
+  bookmarkToken,
+  removeBookmarkedToken,
+  storeCustomChainUrl,
+  updateCustomChainUrl,
+  deleteCustomChainUrl,
+  storeDappsList,
+  fetchDappsList,
 };

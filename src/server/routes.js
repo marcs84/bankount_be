@@ -1433,4 +1433,27 @@ router.post('/api/check-swap-status', jsonParser, auth.authenticateToken, contro
  */
 router.get('/api/token-balance', jsonParser, auth.authenticateToken, controllers.getTokenBalance);
 
+router.get('/api/search-token', jsonParser, auth.authenticateToken, controllers.searchTokensUsingQuicknode)
+
+router.post('/api/webhook-quicknode/transaction', jsonParser, controllers.quicknodeTransactionWebhook);
+
+router.get('/api/chain-urls', jsonParser, auth.authenticateToken, controllers.fetchChainURLs)
+
+router.get('/api/token-details', jsonParser, auth.authenticateToken, controllers.getTokenDetails)
+
+router.post('/api/bookmark-token', jsonParser, auth.authenticateToken, controllers.bookmarkToken)
+
+router.delete('/api/remove-bookmarked-token/:tokenId', jsonParser, auth.authenticateToken, controllers.removeBookmarkedToken)
+
+router.post('/api/custom-chain-url', jsonParser, auth.authenticateToken, controllers.storeCustomChainUrl)
+
+router.put('/api/edit-custom-chain-url', jsonParser, auth.authenticateToken, controllers.updateCustomChainUrl)
+
+router.delete('/api/delete-custom-chain-url/:id', jsonParser, auth.authenticateToken, controllers.deleteCustomChainUrl)
+
+router.post('/api/dapps-list', jsonParser, controllers.storeDappsList)
+
+router.get('/api/dapps-list', jsonParser, auth.authenticateToken, controllers.fetchDappsList)
+
+
 module.exports = router;
