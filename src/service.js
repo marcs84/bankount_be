@@ -99,7 +99,8 @@ const getTransactionsByAddress = (address, limit, offset) => {
   });
 };
 
-const getBalance = (cointype, address, network) => {
+const getBalance = (cointype, address, network, user_id, wallet_id) => {
+  const result = {};
   return new Promise(async (resolve, reject) => {
     let balance = 0;
 
@@ -107,7 +108,9 @@ const getBalance = (cointype, address, network) => {
       switch (cointype) {
         case "BTC": {
           if (process.env.QUICKNODE_IS_ACTIVE) {
-            balance = await cryptoCores.bitcoinCore.btcQuicknodeCore.getBalance(address, network);
+            await fetchLookupUrls(user_id, wallet_id, cointype, result);
+            let url = network === "TESTNET" ? result.quicknode_testnet_url : result.quicknode_mainnet_url;
+            balance = await cryptoCores.bitcoinCore.btcQuicknodeCore.getBalance(address, network, url);
           } else {
             balance = await cryptoCores.bitcoinCore.btcCore.getBalance(address, network);
           }
@@ -115,26 +118,35 @@ const getBalance = (cointype, address, network) => {
         }
 
         case "ETH": {
+          await fetchLookupUrls(user_id, wallet_id, cointype, result);
+          let url = network === "TESTNET" ? result.quicknode_testnet_url : result.quicknode_mainnet_url;
           balance = await cryptoCores.ethereumCore.ethCore.getBalance({
             address: address,
             network: network,
+            url,
           });
           break;
         }
 
         case "BNB": {
+          await fetchLookupUrls(user_id, wallet_id, cointype, result);
+          let url = network === "TESTNET" ? result.quicknode_testnet_url : result.quicknode_mainnet_url;
           balance = await cryptoCores.binanceCore.bnbCore.getBalance({
             address: address,
             network: network,
+            url,
           });
           break;
         }
 
         case "SOL": {
           const publicKey = new PublicKey(address);
+          await fetchLookupUrls(user_id, wallet_id, cointype, result);
+          let url = network === "TESTNET" ? result.quicknode_testnet_url : result.quicknode_mainnet_url;
           balance = await cryptoCores.solanaCore.solCore.getBalance({
             publicKey: publicKey,
             network: network,
+            url,
           });
           break;
         }
@@ -1144,6 +1156,56 @@ const storeAddressInQuicknode = async (address) => {
   }
 };
 
+const fetchLookupUrls = async (user_id, wallet_id, coin_type, data) => {
+  const customUrls = await dao.fetchCustomChainUrlsByWallet(user_id, wallet_id);
+
+  const existigNodeUrl = (blockchain_name) => {
+    const index = customUrls.findIndex((obj) => obj.blockchain_name === blockchain_name);
+    if (index !== -1) {
+      return customUrls[index].node_url;
+    } else {
+      return null;
+    }
+  };
+
+  if (coin_type) {
+    data["quicknode_is_active"] = process.env.QUICKNODE_IS_ACTIVE == "true" ? true : false;
+    switch (coin_type) {
+      case "BTC": {
+        data["quicknode_testnet_url"] = existigNodeUrl("Bitcoin Testnet") ?? process.env.QUICKNODE_BTC_TEST_URL;
+        data["quicknode_mainnet_url"] = existigNodeUrl("Bitcoin Mainnet") ?? process.env.QUICKNODE_BTC_MAIN_URL;
+        // data["testnet"] = process.env.BITCORE_TEST_URL;
+        // data["mainnet"] = process.env.BITCORE_MAIN_URL;
+        break;
+      }
+
+      case "ETH": {
+        data["quicknode_testnet_url"] = existigNodeUrl("Ethereum Testnet") ?? process.env.QUICKNODE_ETH_TEST_URL;
+        data["quicknode_mainnet_url"] = existigNodeUrl("Ethereum Mainnet") ?? process.env.QUICKNODE_ETH_MAIN_URL;
+        // data["testnet"] = process.env.ETH_TEST_URL;
+        // data["mainnet"] = process.env.ETH_MAIN_URL;
+        break;
+      }
+
+      case "BNB": {
+        data["quicknode_testnet_url"] = existigNodeUrl("Binance Testnet") ?? process.env.QUICKNODE_BNB_TEST_URL;
+        data["quicknode_mainnet_url"] = existigNodeUrl("Binance Mainnet") ?? process.env.QUICKNODE_BNB_MAIN_URL;
+        // data["testnet"] = process.env.BNB_TEST_URL;
+        // data["mainnet"] = process.env.BNB_MAIN_URL;
+        break;
+      }
+
+      case "SOL": {
+        data["quicknode_testnet_url"] = existigNodeUrl("Solana Testnet") ?? process.env.QUICKNODE_SOL_TEST_URL;
+        data["quicknode_mainnet_url"] = existigNodeUrl("Solana Mainnet") ?? process.env.QUICKNODE_SOL_MAIN_URL;
+        // data["testnet"] = process.env.SOL_TEST_URL;
+        // data["mainnet"] = solanaWeb3.clusterApiUrl("mainnet-beta");
+        break;
+      }
+    }
+  }
+};
+
 module.exports = {
   userRestore,
   changePasswordForLoggedUser,
@@ -1181,4 +1243,5 @@ module.exports = {
   getLatestCoinRates,
   convertCoinsToAmount,
   storeAddressInQuicknode,
+  fetchLookupUrls,
 };

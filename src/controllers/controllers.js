@@ -154,6 +154,7 @@ const getAddresses = async (req, res) => {
 
 const getBalance = async (req, res) => {
   const data = req.body;
+
   try {
     const balance = await service.getBalance(data.coin_type, data.address, data.network);
     res.status(200).json({
@@ -161,6 +162,7 @@ const getBalance = async (req, res) => {
       data: balance,
     });
   } catch (error) {
+    console.log("Error while fetching balance : ", error);
     res.status(500).json({
       result: false,
       message: "An error occurred while fetching the balance" + error.message,
@@ -1100,7 +1102,7 @@ const tatumTransactionWebhook = async (req, res) => {
 
     if (reqData.subscriptionType == "ADDRESS_EVENT") {
       const responseData = await service.insertTransactionDetails(reqData);
-      console.log("responseData", responseData);
+      // console.log("responseData", responseData);
       const fromAddress = await service.getDeviceTokenByFromAddress(responseData.from_address);
       const designationAddress = await service.getDeviceTokenByFromAddress(responseData.destination_address);
 
@@ -1281,7 +1283,7 @@ const filterAddresses = async (req, res) => {
     const addresses = await dao.filterAddresses(filter1);
 
     for (const address of addresses) {
-      const balance = await service.getBalance(address.coin_type, address.address, network);
+      const balance = await service.getBalance(address.coin_type, address.address, network, user_id, wallet_id);
       address.balance = balance?.balance ?? balance;
     }
     const data = { addresses };
@@ -1291,7 +1293,7 @@ const filterAddresses = async (req, res) => {
       for (const address of addresses) {
         coinsSum += address.balance;
       }
-      
+
       data.coins_sum = coinsSum;
       data.coins_sum_converted = await service.convertCoinsToAmount(coin_type, coinsSum, selected_currency, coinRates);
       data.coin_type = coin_type;
@@ -1332,7 +1334,7 @@ const fetchAssets = async (req, res) => {
     for (const index in addresses) {
       let balance;
       try {
-        balance = await service.getBalance(addresses[index].coin_type, addresses[index].address, network);
+        balance = await service.getBalance(addresses[index].coin_type, addresses[index].address, network, user_id, wallet_id);
       } catch (error) {
         console.log("Error while fetching balance for address : " + addresses[index].address, error);
         addresses.splice(index, 1);
@@ -1460,8 +1462,12 @@ const updateAddress = async (req, res) => {
 
 const fetchLookupUrls = async (req, res) => {
   try {
+    let { coin_type, key_type, client_public_key, wallet_id } = req.body;
     const data = {};
-    let { coin_type, key_type, client_public_key } = req.body;
+    const identifier = req.user.identifier;
+    const deviceResponse = await service.findDeviceDetails(identifier);
+    const user_id = deviceResponse[0].id;
+
     if (!client_public_key) {
       client_public_key = "BEZwUM6CGUGT5TPfNO7KBr8HK37e1Cua2Ct+/j3wRmIlwUpOliifPTK0mZoHdvYqukD22eTyT/Ka+tP+1LXxQgk=";
     }
@@ -1473,42 +1479,7 @@ const fetchLookupUrls = async (req, res) => {
       });
     }
 
-    if (coin_type) {
-      data["quicknode_is_active"] = process.env.QUICKNODE_IS_ACTIVE == "true" ? true : false;
-      switch (coin_type) {
-        case "BTC": {
-          data["quicknode_testnet_url"] = process.env.QUICKNODE_BTC_TEST_URL;
-          data["quicknode_mainnet_url"] = process.env.QUICKNODE_BTC_MAIN_URL;
-          data["testnet"] = process.env.BITCORE_TEST_URL;
-          data["mainnet"] = process.env.BITCORE_MAIN_URL;
-          break;
-        }
-
-        case "ETH": {
-          data["quicknode_testnet_url"] = process.env.QUICKNODE_ETH_TEST_URL;
-          data["quicknode_mainnet_url"] = process.env.QUICKNODE_ETH_MAIN_URL;
-          data["testnet"] = process.env.ETH_TEST_URL;
-          data["mainnet"] = process.env.ETH_MAIN_URL;
-          break;
-        }
-
-        case "BNB": {
-          data["quicknode_testnet_url"] = process.env.QUICKNODE_BNB_TEST_URL;
-          data["quicknode_mainnet_url"] = process.env.QUICKNODE_BNB_MAIN_URL;
-          data["testnet"] = process.env.BNB_TEST_URL;
-          data["mainnet"] = process.env.BNB_MAIN_URL;
-          break;
-        }
-
-        case "SOL": {
-          data["quicknode_testnet_url"] = process.env.QUICKNODE_SOL_TEST_URL;
-          data["quicknode_mainnet_url"] = process.env.QUICKNODE_SOL_MAIN_URL;
-          data["testnet"] = process.env.SOL_TEST_URL;
-          data["mainnet"] = solanaWeb3.clusterApiUrl("mainnet-beta");
-          break;
-        }
-      }
-    }
+    await service.fetchLookupUrls(user_id, wallet_id, coin_type, data);
 
     if (key_type) {
       let key = "";
@@ -1924,68 +1895,56 @@ const searchTokensUsingQuicknode = async (req, res) => {
 const quicknodeTransactionWebhook = async (req, res) => {
   try {
     const transactions = req.body;
+    const payload = {};
+    console.log("transactions", transactions);
     for (let transaction of transactions) {
-      const addressDetails = await service.checkAddressDetails(counterAddress);
+      const addressDetails = await service.checkAddressDetails(transaction.from);
+      const objLength = Object.keys(addressDetails).length;
+      payload.address_id = objLength > 0 ? addressDetails.id : null;
+      payload.id_utente = objLength > 0 ? addressDetails.idUtente : null;
+      payload.wallet_id = objLength > 0 ? addressDetails.wallet_id : null;
+      payload.chain = transaction.chain;
+      payload.chain_id = transaction.chainId;
+      payload.network_type = transaction.network;
+      payload.block_number = transaction.blockNumber;
+      payload.gas = transaction.gas;
+      payload.gas_price = transaction.gasPrice;
+      payload.type = transaction.type;
+      payload.block_hash = transaction.blockHash;
+      payload.tx = transaction.hash;
+      payload.input = transaction.input;
+      payload.from_address = transaction.from;
+      payload.destination_address = transaction.to;
+      payload.amount = transaction.amount;
+
+      await dao.insertEthAndBnbTransaction(payload);
+
+      const fromAddress = await service.getDeviceTokenByFromAddress(transaction.from);
+      const designationAddress = await service.getDeviceTokenByFromAddress(transaction.to);
+
+      if (fromAddress) {
+        notification.sendNotification(fromAddress, {
+          notificationTitle: "Transaction Sent",
+          notificationBody: `The transaction successfully sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}.
+                                                 Transaction ID: ${transaction.hash}`,
+        });
+      }
+
+      if (designationAddress) {
+        notification.sendNotification(designationAddress, {
+          notificationTitle: "Transaction Received",
+          notificationBody: `The transaction successfully received ${transaction.amount} ${transaction.chain} from address ${transaction.from}.
+                                                 Transaction ID: ${transaction.hash}.`,
+        });
+      }
     }
 
     return res.status(200).json({
       result: true,
-      message: "ok",
+      message: "OK",
     });
-    // let reqData = req.body;
-    // const addressDetails = await service.checkAddressDetails(reqData.counterAddress);
-    // const objLength = Object.keys(addressDetails).length;
-    // const addresId = objLength > 0 ? addressDetails.id : null;
-    // const userID = objLength > 0 ? addressDetails.idUtente : 0;
-    // reqData.tx = reqData.txId;
-    // reqData.address_id = addresId;
-    // reqData.idUtente = userID;
-    // reqData.chain = reqData.asset;
-    // reqData.token = reqData.asset;
-    // reqData.from_address = reqData.counterAddress;
-    // reqData.destination_address = reqData.address;
-    // reqData.block_number = reqData.blockNumber;
-    // reqData.type = reqData.type == "native" ? "COIN" : "TOKEN";
-    // reqData.network_type = "TESTNET";
-
-    // if (reqData.subscriptionType == "ADDRESS_EVENT") {
-    //   const responseData = await service.insertTransactionDetails(reqData);
-    //   console.log("responseData", responseData);
-    //   const fromAddress = await service.getDeviceTokenByFromAddress(responseData.from_address);
-    //   const designationAddress = await service.getDeviceTokenByFromAddress(responseData.destination_address);
-
-    //   if (fromAddress) {
-    //     notification.sendNotification(fromAddress, {
-    //       notificationTitle: "Transaction Sent",
-    //       notificationBody: `The transaction successfully sent ${responseData.amount} ${responseData.chain} to address ${responseData.destination_address}.
-    //                                            Transaction ID: ${responseData.tx}`,
-    //     });
-    //   }
-
-    //   if (designationAddress) {
-    //     notification.sendNotification(designationAddress, {
-    //       notificationTitle: "Transaction Received",
-    //       notificationBody: `The transaction successfully received ${responseData.amount} ${responseData.chain} from address ${responseData.from_address}.
-    //                                            Transaction ID: ${responseData.tx}.`,
-    //     });
-    //   }
-
-    //   res.json({
-    //     result: true,
-    //     message: "Transaction stored successfully",
-    //     data: responseData,
-    //   });
-    // } else {
-    //   notification.sendNotification(fromAddress, {
-    //     notificationTitle: "Transaction Failed",
-    //     notificationBody: "Your transaction could not be completed.",
-    //   });
-    //   res.status(500).json({
-    //     result: false,
-    //     message: "Transaction not stored successfully",
-    //   });
-    // }
   } catch (error) {
+    console.log("Error while fetching webhook data  : ", error);
     return res.status(500).json({
       result: false,
       message: "An error occurred while retrieving list of transactions by address: ",
@@ -2274,8 +2233,8 @@ const storeDappsList = async (req, res) => {
 
 const fetchDappsList = async (req, res) => {
   try {
-    const { page = 1, limit = 100 } = req.query;
-    const data = await dao.fetchDappsList(parseInt(page), parseInt(limit));
+    const { page = 1, limit = 100, key } = req.query;
+    const data = await dao.fetchDappsList(parseInt(page), parseInt(limit), key);
     return res.status(200).json({
       result: true,
       message: "Dapps list fetched successfully",

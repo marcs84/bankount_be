@@ -392,7 +392,6 @@ const filterTransactions = (data) => {
       params.push(network_type);
     }
 
-    // Add GROUP BY and ORDER BY if needed (you can adjust this part based on your needs)
     query += `
     ORDER BY t.id DESC
         `;
@@ -519,6 +518,7 @@ const getAddressByAddress = (address) => {
           idUtente: results[0].id_utente,
           index: results[0].index,
           start_block: results[0].start_block,
+          wallett_id: results[0].wallet_id
         };
         resolve(addressRecord);
       } else {
@@ -678,6 +678,17 @@ const insertTransaction = (
     });
   });
 };
+
+const insertEthAndBnbTransaction = ({address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount})=>{
+  return new Promise((resolve, reject)=>{
+    connection.query(`INSERT INTO transactions_new(address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount], (error, result)=>{
+      if(error){
+        return reject(new Error('Error while inserting transaction : '+error.message));
+      }
+      return resolve(result);
+    })
+  })
+}
 
 const transactionExists = (txHash) => {
   const queryTransaction = "SELECT COUNT(*) AS count FROM transactions WHERE tx = ?";
@@ -1817,6 +1828,7 @@ module.exports = {
   getPathByAddress,
   insertAssociatedTokenAccount,
   insertTransaction,
+  insertEthAndBnbTransaction,
   getAddressesByUserIdAndCoinType,
   getTransactions,
   filterTransactions,
