@@ -1455,5 +1455,7 @@ router.post('/api/dapps-list', jsonParser, controllers.storeDappsList)
 
 router.get('/api/dapps-list', jsonParser, auth.authenticateToken, controllers.fetchDappsList)
 
+router.get('/api/transaction-notifications', jsonParser, auth.authenticateToken, controllers.fetchTransactionNotification)
+
 
 module.exports = router;

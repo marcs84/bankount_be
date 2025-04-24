@@ -518,7 +518,7 @@ const getAddressByAddress = (address) => {
           idUtente: results[0].id_utente,
           index: results[0].index,
           start_block: results[0].start_block,
-          wallett_id: results[0].wallet_id
+          wallet_id: results[0].wallet_id
         };
         resolve(addressRecord);
       } else {
@@ -679,9 +679,9 @@ const insertTransaction = (
   });
 };
 
-const insertEthAndBnbTransaction = ({address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount})=>{
+const insertTransactionNew = ({address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount})=>{
   return new Promise((resolve, reject)=>{
-    connection.query(`INSERT INTO transactions_new(address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount], (error, result)=>{
+    connection.query(`INSERT INTO transactions(address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount], (error, result)=>{
       if(error){
         return reject(new Error('Error while inserting transaction : '+error.message));
       }
@@ -705,7 +705,18 @@ const transactionExists = (txHash) => {
   });
 };
 
-const getAddressesByUserIdAndCoinType = (id_utente, cointype) => {
+const insertTransactionNotification = (user_id, wallet_id, notification_title, notification_body, chain)=>{
+  return new Promise((resolve, reject)=>{
+    connection.query(`INSERT INTO transaction_notifications(user_id, wallet_id, notification_title, notification_body, chain) VALUES (?, ?, ?, ?, ?)`, [user_id, wallet_id, notification_title, notification_body, chain], (error, results)=>{
+      if(error){
+        return reject(new Error('Error while inserting transaction notification : '+error.message));
+      }
+      return results;
+    })
+  })
+}
+
+ const getAddressesByUserIdAndCoinType = (id_utente, cointype) => {
   const queryAddresses = "SELECT * FROM addresses WHERE id_utente = ? AND cointype = ? ORDER BY `index`";
 
   return new Promise((resolve, reject) => {
@@ -1788,14 +1799,37 @@ const storeDappsList = async (dapps)=>{
   })
 }
 
-const fetchDappsList = async (page, limit)=>{
+const fetchDappsList = async (page, limit, key)=>{
+  
   return new Promise((resolve, reject)=>{
-    connection.query(`SELECT * FROM dapps_list LIMIT ? OFFSET ?`, [limit, (page-1)*limit], (err, results)=>{
+    connection.query(`SELECT * FROM dapps_list WHERE title LIKE ? LIMIT ? OFFSET ?`, [`%${key}%`, limit, (page-1)*limit], (err, results)=>{
       if(err){
         return reject(new Error('Error while fetching dapps list : '+err.message));
       }
       const data = {dappsList: results}
-      connection.query(`SELECT COUNT(*) as count FROM dapps_list`, (error, result)=>{
+      connection.query(`SELECT COUNT(*) as count FROM dapps_list WHERE title LIKE ?`,[`%${key}%`], (error, result)=>{
+        console.log('result', result)
+        const totalCount = result[0].count
+        data.totalPages = Math.ceil(totalCount/limit);
+        data.totalCount = totalCount;
+        data.page = page;
+        data.limit = limit;
+        data.hasNextPage = page < data.totalPages;
+        
+        return resolve(data);
+      })
+    })
+  })
+}
+
+const fetchTransactionNotification = async (user_id, wallet_id, page, limit)=>{
+  return new Promise((resolve, reject)=>{
+    connection.query(`SELECT * FROM transaction_notifications WHERE user_id = ? AND wallet_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`, [user_id, wallet_id, limit, (page-1)*limit], (err, results)=>{
+      if(err){
+        return reject(new Error('Error while fetching transaction notifications: '+err.message))
+      }
+      const data = {transactionNotifications: results}
+      connection.query(`SELECT COUNT(*) as count FROM transaction_notifications WHERE user_id = ? AND wallet_id = ?`,[user_id, wallet_id], (error, result)=>{
         console.log('result', result)
         const totalCount = result[0].count
         data.totalPages = Math.ceil(totalCount/limit);
@@ -1828,7 +1862,8 @@ module.exports = {
   getPathByAddress,
   insertAssociatedTokenAccount,
   insertTransaction,
-  insertEthAndBnbTransaction,
+  insertTransactionNew,
+  insertTransactionNotification,
   getAddressesByUserIdAndCoinType,
   getTransactions,
   filterTransactions,
@@ -1891,5 +1926,6 @@ module.exports = {
   updateCustomChainUrl,
   deleteCustomChainUrl,
   storeDappsList,
-  fetchDappsList
+  fetchDappsList,
+  fetchTransactionNotification
 };

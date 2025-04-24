@@ -1894,7 +1894,8 @@ const searchTokensUsingQuicknode = async (req, res) => {
 
 const quicknodeTransactionWebhook = async (req, res) => {
   try {
-    const transactions = req.body;
+    const transactions = req.body.payload;
+    const { chainName } = req.body;
     const payload = {};
     console.log("transactions", transactions);
     for (let transaction of transactions) {
@@ -1904,38 +1905,44 @@ const quicknodeTransactionWebhook = async (req, res) => {
       payload.id_utente = objLength > 0 ? addressDetails.idUtente : null;
       payload.wallet_id = objLength > 0 ? addressDetails.wallet_id : null;
       payload.chain = transaction.chain;
-      payload.chain_id = transaction.chainId;
+      payload.chain_id = transaction.chainId ?? null;
       payload.network_type = transaction.network;
-      payload.block_number = transaction.blockNumber;
-      payload.gas = transaction.gas;
-      payload.gas_price = transaction.gasPrice;
-      payload.type = transaction.type;
-      payload.block_hash = transaction.blockHash;
+      payload.block_number = transaction.blockNumber ?? null;
+      payload.gas = transaction.gas ?? null;
+      payload.gas_price = transaction.gasPrice ?? null;
+      payload.type = transaction.type ?? null;
+      payload.block_hash = transaction.blockHash ?? null;
       payload.tx = transaction.hash;
       payload.input = transaction.input;
       payload.from_address = transaction.from;
       payload.destination_address = transaction.to;
       payload.amount = transaction.amount;
-
-      await dao.insertEthAndBnbTransaction(payload);
-
+      await dao.insertTransactionNew(payload);
       const fromAddress = await service.getDeviceTokenByFromAddress(transaction.from);
       const designationAddress = await service.getDeviceTokenByFromAddress(transaction.to);
 
       if (fromAddress) {
+        const notificationTitle = "Transaction Sent";
+        const notificationBody = `The transaction successfully sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}.
+                                                 Transaction ID: ${transaction.hash}`
+
         notification.sendNotification(fromAddress, {
-          notificationTitle: "Transaction Sent",
-          notificationBody: `The transaction successfully sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}.
-                                                 Transaction ID: ${transaction.hash}`,
+          notificationTitle,
+          notificationBody,
         });
+        await dao.insertTransactionNotification(addressDetails.idUtente, addressDetails.wallet_id, notificationTitle, notificationBody, transaction.chain)
       }
 
       if (designationAddress) {
+        const notificationTitle = "Transaction Received";
+        const notificationBody = `The transaction successfully received ${transaction.amount} ${transaction.chain} from address ${transaction.from}.
+                                                 Transaction ID: ${transaction.hash}.`;
+
         notification.sendNotification(designationAddress, {
-          notificationTitle: "Transaction Received",
-          notificationBody: `The transaction successfully received ${transaction.amount} ${transaction.chain} from address ${transaction.from}.
-                                                 Transaction ID: ${transaction.hash}.`,
+          notificationTitle,
+          notificationBody
         });
+        await dao.insertTransactionNotification(addressDetails.idUtente, addressDetails.wallet_id, notificationTitle, notificationBody, transaction.chain)
       }
     }
 
@@ -2233,7 +2240,10 @@ const storeDappsList = async (req, res) => {
 
 const fetchDappsList = async (req, res) => {
   try {
-    const { page = 1, limit = 100, key } = req.query;
+    let { page = 1, limit = 100, key } = req.query;
+    if (key === null || key === "null" || !key) {
+      key = "";
+    }
     const data = await dao.fetchDappsList(parseInt(page), parseInt(limit), key);
     return res.status(200).json({
       result: true,
@@ -2249,6 +2259,31 @@ const fetchDappsList = async (req, res) => {
     });
   }
 };
+
+const fetchTransactionNotification = async (req, res)=>{
+  try {
+    const {wallet_id, page = 1, limit = 10} = req.query;
+
+    const identifier = req.user.identifier;
+    const deviceResponse = await service.findDeviceDetails(identifier);
+    const user_id = deviceResponse[0].id;
+    
+    const response = await dao.fetchTransactionNotification(user_id, wallet_id, parseInt(page), parseInt(limit))
+
+    return res.status(200).json({
+      result: true,
+      message: 'Transaction notifications fetched successfully',
+      data: response
+    })
+  } catch (error) {
+    console.log("Error while fetching transaction notifications: ", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error while fetching transaction notifications : " + error.message,
+      error: error.message,
+    });
+  }
+}
 
 module.exports = {
   emailVerification,
@@ -2315,4 +2350,5 @@ module.exports = {
   deleteCustomChainUrl,
   storeDappsList,
   fetchDappsList,
+  fetchTransactionNotification
 };
