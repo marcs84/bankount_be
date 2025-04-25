@@ -1924,7 +1924,7 @@ const quicknodeTransactionWebhook = async (req, res) => {
       if (fromAddress) {
         const notificationTitle = "Transaction Sent";
         const notificationBody = `The transaction successfully sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}.
-                                                 Transaction ID: ${transaction.hash}`
+        Transaction ID: ${transaction.hash}`
 
         notification.sendNotification(fromAddress, {
           notificationTitle,
@@ -1936,12 +1936,13 @@ const quicknodeTransactionWebhook = async (req, res) => {
       if (designationAddress) {
         const notificationTitle = "Transaction Received";
         const notificationBody = `The transaction successfully received ${transaction.amount} ${transaction.chain} from address ${transaction.from}.
-                                                 Transaction ID: ${transaction.hash}.`;
+        Transaction ID: ${transaction.hash}.`;
 
         notification.sendNotification(designationAddress, {
           notificationTitle,
           notificationBody
         });
+        const addressDetails = await service.checkAddressDetails(transaction.to);
         await dao.insertTransactionNotification(addressDetails.idUtente, addressDetails.wallet_id, notificationTitle, notificationBody, transaction.chain)
       }
     }

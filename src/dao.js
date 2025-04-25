@@ -711,12 +711,12 @@ const insertTransactionNotification = (user_id, wallet_id, notification_title, n
       if(error){
         return reject(new Error('Error while inserting transaction notification : '+error.message));
       }
-      return results;
+      return resolve(results);
     })
   })
 }
 
- const getAddressesByUserIdAndCoinType = (id_utente, cointype) => {
+const getAddressesByUserIdAndCoinType = (id_utente, cointype) => {
   const queryAddresses = "SELECT * FROM addresses WHERE id_utente = ? AND cointype = ? ORDER BY `index`";
 
   return new Promise((resolve, reject) => {
