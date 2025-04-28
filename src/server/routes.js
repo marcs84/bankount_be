@@ -915,6 +915,8 @@ router.put("/api/wallet/update", jsonParser, auth.authenticateToken, controllers
  */
 router.get("/api/wallet", jsonParser, auth.authenticateToken, controllers.fetchWallets);
 
+router.delete("/api/delete-wallets", jsonParser, auth.authenticateToken, controllers.deleteWallets);
+
 /**
  * @swagger
  * /api/addresses:
@@ -1278,6 +1280,69 @@ router.get("/api/token-metadata", jsonParser, auth.authenticateToken, controller
  */
 router.put("/api/onboard-user", jsonParser, auth.authenticateToken, controllers.onboardUser);
 
+/**
+ * @swagger
+ * /api/store-rango-bc-data:
+ *   post:
+ *     summary: Store Rango blockchain data
+ *     description: Fetches blockchain data from Rango API, filters selected blockchains (SOLANA, BNB, ETH, BSC, BTC), and stores them into the database.
+ *     operationId: storeRangoBlockchainData
+ *     tags:
+ *       - Rango Blockchain
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             example: {}
+ *           description: No input data required. Just trigger the API to fetch and store data.
+ *     responses:
+ *       200:
+ *         description: Rango blockchain data stored successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Rango data stored in DB successfully"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       name:
+ *                         type: string
+ *                         example: SOLANA
+ *                       defaultDecimals:
+ *                         type: integer
+ *                         example: 9
+ *                       type:
+ *                         type: string
+ *                         example: EVM
+ *                       chainId:
+ *                         type: integer
+ *                         example: 101
+ *                       logo:
+ *                         type: string
+ *                         example: "https://cdn.rango.exchange/blockchains/solana/logo.svg"
+ *                       displayName:
+ *                         type: string
+ *                         example: Solana
+ *                       shortName:
+ *                         type: string
+ *                         example: SOL
+ *                       info:
+ *                         type: string
+ *                         example: "Additional blockchain information"
+ *       500:
+ *         $ref: '#/components/responses/ServerError'  # <-- Internal server error response
+ */
 router.post("/api/store-rango-bc-data", jsonParser, controllers.storeRangoBlockchainData);
 
 /**
@@ -1347,13 +1412,12 @@ router.post("/api/store-rango-bc-data", jsonParser, controllers.storeRangoBlockc
  */
 router.get("/api/rango-blockchain-data", jsonParser, auth.authenticateToken, controllers.fetchRangoBlockchainData);
 
-
 router.get("/api/rango-metadata", jsonParser, auth.authenticateToken, controllers.fetchRangoMetadata);
 
 router.post("/api/initiate-swap", jsonParser, auth.authenticateToken, controllers.initiateSwap);
 router.get("/api/swap-routes", jsonParser, auth.authenticateToken, controllers.getSwapRoutes);
 
-router.post('/api/check-swap-status', jsonParser, auth.authenticateToken, controllers.checkTxStatus)
+router.post("/api/check-swap-status", jsonParser, auth.authenticateToken, controllers.checkTxStatus);
 
 /**
  * @swagger
@@ -1431,31 +1495,335 @@ router.post('/api/check-swap-status', jsonParser, auth.authenticateToken, contro
  *       500:
  *         $ref: '#/components/responses/ServerError'  # <-- Server error response
  */
-router.get('/api/token-balance', jsonParser, auth.authenticateToken, controllers.getTokenBalance);
+router.get("/api/token-balance", jsonParser, auth.authenticateToken, controllers.getTokenBalance);
 
-router.get('/api/search-token', jsonParser, auth.authenticateToken, controllers.searchTokensUsingQuicknode)
+/**
+ * @swagger
+ * /api/search-token:
+ *   get:
+ *     summary: Search tokens using Quicknode
+ *     description: Searches for tokens using the Quicknode addon API based on the provided query parameter.
+ *     operationId: searchTokensUsingQuicknode
+ *     tags:
+ *       - Token
+ *     security:
+ *       - bearerAuth: []  # <-- JWT authentication required
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Search query for tokens (e.g., token symbol or name)
+ *     responses:
+ *       200:
+ *         description: Tokens fetched successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Tokens fetched successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     currencies:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             example: "ethereum"
+ *                           name:
+ *                             type: string
+ *                             example: "Ethereum"
+ *                           symbol:
+ *                             type: string
+ *                             example: "ETH"
+ *                           type:
+ *                             type: string
+ *                             example: "token"
+ *                           logo:
+ *                             type: string
+ *                             example: "https://assets.coingecko.com/coins/images/279/large/ethereum.png"
+ *     401:
+ *       $ref: '#/components/responses/UnauthorizedError'
+ *     403:
+ *       $ref: '#/components/responses/ForbiddenError'
+ *     500:
+ *       $ref: '#/components/responses/ServerError'
+ */
+router.get("/api/search-token", jsonParser, auth.authenticateToken, controllers.searchTokensUsingQuicknode);
 
-router.post('/api/webhook-quicknode/transaction', jsonParser, controllers.quicknodeTransactionWebhook);
+router.post("/api/webhook-quicknode/transaction", jsonParser, controllers.quicknodeTransactionWebhook);
 
-router.get('/api/chain-urls', jsonParser, auth.authenticateToken, controllers.fetchChainURLs)
+/**
+ * @swagger
+ * /api/chain-urls:
+ *   get:
+ *     summary: Fetch chain URLs and details
+ *     description: Retrieves the blockchain node URLs, explorer URLs, and other details for different chains based on the user's device and wallet.
+ *     operationId: fetchChainURLs
+ *     tags:
+ *       - Blockchain
+ *     security:
+ *       - bearerAuth: []  # <-- JWT authentication required
+ *     parameters:
+ *       - in: query
+ *         name: wallet_id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Wallet ID to fetch associated custom chain URLs.
+ *     responses:
+ *       200:
+ *         description: Chain URLs and data fetched successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Chain URLs and data fetched successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     quicknode_btc_test:
+ *                       $ref: '#/components/schemas/ChainUrlData'
+ *                     quicknode_eth_test:
+ *                       $ref: '#/components/schemas/ChainUrlData'
+ *                     quicknode_bnb_test:
+ *                       $ref: '#/components/schemas/ChainUrlData'
+ *                     quicknode_sol_test:
+ *                       $ref: '#/components/schemas/ChainUrlData'
+ *                     quicknode_btc_main:
+ *                       $ref: '#/components/schemas/ChainUrlData'
+ *                     quicknode_eth_main:
+ *                       $ref: '#/components/schemas/ChainUrlData'
+ *                     quicknode_bnb_main:
+ *                       $ref: '#/components/schemas/ChainUrlData'
+ *                     quicknode_sol_main:
+ *                       $ref: '#/components/schemas/ChainUrlData'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         description: Server error while retrieving chain URLs.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "An error occurred while retrieving chain urls : <error details>"
+ *                 error:
+ *                   type: string
+ *                   example: "Database connection error"
+ */
+router.get("/api/chain-urls", jsonParser, auth.authenticateToken, controllers.fetchChainURLs);
 
-router.get('/api/token-details', jsonParser, auth.authenticateToken, controllers.getTokenDetails)
+/**
+ * @swagger
+ * /api/token-details:
+ *   get:
+ *     summary: Fetch token details from Rango
+ *     description: Retrieves detailed token information for a given blockchain and token address.
+ *     operationId: getTokenDetails
+ *     tags:
+ *       - Token
+ *     security:
+ *       - bearerAuth: []  # <-- JWT authentication required
+ *     parameters:
+ *       - in: query
+ *         name: blockchain
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Blockchain name (e.g., ETH, BNB, SOL, BTC, etc.)
+ *       - in: query
+ *         name: address
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Token contract address.
+ *     responses:
+ *       200:
+ *         description: Token data fetched successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Token data fetched successfully"
+ *                 data:
+ *                   type: object
+ *                   example:
+ *                     name: "Tether USD"
+ *                     symbol: "USDT"
+ *                     decimals: 6
+ *                     address: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+ *                     logo: "https://example.com/logo.png"
+ *                     blockchain: "ETH"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         description: An error occurred while fetching token details.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "An error occurred while fetching token details : <error details>"
+ *                 error:
+ *                   type: string
+ *                   example: "Invalid blockchain name"
+ */
+router.get("/api/token-details", jsonParser, auth.authenticateToken, controllers.getTokenDetails);
 
-router.post('/api/bookmark-token', jsonParser, auth.authenticateToken, controllers.bookmarkToken)
+/**
+ * @swagger
+ * /api/bookmark-token:
+ *   post:
+ *     summary: Bookmark a token
+ *     description: Bookmarks a token to the user's wallet based on provided token and wallet information.
+ *     operationId: bookmarkToken
+ *     tags:
+ *       - Token
+ *     security:
+ *       - bearerAuth: []  # <-- JWT authentication required
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token_id
+ *               - wallet_id
+ *               - name
+ *               - symbol
+ *               - rank
+ *               - rev
+ *               - type
+ *               - chain
+ *               - address
+ *               - asset_type
+ *             properties:
+ *               token_id:
+ *                 type: string
+ *                 example: "eth-ethereum"
+ *               wallet_id:
+ *                 type: integer
+ *                 example: 123
+ *               name:
+ *                 type: string
+ *                 example: "Ethereum"
+ *               symbol:
+ *                 type: string
+ *                 example: "ETH"
+ *               rank:
+ *                 type: integer
+ *                 example: 2
+ *               rev:
+ *                 type: string
+ *                 example: "1"
+ *               type:
+ *                 type: string
+ *                 example: "token"
+ *               chain:
+ *                 type: string
+ *                 example: "ETH"
+ *               address:
+ *                 type: string
+ *                 example: "0x0000000000000000000000000000000000000000"
+ *               asset_type:
+ *                 type: string
+ *                 example: "crypto"
+ *     responses:
+ *       200:
+ *         description: Token bookmarked successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Token bookmarked successfully"
+ *                 data:
+ *                   type: object
+ *                   example:
+ *                     id: 45
+ *                     wallet_id: 123
+ *                     token_id: "eth-ethereum"
+ *                     name: "Ethereum"
+ *                     symbol: "ETH"
+ *                     logo: "https://example.com/logo.png"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         description: An error occurred while bookmarking token details.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "An error occurred while bookmarking token details : <error details>"
+ *                 error:
+ *                   type: string
+ *                   example: "Database insert failed"
+ */
+router.post("/api/bookmark-token", jsonParser, auth.authenticateToken, controllers.bookmarkToken);
 
-router.delete('/api/remove-bookmarked-token/:tokenId', jsonParser, auth.authenticateToken, controllers.removeBookmarkedToken)
+router.delete("/api/remove-bookmarked-token/:tokenId", jsonParser, auth.authenticateToken, controllers.removeBookmarkedToken);
 
-router.post('/api/custom-chain-url', jsonParser, auth.authenticateToken, controllers.storeCustomChainUrl)
+router.post("/api/custom-chain-url", jsonParser, auth.authenticateToken, controllers.storeCustomChainUrl);
 
-router.put('/api/edit-custom-chain-url', jsonParser, auth.authenticateToken, controllers.updateCustomChainUrl)
+router.put("/api/edit-custom-chain-url", jsonParser, auth.authenticateToken, controllers.updateCustomChainUrl);
 
-router.delete('/api/delete-custom-chain-url/:id', jsonParser, auth.authenticateToken, controllers.deleteCustomChainUrl)
+router.delete("/api/delete-custom-chain-url/:id", jsonParser, auth.authenticateToken, controllers.deleteCustomChainUrl);
 
-router.post('/api/dapps-list', jsonParser, controllers.storeDappsList)
+router.post("/api/dapps-list", jsonParser, controllers.storeDappsList);
 
-router.get('/api/dapps-list', jsonParser, auth.authenticateToken, controllers.fetchDappsList)
+router.get("/api/dapps-list", jsonParser, auth.authenticateToken, controllers.fetchDappsList);
 
-router.get('/api/transaction-notifications', jsonParser, auth.authenticateToken, controllers.fetchTransactionNotification)
-
+router.get("/api/transaction-notifications", jsonParser, auth.authenticateToken, controllers.fetchTransactionNotification);
 
 module.exports = router;

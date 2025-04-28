@@ -405,7 +405,7 @@ const filterTransactions = (data) => {
 
     if (offset) {
       query += " OFFSET ?";
-      params.push(offset*limit);
+      params.push(offset * limit);
     }
 
     return new Promise((resolve, reject) => {
@@ -518,7 +518,7 @@ const getAddressByAddress = (address) => {
           idUtente: results[0].id_utente,
           index: results[0].index,
           start_block: results[0].start_block,
-          wallet_id: results[0].wallet_id
+          wallet_id: results[0].wallet_id,
         };
         resolve(addressRecord);
       } else {
@@ -679,16 +679,54 @@ const insertTransaction = (
   });
 };
 
-const insertTransactionNew = ({address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount})=>{
-  return new Promise((resolve, reject)=>{
-    connection.query(`INSERT INTO transactions(address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount], (error, result)=>{
-      if(error){
-        return reject(new Error('Error while inserting transaction : '+error.message));
+const insertTransactionNew = ({
+  address_id,
+  id_utente,
+  wallet_id,
+  chain,
+  chain_id,
+  network_type,
+  block_number,
+  gas,
+  gas_price,
+  type,
+  block_hash,
+  input,
+  from_address,
+  destination_address,
+  tx,
+  amount,
+}) => {
+  return new Promise((resolve, reject) => {
+    connection.query(
+      `INSERT INTO transactions(address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        address_id,
+        id_utente,
+        wallet_id,
+        chain,
+        chain_id,
+        network_type,
+        block_number,
+        gas,
+        gas_price,
+        type,
+        block_hash,
+        input,
+        from_address,
+        destination_address,
+        tx,
+        amount,
+      ],
+      (error, result) => {
+        if (error) {
+          return reject(new Error("Error while inserting transaction : " + error.message));
+        }
+        return resolve(result);
       }
-      return resolve(result);
-    })
-  })
-}
+    );
+  });
+};
 
 const transactionExists = (txHash) => {
   const queryTransaction = "SELECT COUNT(*) AS count FROM transactions WHERE tx = ?";
@@ -705,16 +743,20 @@ const transactionExists = (txHash) => {
   });
 };
 
-const insertTransactionNotification = (user_id, wallet_id, notification_title, notification_body, chain)=>{
-  return new Promise((resolve, reject)=>{
-    connection.query(`INSERT INTO transaction_notifications(user_id, wallet_id, notification_title, notification_body, chain) VALUES (?, ?, ?, ?, ?)`, [user_id, wallet_id, notification_title, notification_body, chain], (error, results)=>{
-      if(error){
-        return reject(new Error('Error while inserting transaction notification : '+error.message));
+const insertTransactionNotification = (user_id, wallet_id, notification_title, notification_body, chain) => {
+  return new Promise((resolve, reject) => {
+    connection.query(
+      `INSERT INTO transaction_notifications(user_id, wallet_id, notification_title, notification_body, chain) VALUES (?, ?, ?, ?, ?)`,
+      [user_id, wallet_id, notification_title, notification_body, chain],
+      (error, results) => {
+        if (error) {
+          return reject(new Error("Error while inserting transaction notification : " + error.message));
+        }
+        return resolve(results);
       }
-      return resolve(results);
-    })
-  })
-}
+    );
+  });
+};
 
 const getAddressesByUserIdAndCoinType = (id_utente, cointype) => {
   const queryAddresses = "SELECT * FROM addresses WHERE id_utente = ? AND cointype = ? ORDER BY `index`";
@@ -1703,16 +1745,16 @@ const checkExistingCustomChainUrl = async (user_id, wallet_id, blockchain_name) 
   });
 };
 
-const fetchCustomChainUrlsByWallet = async (user_id, wallet_id)=>{
-  return new Promise((resolve, reject)=>{
-    connection.query(`SELECT * FROM custom_urls WHERE user_id = ? AND wallet_id = ?`, [user_id, wallet_id], (err, results)=>{
-      if(err){
-        return reject(new Error('Error while fetching custom chain urls : ', err));
+const fetchCustomChainUrlsByWallet = async (user_id, wallet_id) => {
+  return new Promise((resolve, reject) => {
+    connection.query(`SELECT * FROM custom_urls WHERE user_id = ? AND wallet_id = ?`, [user_id, wallet_id], (err, results) => {
+      if (err) {
+        return reject(new Error("Error while fetching custom chain urls : ", err));
       }
       return resolve(results);
-    })
-  })
-}
+    });
+  });
+};
 
 const storeCustomChainUrls = async (user_id, wallet_id, blockchain_name, node_url, explorer_url, crypto_currency_ticker, chain_id) => {
   return new Promise((resolve, reject) => {
@@ -1723,15 +1765,15 @@ const storeCustomChainUrls = async (user_id, wallet_id, blockchain_name, node_ur
         if (error) {
           return reject(new Error("Error while storing custom chain urls : " + error.message));
         }
-        if(results.insertId){
-          connection.query(`SELECT * FROM custom_urls WHERE id = ?`, [results.insertId], (err, result)=>{
-            if(err){
-              return reject(new Error('Error while fetching custom chain url : '+error.message));
+        if (results.insertId) {
+          connection.query(`SELECT * FROM custom_urls WHERE id = ?`, [results.insertId], (err, result) => {
+            if (err) {
+              return reject(new Error("Error while fetching custom chain url : " + error.message));
             }
             return resolve(result[0]);
-          })
-        }else{
-          return resolve(null)
+          });
+        } else {
+          return resolve(null);
         }
       }
     );
@@ -1778,71 +1820,122 @@ const deleteCustomChainUrl = async (id) => {
   });
 };
 
-const storeDappsList = async (dapps)=>{
-  const values = dapps.map(dapp => [
-    dapp.title,
-    dapp.icon_url,
-    dapp.url,
-    dapp.description,
-    dapp.back_url,
-    dapp.tag_info
-  ]);
-  
-  return new Promise((resolve, reject)=>{
-    connection.query(`INSERT INTO dapps_list (title, icon_url, url, description, back_url, tag_info) VALUES ?
-`, [values], (error, results)=>{
-      if(error){
-        return reject(new Error('Error while storing dapps list : '+error.message))
-      }
-      return resolve(results);
-    })
-  })
-}
+const storeDappsList = async (dapps) => {
+  const values = dapps.map((dapp) => [dapp.title, dapp.icon_url, dapp.url, dapp.description, dapp.back_url, dapp.tag_info]);
 
-const fetchDappsList = async (page, limit, key)=>{
-  
-  return new Promise((resolve, reject)=>{
-    connection.query(`SELECT * FROM dapps_list WHERE title LIKE ? LIMIT ? OFFSET ?`, [`%${key}%`, limit, (page-1)*limit], (err, results)=>{
-      if(err){
-        return reject(new Error('Error while fetching dapps list : '+err.message));
+  return new Promise((resolve, reject) => {
+    connection.query(
+      `INSERT INTO dapps_list (title, icon_url, url, description, back_url, tag_info) VALUES ?
+`,
+      [values],
+      (error, results) => {
+        if (error) {
+          return reject(new Error("Error while storing dapps list : " + error.message));
+        }
+        return resolve(results);
       }
-      const data = {dappsList: results}
-      connection.query(`SELECT COUNT(*) as count FROM dapps_list WHERE title LIKE ?`,[`%${key}%`], (error, result)=>{
-        console.log('result', result)
-        const totalCount = result[0].count
-        data.totalPages = Math.ceil(totalCount/limit);
+    );
+  });
+};
+
+const fetchDappsList = async (page, limit, key) => {
+  return new Promise((resolve, reject) => {
+    connection.query(`SELECT * FROM dapps_list WHERE title LIKE ? LIMIT ? OFFSET ?`, [`%${key}%`, limit, (page - 1) * limit], (err, results) => {
+      if (err) {
+        return reject(new Error("Error while fetching dapps list : " + err.message));
+      }
+      const data = { dappsList: results };
+      connection.query(`SELECT COUNT(*) as count FROM dapps_list WHERE title LIKE ?`, [`%${key}%`], (error, result) => {
+        console.log("result", result);
+        const totalCount = result[0].count;
+        data.totalPages = Math.ceil(totalCount / limit);
         data.totalCount = totalCount;
         data.page = page;
         data.limit = limit;
         data.hasNextPage = page < data.totalPages;
-        
-        return resolve(data);
-      })
-    })
-  })
-}
 
-const fetchTransactionNotification = async (user_id, wallet_id, page, limit)=>{
-  return new Promise((resolve, reject)=>{
-    connection.query(`SELECT * FROM transaction_notifications WHERE user_id = ? AND wallet_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`, [user_id, wallet_id, limit, (page-1)*limit], (err, results)=>{
-      if(err){
-        return reject(new Error('Error while fetching transaction notifications: '+err.message))
-      }
-      const data = {transactionNotifications: results}
-      connection.query(`SELECT COUNT(*) as count FROM transaction_notifications WHERE user_id = ? AND wallet_id = ?`,[user_id, wallet_id], (error, result)=>{
-        console.log('result', result)
-        const totalCount = result[0].count
-        data.totalPages = Math.ceil(totalCount/limit);
-        data.totalCount = totalCount;
-        data.page = page;
-        data.limit = limit;
-        data.hasNextPage = page < data.totalPages;
-        
         return resolve(data);
-      })
-    })
-  })
-}
+      });
+    });
+  });
+};
+
+const fetchTransactionNotification = async (user_id, wallet_id, page, limit) => {
+  return new Promise((resolve, reject) => {
+    connection.query(
+      `SELECT * FROM transaction_notifications WHERE user_id = ? AND wallet_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      [user_id, wallet_id, limit, (page - 1) * limit],
+      (err, results) => {
+        if (err) {
+          return reject(new Error("Error while fetching transaction notifications: " + err.message));
+        }
+        const data = { transactionNotifications: results };
+        connection.query(
+          `SELECT COUNT(*) as count FROM transaction_notifications WHERE user_id = ? AND wallet_id = ?`,
+          [user_id, wallet_id],
+          (error, result) => {
+            console.log("result", result);
+            const totalCount = result[0].count;
+            data.totalPages = Math.ceil(totalCount / limit);
+            data.totalCount = totalCount;
+            data.page = page;
+            data.limit = limit;
+            data.hasNextPage = page < data.totalPages;
+
+            return resolve(data);
+          }
+        );
+      }
+    );
+  });
+};
+
+const deleteWallets = (wallet_ids = []) => {
+  return new Promise((resolve, reject) => {
+    if (!Array.isArray(wallet_ids) || wallet_ids.length === 0) {
+      return reject(new Error("wallet_ids must be a non-empty array."));
+    }
+
+    connection.beginTransaction((err) => {
+      if (err) return reject(new Error("Transaction start error: " + err.message));
+
+      const placeholders = wallet_ids.map(() => "?").join(",");
+
+      // Step 1: Delete addresses
+      connection.query(`DELETE FROM addresses WHERE wallet_id IN (${placeholders})`, wallet_ids, (err, addressResult) => {
+        if (err) {
+          return connection.rollback(() => {
+            reject(new Error("Error deleting addresses: " + err.message));
+          });
+        }
+
+        // Step 2: Delete wallets
+        connection.query(`DELETE FROM wallet WHERE id IN (${placeholders})`, wallet_ids, (err, walletResult) => {
+          if (err) {
+            return connection.rollback(() => {
+              reject(new Error("Error deleting wallets: " + err.message));
+            });
+          }
+
+          // Step 3: Commit
+          connection.commit((err) => {
+            if (err) {
+              return connection.rollback(() => {
+                reject(new Error("Transaction commit error: " + err.message));
+              });
+            }
+
+            resolve({
+              message: "Wallets and their addresses deleted successfully",
+              addressesDeleted: addressResult.affectedRows,
+              walletsDeleted: walletResult.affectedRows,
+            });
+          });
+        });
+      });
+    });
+  });
+};
 
 module.exports = {
   generateKeystore,
@@ -1927,5 +2020,6 @@ module.exports = {
   deleteCustomChainUrl,
   storeDappsList,
   fetchDappsList,
-  fetchTransactionNotification
+  fetchTransactionNotification,
+  deleteWallets,
 };

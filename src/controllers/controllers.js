@@ -1895,7 +1895,6 @@ const searchTokensUsingQuicknode = async (req, res) => {
 const quicknodeTransactionWebhook = async (req, res) => {
   try {
     const transactions = req.body.payload;
-    const { chainName } = req.body;
     const payload = {};
     console.log("transactions", transactions);
     for (let transaction of transactions) {
@@ -1924,13 +1923,19 @@ const quicknodeTransactionWebhook = async (req, res) => {
       if (fromAddress) {
         const notificationTitle = "Transaction Sent";
         const notificationBody = `The transaction successfully sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}.
-        Transaction ID: ${transaction.hash}`
+        Transaction ID: ${transaction.hash}`;
 
         notification.sendNotification(fromAddress, {
           notificationTitle,
           notificationBody,
         });
-        await dao.insertTransactionNotification(addressDetails.idUtente, addressDetails.wallet_id, notificationTitle, notificationBody, transaction.chain)
+        await dao.insertTransactionNotification(
+          addressDetails.idUtente,
+          addressDetails.wallet_id,
+          notificationTitle,
+          notificationBody,
+          transaction.chain
+        );
       }
 
       if (designationAddress) {
@@ -1940,10 +1945,16 @@ const quicknodeTransactionWebhook = async (req, res) => {
 
         notification.sendNotification(designationAddress, {
           notificationTitle,
-          notificationBody
+          notificationBody,
         });
         const addressDetails = await service.checkAddressDetails(transaction.to);
-        await dao.insertTransactionNotification(addressDetails.idUtente, addressDetails.wallet_id, notificationTitle, notificationBody, transaction.chain)
+        await dao.insertTransactionNotification(
+          addressDetails.idUtente,
+          addressDetails.wallet_id,
+          notificationTitle,
+          notificationBody,
+          transaction.chain
+        );
       }
     }
 
@@ -2261,21 +2272,21 @@ const fetchDappsList = async (req, res) => {
   }
 };
 
-const fetchTransactionNotification = async (req, res)=>{
+const fetchTransactionNotification = async (req, res) => {
   try {
-    const {wallet_id, page = 1, limit = 10} = req.query;
+    const { wallet_id, page = 1, limit = 10 } = req.query;
 
     const identifier = req.user.identifier;
     const deviceResponse = await service.findDeviceDetails(identifier);
     const user_id = deviceResponse[0].id;
-    
-    const response = await dao.fetchTransactionNotification(user_id, wallet_id, parseInt(page), parseInt(limit))
+
+    const response = await dao.fetchTransactionNotification(user_id, wallet_id, parseInt(page), parseInt(limit));
 
     return res.status(200).json({
       result: true,
-      message: 'Transaction notifications fetched successfully',
-      data: response
-    })
+      message: "Transaction notifications fetched successfully",
+      data: response,
+    });
   } catch (error) {
     console.log("Error while fetching transaction notifications: ", error);
     return res.status(500).json({
@@ -2284,7 +2295,28 @@ const fetchTransactionNotification = async (req, res)=>{
       error: error.message,
     });
   }
-}
+};
+
+const deleteWallets = async (req, res) => {
+  try {
+    const walletIds = req.query.wallet_ids?.split(",").map((id) => parseInt(id));
+
+    const response = await dao.deleteWallets(walletIds);
+
+    return res.status(200).json({
+      result: true,
+      message: "Wallet deleted successfully",
+      data: response,
+    });
+  } catch (error) {
+    console.log("Error while deleting wallets : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "Error whlie deleting wallets : " + error.message,
+      error: error.message,
+    });
+  }
+};
 
 module.exports = {
   emailVerification,
@@ -2351,5 +2383,6 @@ module.exports = {
   deleteCustomChainUrl,
   storeDappsList,
   fetchDappsList,
-  fetchTransactionNotification
+  fetchTransactionNotification,
+  deleteWallets,
 };
