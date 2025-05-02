@@ -1068,52 +1068,68 @@ const deleteAddressByUserId = (id_utente) => {
 
 const verifyDevice = (identifier, passkey, device_token) => {
   return new Promise((resolve, reject) => {
-    const checkQuery = `SELECT * FROM device WHERE identifier = ? AND is_active=1`;
-    connection.query(checkQuery, [identifier, passkey], (error, results) => {
-      if (error) {
-        return reject(new Error("Failed to retrieve device: " + error.message));
-      }
-
-      if (results.length) {
-        if (results[0].passkey !== passkey) {
-          connection.query(`UPDATE device SET is_active = 0 WHERE identifier = ?`, [identifier], (error, results) => {
-            if (error) {
-              return reject(new Error("Failed to update device active status : " + error.message));
-            }
-            connection.query(
-              `INSERT INTO device (identifier, passkey, device_token) VALUES (?, ?, ?)`,
-              [identifier, passkey, device_token],
-              (err, results) => {
-                if (err) {
-                  return reject(new Error("Failed to insert device : " + error.message));
-                }
-                return resolve(results.insertId);
+    connection.beginTransaction((err) => {
+      if (err) return reject(new Error("Transaction start error: " + err.message));
+      const checkQuery = `SELECT * FROM device WHERE identifier = ? AND is_active=1`;
+      connection.query(checkQuery, [identifier], (error, results) => {
+        if (error) {
+          return reject(new Error("Failed to retrieve device: " + error.message));
+        }
+  
+        if (results.length) {
+          if (results[0].passkey !== passkey) {
+            connection.query(`UPDATE device SET is_active = 0 WHERE identifier = ?`, [identifier], (error, results) => {
+              if (error) {
+                return connection.rollback(() => {
+                  reject(new Error("Failed to update device active status : " + error.message));
+                });
               }
-            );
-          });
+              connection.query(
+                `INSERT INTO device (identifier, passkey, device_token) VALUES (?, ?, ?)`,
+                [identifier, passkey, device_token],
+                (error, results) => {
+                  connection.commit((err) => {
+                    if (error || err) {
+                      return connection.rollback(() => {
+                        reject(new Error("Failed to insert device : " + error.message));
+                      });
+                    }
+                    return resolve(results.insertId); // Return existing record's ID
+                  })
+                }
+              );
+            });
+          } else {
+            const updateQuery = `UPDATE device SET device_token = ? WHERE id = ?`;
+            connection.query(updateQuery, [device_token, results[0].id], (updateError) => {
+              if (updateError) {
+                return reject(new Error("Failed to update device token: " + updateError.message));
+              }
+              connection.commit((err) => {
+                if (err) {
+                  return connection.rollback(() => {
+                    reject(new Error("Transaction commit error: " + err.message));
+                  });
+                }
+                resolve(results[0].id); // Return existing record's ID
+              })
+            });
+          }
         } else {
-          const updateQuery = `UPDATE device SET device_token = ? WHERE id = ?`;
-          connection.query(updateQuery, [device_token, results[0].id], (updateError) => {
-            if (updateError) {
-              return reject(new Error("Failed to update device token: " + updateError.message));
+          // Insert new record if identifier and passkey are not found
+          const insertQuery = `INSERT INTO device (identifier, passkey, device_token) VALUES (?, ?, ?)`;
+          connection.query(insertQuery, [identifier, passkey, device_token], (insertError, result) => {
+            if (insertError) {
+              console.log("insertError", insertError);
+              const err = new Error("Failed to register device");
+              err.code = "ER_DUP_ENTRY";
+              return reject(err);
             }
-            resolve(results[0].id); // Return existing record's ID
+            resolve(result.insertId);
           });
         }
-      } else {
-        // Insert new record if identifier and passkey are not found
-        const insertQuery = `INSERT INTO device (identifier, passkey, device_token) VALUES (?, ?, ?)`;
-        connection.query(insertQuery, [identifier, passkey, device_token], (insertError, result) => {
-          if (insertError) {
-            console.log("insertError", insertError);
-            const err = new Error("Failed to register device");
-            err.code = "ER_DUP_ENTRY";
-            return reject(err);
-          }
-          resolve(result.insertId);
-        });
-      }
-    });
+      });
+    })
   });
 };
 

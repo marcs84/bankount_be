@@ -66,7 +66,8 @@ class ECDH_AES_Server {
 
         return {
             iv: iv.toString('base64'),
-            encryptedData: encrypted
+            encryptedData: encrypted,
+            server_public_key: this.getPublicKey()
         };
     }
 }

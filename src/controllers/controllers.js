@@ -1467,7 +1467,6 @@ const fetchLookupUrls = async (req, res) => {
     const identifier = req.user.identifier;
     const deviceResponse = await service.findDeviceDetails(identifier);
     const user_id = deviceResponse[0].id;
-
     if (!client_public_key) {
       client_public_key = "BEZwUM6CGUGT5TPfNO7KBr8HK37e1Cua2Ct+/j3wRmIlwUpOliifPTK0mZoHdvYqukD22eTyT/Ka+tP+1LXxQgk=";
     }
@@ -1516,16 +1515,14 @@ const fetchLookupUrls = async (req, res) => {
     const server = new ECDH_AES_Server();
 
     const sharedSecret = server.computeSharedSecret(client_public_key);
-    console.log("sharedSecret", sharedSecret);
     const aesKey = server.deriveAESKey(sharedSecret);
-    console.log("aesKey", aesKey);
-    const encryptedPayload = server.encryptData(JSON.stringify(data), aesKey);
+    const encryptedPayload = server.encryptData(JSON.stringify(data), aesKey)
 
     return res.status(200).json({
       result: true,
       message: "Lookup URLs fetched successfully",
       data: {
-        data,
+        // data,
         encryptedPayload,
       },
     });
@@ -1974,11 +1971,14 @@ const quicknodeTransactionWebhook = async (req, res) => {
 
 const fetchChainURLs = async (req, res) => {
   try {
-    const { wallet_id } = req.query;
+    const { wallet_id, client_public_key } = req.query;
     const identifier = req.user.identifier;
     const deviceResponse = await service.findDeviceDetails(identifier);
     const deviceId = deviceResponse[0].id;
     const customUrls = await dao.fetchCustomChainUrlsByWallet(deviceId, wallet_id);
+    if (!client_public_key) {
+      client_public_key = "BEZwUM6CGUGT5TPfNO7KBr8HK37e1Cua2Ct+/j3wRmIlwUpOliifPTK0mZoHdvYqukD22eTyT/Ka+tP+1LXxQgk=";
+    }
 
     const existingCustomUrl = (blockchain_name) => {
       const index = customUrls.findIndex((obj) => obj.blockchain_name === blockchain_name);
@@ -2063,6 +2063,13 @@ const fetchChainURLs = async (req, res) => {
         chain_id: "",
       },
     };
+
+    //encrypt the data
+    const server = new ECDH_AES_Server();
+
+    const sharedSecret = server.computeSharedSecret(client_public_key);
+    const aesKey = server.deriveAESKey(sharedSecret);
+    const encryptedPayload = server.encryptData(JSON.stringify(data), aesKey)
 
     return res.status(200).json({
       result: true,

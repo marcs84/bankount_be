@@ -20,6 +20,60 @@ router.get("/", (req, res) => {
 });
 
 // Route for email verification
+/**
+ * @swagger
+ * /api/verify:
+ *   get:
+ *     summary: Verify user email using a token
+ *     description: Verifies a user's email address using a token sent via query parameter. If `app=true` is passed, it returns JSON instead of redirecting.
+ *     tags:
+ *       - Authentication
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Email verification token
+ *       - in: query
+ *         name: app
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [true]
+ *         description: Set to `true` if the verification is from the app and expects a JSON response
+ *     responses:
+ *       200:
+ *         description: Account verified successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Account activated successfully
+ *       302:
+ *         description: Redirects to login page on successful verification (if not from app).
+ *       400:
+ *         description: Invalid verification token.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Invalid verification token
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 router.get("/api/verify", controllers.emailVerification);
 
 // Route to restore the user after retrieving from the mnemonic
@@ -36,6 +90,70 @@ router.post("/api/deleteUser", urlencodedParser, auth.authenticateToken, control
 router.post("/api/getAddresses", urlencodedParser, auth.authenticateToken, controllers.getAddresses);
 
 // Route to fetch the balance for a given address
+/**
+ * @swagger
+ * /api/getBalance:
+ *   post:
+ *     summary: Get cryptocurrency balance
+ *     description: Fetches the balance of a specific cryptocurrency address on a given network.
+ *     tags:
+ *       - Wallet
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - coin_type
+ *               - address
+ *               - network
+ *             properties:
+ *               coin_type:
+ *                 type: string
+ *                 example: "ETH"
+ *               address:
+ *                 type: string
+ *                 example: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
+ *               network:
+ *                 type: string
+ *                 example: "mainnet"
+ *     responses:
+ *       200:
+ *         description: Balance fetched successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   example: { balance: "0.5234" }
+ *       400:
+ *         description: Invalid request parameters.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid parameters"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 router.post("/api/getBalance", urlencodedParser, auth.authenticateToken, controllers.getBalance);
 
 // Route to fetch the balance of all addresses in the wallet
@@ -65,6 +183,132 @@ router.post("/api/getListOfSupportedTokens", urlencodedParser, auth.authenticate
 // Route per la restituzione della lista delle transazioni memorizzate
 router.post("/api/getTransactions", jsonParser, auth.authenticateToken, controllers.getTransactions);
 
+/**
+ * @swagger
+ * /api/filter-transactions:
+ *   get:
+ *     summary: Filter transactions based on query parameters
+ *     description: Retrieves a paginated list of wallet transactions filtered by wallet ID, date range, duration type, and optional search parameters.
+ *     tags:
+ *       - Transactions
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: wallet_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the wallet whose transactions are to be fetched
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Number of transactions per page
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Offset for pagination
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2024-01-01"
+ *         description: Start date for filtering (required if end_date is passed)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2024-01-31"
+ *         description: End date for filtering (required if start_date is passed)
+ *       - in: query
+ *         name: duration_type
+ *         schema:
+ *           type: string
+ *           enum: [recents, current_month, last_month]
+ *         description: Predefined duration types to filter transactions
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search keyword to filter transactions
+ *       - in: query
+ *         name: chain
+ *         schema:
+ *           type: string
+ *         description: Blockchain chain name (e.g., "ETH", "BSC")
+ *       - in: query
+ *         name: network_type
+ *         schema:
+ *           type: string
+ *           default: TESTNET
+ *         description: Network type, defaults to "TESTNET"
+ *     responses:
+ *       200:
+ *         description: Filtered transactions retrieved successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalCount:
+ *                       type: integer
+ *                       example: 42
+ *                     transactions:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                             example: 1
+ *                           amount:
+ *                             type: string
+ *                             example: "0.3456"
+ *                           currency:
+ *                             type: string
+ *                             example: "ETH"
+ *                           date:
+ *                             type: string
+ *                             format: date-time
+ *                             example: "2024-01-15T14:32:00Z"
+ *                           status:
+ *                             type: string
+ *                             example: "confirmed"
+ *       400:
+ *         description: Invalid parameters provided.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid parameters"
+ *                 error:
+ *                   type: string
+ *                   example: "wallet_id is mandatory to pass"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 router.get("/api/filter-transactions", urlencodedParser, auth.authenticateToken, controllers.filterTransactions);
 
 // Route per la restituzione della lista delle transazioni memorizzate per un dato indirizzo
@@ -717,7 +961,7 @@ router.put("/api/sync-address", jsonParser, auth.authenticateToken, controllers.
  *     tags:
  *       - Wallet
  *     security:
- *       - bearerAuth: []  # <-- Add this line for JWT authentication
+ *       - BearerAuth: [] 
  *     requestBody:
  *       description: Wallet details required for creating a new wallet
  *       content:
@@ -778,7 +1022,7 @@ router.post("/api/wallet/new", jsonParser, auth.authenticateToken, controllers.c
  *     tags:
  *       - Wallet
  *     security:
- *       - bearerAuth: []  # <-- Add this line for JWT authentication
+ *       - BearerAuth: []  # <-- Add this line for JWT authentication
  *     requestBody:
  *       description: Wallet details to be updated
  *       content:
@@ -853,7 +1097,7 @@ router.put("/api/wallet/update", jsonParser, auth.authenticateToken, controllers
  *     tags:
  *       - Wallet
  *     security:
- *       - bearerAuth: []  # <-- Add this line for JWT authentication
+ *       - BearerAuth: []  # <-- Add this line for JWT authentication
  *     parameters:
  *       - in: query
  *         name: wallet_id
@@ -915,6 +1159,63 @@ router.put("/api/wallet/update", jsonParser, auth.authenticateToken, controllers
  */
 router.get("/api/wallet", jsonParser, auth.authenticateToken, controllers.fetchWallets);
 
+/**
+ * @swagger
+ * /api/delete-wallets:
+ *   delete:
+ *     summary: Delete one or more wallets
+ *     description: Deletes wallet records based on a list of wallet IDs provided as a comma-separated query parameter.
+ *     tags:
+ *       - Wallet
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: wallet_ids
+ *         schema:
+ *           type: string
+ *           example: "1,2,3"
+ *         required: true
+ *         description: Comma-separated list of wallet IDs to delete.
+ *     responses:
+ *       200:
+ *         description: Wallet(s) deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Wallet deleted successfully
+ *                 data:
+ *                   type: object
+ *       400:
+ *         description: Bad Request – wallet_ids parameter is missing or invalid
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: wallet_ids query parameter is required
+ *                 error:
+ *                   type: string
+ *                   example: wallet_ids query parameter is required
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 router.delete("/api/delete-wallets", jsonParser, auth.authenticateToken, controllers.deleteWallets);
 
 /**
@@ -925,9 +1226,9 @@ router.delete("/api/delete-wallets", jsonParser, auth.authenticateToken, control
  *     description: Retrieve addresses based on filters like user_id, wallet_id, coin_type, etc.
  *     operationId: filterAddresses
  *     tags:
- *       - Address
+ *       - Addresses
  *     security:
- *       - bearerAuth: []  # <-- JWT authentication required
+ *       - BearerAuth: []  # <-- JWT authentication required
  *     parameters:
  *       - in: query
  *         name: user_id
@@ -1167,9 +1468,9 @@ router.get("/api/assets", jsonParser, auth.authenticateToken, controllers.fetchA
  *     description: Allows users to update the name of an existing address.
  *     operationId: updateAddress
  *     tags:
- *       - Address
+ *       - Addresses
  *     security:
- *       - bearerAuth: []  # <-- JWT authentication required
+ *       - BearerAuth: []  # <-- JWT authentication required
  *     requestBody:
  *       description: Address details to be updated
  *       required: true
@@ -1242,8 +1543,190 @@ router.get("/api/assets", jsonParser, auth.authenticateToken, controllers.fetchA
  */
 router.put("/api/addresses/update", jsonParser, auth.authenticateToken, controllers.updateAddress);
 
+/**
+ * @swagger
+ * /api/lookup-urls:
+ *   post:
+ *     summary: Fetch lookup URLs and encrypted API keys
+ *     description: Fetches various service URLs and API keys (e.g., WalletConnect, CoinGecko, Moralis, Tatum) based on coin type or key type, and returns them in encrypted form using ECDH.
+ *     tags:
+ *       - Encryption
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - coin_type
+ *               - wallet_id
+ *             properties:
+ *               coin_type:
+ *                 type: string
+ *                 example: "BSC"
+ *               key_type:
+ *                 type: string
+ *                 enum: [wallet_connect, coin_gecko, moralis, tatum]
+ *                 example: "wallet_connect"
+ *               client_public_key:
+ *                 type: string
+ *                 description: Base64 encoded client ECDH public key
+ *                 example: "BEZwUM6CGUGT5TPfNO7KBr8HK37e1Cua2Ct+/j3wRmIlwUpOliifPTK0mZoHdvYqukD22eTyT/Ka+tP+1LXxQgk="
+ *               wallet_id:
+ *                 type: integer
+ *                 example: 7
+ *     responses:
+ *       200:
+ *         description: Lookup URLs and keys fetched and encrypted successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Lookup URLs fetched successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     encryptedPayload:
+ *                       type: string
+ *                       description: Encrypted JSON payload
+ *                       example: "U2FsdGVkX1+7YfQe..."
+ *       400:
+ *         description: Missing or invalid input fields.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Missing input fields
+ *                 error:
+ *                   type: string
+ *                   example: Missing input fields
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 router.post("/api/lookup-urls", jsonParser, auth.authenticateToken, controllers.fetchLookupUrls);
-router.get("/api/public-key", auth.authenticateToken, controllers.getPublicKey);
+
+/**
+ * @swagger
+ * /api/public-key:
+ *   get:
+ *     summary: Retrieve server's ECDH public key
+ *     description: Returns the ECDH public key of the server for secure communication.
+ *     tags:
+ *       - Encryption
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Public key fetched successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Public key fetched successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     server_public_key:
+ *                       type: string
+ *                       example: "MFYwEAYHKoZIzj0CAQYFK4EEAAoDQgAEkq4N..."
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
+// router.get("/api/public-key", auth.authenticateToken, controllers.getPublicKey);
+
+/**
+ * @swagger
+ * /api/token-metadata:
+ *   get:
+ *     summary: Fetch ERC-20 token metadata
+ *     description: Retrieves metadata for a given token symbol on a specified blockchain using Moralis API.
+ *     tags:
+ *       - Tokens
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: chain
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Blockchain network (e.g., eth, bsc, polygon)
+ *         example: bsc
+ *       - in: query
+ *         name: symbol
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Token symbol to query
+ *         example: USDT
+ *     responses:
+ *       200:
+ *         description: Token metadata fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Token metadata fetched successfully
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     description: Token metadata from Moralis
+ *                     additionalProperties: true
+ *       400:
+ *         description: Missing or invalid query parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Missing required query parameters
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 router.get("/api/token-metadata", jsonParser, auth.authenticateToken, controllers.getTokenMetaData);
 
 /**
@@ -1256,7 +1739,7 @@ router.get("/api/token-metadata", jsonParser, auth.authenticateToken, controller
  *     tags:
  *       - User
  *     security:
- *       - bearerAuth: []  # <-- JWT authentication required
+ *       - BearerAuth: []  # <-- JWT authentication required
  *     responses:
  *       200:
  *         description: User onboarded successfully.
@@ -1355,7 +1838,7 @@ router.post("/api/store-rango-bc-data", jsonParser, controllers.storeRangoBlockc
  *     tags:
  *       - Blockchain
  *     security:
- *       - bearerAuth: []  # JWT Bearer Token Authentication
+ *       - BearerAuth: []  # JWT Bearer Token Authentication
  *     responses:
  *       200:
  *         description: Blockchain data fetched successfully
@@ -1412,11 +1895,313 @@ router.post("/api/store-rango-bc-data", jsonParser, controllers.storeRangoBlockc
  */
 router.get("/api/rango-blockchain-data", jsonParser, auth.authenticateToken, controllers.fetchRangoBlockchainData);
 
+/**
+ * @swagger
+ * /api/rango-metadata:
+ *   get:
+ *     summary: Fetch Rango token metadata
+ *     description: Retrieves token metadata for a specific blockchain using the Rango API.
+ *     tags:
+ *       - Tokens
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: blockchains
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The blockchain to fetch metadata for (e.g., BSC, ETH)
+ *         example: BSC
+ *     responses:
+ *       200:
+ *         description: Rango metadata fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Rango metadata fetched successfully
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     description: Token metadata returned by Rango API
+ *                     additionalProperties: true
+ *       400:
+ *         description: Missing or invalid query parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: blockchain is required params
+ *                 error:
+ *                   type: string
+ *                   example: Invalid parameters
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 router.get("/api/rango-metadata", jsonParser, auth.authenticateToken, controllers.fetchRangoMetadata);
 
+/**
+ * @swagger
+ * /api/initiate-swap:
+ *   post:
+ *     summary: Initiate a token swap using Rango
+ *     description: Swaps tokens across blockchains via the Rango API.
+ *     tags:
+ *       - Swap
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - from_blockchain
+ *               - from_token_address
+ *               - to_blockchain
+ *               - to_token_address
+ *               - amount
+ *               - from_wallet_address
+ *               - to_wallet_address
+ *               - slippage
+ *             properties:
+ *               from_blockchain:
+ *                 type: string
+ *                 example: ETH
+ *               from_token_address:
+ *                 type: string
+ *                 example: 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+ *               to_blockchain:
+ *                 type: string
+ *                 example: BSC
+ *               to_token_address:
+ *                 type: string
+ *                 example: 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+ *               amount:
+ *                 type: string
+ *                 example: "0.1"
+ *               from_wallet_address:
+ *                 type: string
+ *                 example: 0xabcabcabcabcabcabcabcabcabcabcabcabcabca
+ *               to_wallet_address:
+ *                 type: string
+ *                 example: 0xdefdefdefdefdefdefdefdefdefdefdefdefdefd
+ *               slippage:
+ *                 type: number
+ *                 example: 1
+ *     responses:
+ *       200:
+ *         description: Swap initiated successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Swap initiated successfully
+ *                 data:
+ *                   type: object
+ *                   description: Rango swap response
+ *       400:
+ *         description: Invalid request parameters.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Invalid parameters
+ *                 error:
+ *                   type: string
+ *                   example: Some required field is missing
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
 router.post("/api/initiate-swap", jsonParser, auth.authenticateToken, controllers.initiateSwap);
+
+/**
+ * @swagger
+ * /api/swap-routes:
+ *   get:
+ *     summary: Get swap routes
+ *     description: Fetches possible swap routes using Rango for given blockchain and token info.
+ *     tags:
+ *       - Swap
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: from_blockchain
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: BSC
+ *       - in: query
+ *         name: from_address
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+ *       - in: query
+ *         name: to_blockchain
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: POLYGON
+ *       - in: query
+ *         name: to_address
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"
+ *       - in: query
+ *         name: amount
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "1000000000000000000"
+ *       - in: query
+ *         name: slippage
+ *         required: false
+ *         schema:
+ *           type: string
+ *         example: "1"
+ *     responses:
+ *       200:
+ *         description: Swap routes fetched successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Swap routes fetched successfully
+ *                 data:
+ *                   type: object
+ *                   description: Full response from Rango quote API
+ *       400:
+ *         description: Invalid request parameters.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Invalid request parameters
+ *                 error:
+ *                   type: string
+ *                   example: "Missing required fields"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 router.get("/api/swap-routes", jsonParser, auth.authenticateToken, controllers.getSwapRoutes);
 
+/**
+ * @swagger
+ * /api/check-swap-status:
+ *   post:
+ *     summary: Check status of a swap transaction
+ *     description: Verifies the status of a transaction using Rango's swap status API.
+ *     tags:
+ *       - Swap
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - request_id
+ *               - tx_id
+ *             properties:
+ *               request_id:
+ *                 type: string
+ *                 example: "3e22e1f2-65d3-4b57-82ee-64a297afdf10"
+ *               tx_id:
+ *                 type: string
+ *                 example: "0xabc1234567890def..."
+ *     responses:
+ *       200:
+ *         description: Transaction status fetched successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   description: Rango swap status result
+ *       400:
+ *         description: Required fields are missing.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: wallet_address, blockchain, symbol are required
+ *                 error:
+ *                   type: string
+ *                   example: wallet_address, blockchain, symbol are required
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 router.post("/api/check-swap-status", jsonParser, auth.authenticateToken, controllers.checkTxStatus);
 
 /**
@@ -1507,7 +2292,7 @@ router.get("/api/token-balance", jsonParser, auth.authenticateToken, controllers
  *     tags:
  *       - Token
  *     security:
- *       - bearerAuth: []  # <-- JWT authentication required
+ *       - BearerAuth: []  # <-- JWT authentication required
  *     parameters:
  *       - in: query
  *         name: q
@@ -1573,7 +2358,7 @@ router.post("/api/webhook-quicknode/transaction", jsonParser, controllers.quickn
  *     tags:
  *       - Blockchain
  *     security:
- *       - bearerAuth: []  # <-- JWT authentication required
+ *       - BearerAuth: []  # <-- JWT authentication required
  *     parameters:
  *       - in: query
  *         name: wallet_id
@@ -1616,8 +2401,6 @@ router.post("/api/webhook-quicknode/transaction", jsonParser, controllers.quickn
  *                       $ref: '#/components/schemas/ChainUrlData'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
  *       500:
  *         description: Server error while retrieving chain URLs.
  *         content:
@@ -1647,7 +2430,7 @@ router.get("/api/chain-urls", jsonParser, auth.authenticateToken, controllers.fe
  *     tags:
  *       - Token
  *     security:
- *       - bearerAuth: []  # <-- JWT authentication required
+ *       - BearerAuth: []  # <-- JWT authentication required
  *     parameters:
  *       - in: query
  *         name: blockchain
@@ -1686,8 +2469,6 @@ router.get("/api/chain-urls", jsonParser, auth.authenticateToken, controllers.fe
  *                     blockchain: "ETH"
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
  *       500:
  *         description: An error occurred while fetching token details.
  *         content:
@@ -1717,7 +2498,7 @@ router.get("/api/token-details", jsonParser, auth.authenticateToken, controllers
  *     tags:
  *       - Token
  *     security:
- *       - bearerAuth: []  # <-- JWT authentication required
+ *       - BearerAuth: []  # <-- JWT authentication required
  *     requestBody:
  *       required: true
  *       content:
@@ -1791,8 +2572,6 @@ router.get("/api/token-details", jsonParser, auth.authenticateToken, controllers
  *                     logo: "https://example.com/logo.png"
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
  *       500:
  *         description: An error occurred while bookmarking token details.
  *         content:
@@ -1812,18 +2591,380 @@ router.get("/api/token-details", jsonParser, auth.authenticateToken, controllers
  */
 router.post("/api/bookmark-token", jsonParser, auth.authenticateToken, controllers.bookmarkToken);
 
+/**
+ * @swagger
+ * /api/remove-bookmarked-token/{tokenId}:
+ *   delete:
+ *     summary: Remove a bookmarked token
+ *     description: This API removes a token from the user's bookmarked list based on the provided token ID.
+ *     operationId: removeBookmarkedToken
+ *     tags:
+ *       - Token
+ *     security:
+ *       - BearerAuth: []  # JWT authentication required
+ *     parameters:
+ *       - in: path
+ *         name: tokenId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the token to remove from bookmarks
+ *     responses:
+ *       200:
+ *         description: Token removed from bookmarked list successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Token removed from bookmarked list successfully"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'  # Missing or invalid token
+ *       500:
+ *         $ref: '#/components/responses/ServerError'  # Internal server error
+ */
 router.delete("/api/remove-bookmarked-token/:tokenId", jsonParser, auth.authenticateToken, controllers.removeBookmarkedToken);
 
+/**
+ * @swagger
+ * /api/custom-chain-url:
+ *   post:
+ *     summary: Store or update a custom chain URL
+ *     description: This API stores a new custom chain URL or updates the existing one if already present.
+ *     operationId: storeCustomChainUrl
+ *     tags:
+ *       - Chain
+ *     security:
+ *       - BearerAuth: []  # JWT authentication required
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - wallet_id
+ *               - blockchain_name
+ *               - node_url
+ *               - explorer_url
+ *               - crypto_currency_ticker
+ *               - chain_id
+ *             properties:
+ *               wallet_id:
+ *                 type: integer
+ *                 description: Wallet ID to associate the custom URL
+ *               blockchain_name:
+ *                 type: string
+ *                 description: Name of the blockchain (e.g., Ethereum Mainnet)
+ *               node_url:
+ *                 type: string
+ *                 description: Custom node URL
+ *               explorer_url:
+ *                 type: string
+ *                 description: Custom blockchain explorer URL
+ *               crypto_currency_ticker:
+ *                 type: string
+ *                 description: Cryptocurrency ticker symbol (e.g., ETH, BTC)
+ *               chain_id:
+ *                 type: string
+ *                 description: Chain ID of the blockchain
+ *           example:
+ *             wallet_id: 61
+ *             blockchain_name: "Bitcoin Testnet"
+ *             node_url: "https://stylish-magical-water.btc-testnet.quiknode.pro/f1445c4cf5b9fe69206db7f8834b12ab0e75436c/"
+ *             explorer_url: "https://live.blockcypher.com/btc-testnet/"
+ *             crypto_currency_ticker: "BTC"
+ *             chain_id: ""
+ *     responses:
+ *       200:
+ *         description: Custom chain URL stored or updated successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Custom chain url stored successfully"
+ *                 data:
+ *                   type: object
+ *                   description: Stored/updated chain URL information
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 router.post("/api/custom-chain-url", jsonParser, auth.authenticateToken, controllers.storeCustomChainUrl);
 
+/**
+ * @swagger
+ * /api/edit-custom-chain-url:
+ *   put:
+ *     summary: Update a custom chain URL
+ *     description: This API updates the node and explorer URLs for an existing custom chain.
+ *     operationId: updateCustomChainUrl
+ *     tags:
+ *       - Chain
+ *     security:
+ *       - BearerAuth: []  # JWT authentication required
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - id
+ *               - node_url
+ *               - explorer_url
+ *             properties:
+ *               id:
+ *                 type: integer
+ *                 description: ID of the custom chain URL entry to update
+ *               node_url:
+ *                 type: string
+ *                 description: New node URL
+ *               explorer_url:
+ *                 type: string
+ *                 description: New blockchain explorer URL
+ *     responses:
+ *       200:
+ *         description: Custom chain URL updated successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Custom chain url updated successfully"
+ *                 data:
+ *                   type: object
+ *                   description: Updated custom chain URL information
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'  # Missing or invalid token
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'  # Not enough permissions
+ *       500:
+ *         $ref: '#/components/responses/ServerError'  # Internal server error
+ */
 router.put("/api/edit-custom-chain-url", jsonParser, auth.authenticateToken, controllers.updateCustomChainUrl);
 
+/**
+ * @swagger
+ * /api/delete-custom-chain-url/{id}:
+ *   delete:
+ *     summary: Delete a custom chain URL
+ *     description: This API deletes a specific custom chain URL entry based on its ID.
+ *     operationId: deleteCustomChainUrl
+ *     tags:
+ *       - Chain
+ *     security:
+ *       - BearerAuth: []  # JWT authentication required
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the custom chain URL to delete
+ *     responses:
+ *       200:
+ *         description: Custom chain URL removed successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Custom chain url removed successfully"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'  # Missing or invalid token
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'  # Not enough permissions
+ *       500:
+ *         $ref: '#/components/responses/ServerError'  # Internal server error
+ */
 router.delete("/api/delete-custom-chain-url/:id", jsonParser, auth.authenticateToken, controllers.deleteCustomChainUrl);
 
+/**
+ * @swagger
+ * /api/dapps-list:
+ *   post:
+ *     summary: Store DApps list into database
+ *     description: Fetches DApps from an external source and stores them into the database.
+ *     tags:
+ *       - DApps
+ *     responses:
+ *       200:
+ *         description: DApps list stored successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Dapps list stored successfully into DB
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 router.post("/api/dapps-list", jsonParser, controllers.storeDappsList);
 
+/**
+ * @swagger
+ * /api/dapps-list:
+ *   get:
+ *     summary: Fetch DApps list from the database
+ *     description: Retrieves a paginated list of DApps from the database, with optional filtering by a search key.
+ *     tags:
+ *       - DApps
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 100
+ *         description: Number of items per page
+ *       - in: query
+ *         name: key
+ *         schema:
+ *           type: string
+ *         description: Keyword for filtering DApps
+ *     responses:
+ *       200:
+ *         description: DApps list fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Dapps list fetched successfully
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       title:
+ *                         type: string
+ *                       icon_url:
+ *                         type: string
+ *                       url:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *                       back_url:
+ *                         type: string
+ *                       tag_info:
+ *                         type: string
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 router.get("/api/dapps-list", jsonParser, auth.authenticateToken, controllers.fetchDappsList);
 
+/**
+ * @swagger
+ * /api/transaction-notifications:
+ *   get:
+ *     summary: Fetch transaction notifications
+ *     description: Retrieves paginated transaction notifications for a given wallet ID associated with the authenticated user.
+ *     tags:
+ *       - Transactions
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: wallet_id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The wallet ID for which to fetch transaction notifications.
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination.
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of records per page.
+ *     responses:
+ *       200:
+ *         description: Transaction notifications fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Transaction notifications fetched successfully
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       wallet_id:
+ *                         type: string
+ *                       message:
+ *                         type: string
+ *                       created_at:
+ *                         type: string
+ *                         format: date-time
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 router.get("/api/transaction-notifications", jsonParser, auth.authenticateToken, controllers.fetchTransactionNotification);
 
 module.exports = router;

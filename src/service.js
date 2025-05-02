@@ -114,6 +114,7 @@ const getBalance = (cointype, address, network, user_id, wallet_id) => {
           } else {
             balance = await cryptoCores.bitcoinCore.btcCore.getBalance(address, network);
           }
+          console.log('balance', balance)
           break;
         }
 
