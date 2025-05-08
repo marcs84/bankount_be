@@ -1004,42 +1004,122 @@ const insertAddress = async (req, res) => {
 };
 
 const insertTransaction = async (req, res) => {
-  const dati = req.body;
-  await service
-    .checkAddressDetails(dati.from_address)
-    .then(async (addressDetails) => {
-      const addresId = addressDetails.id;
-      const userID = addressDetails.idUtente;
-      dati.address_id = addresId;
-      dati.idUtente = userID;
-      await service
-        .insertTransactionDetails(dati)
-        .then(async (data) => {
-          res.json({
-            result: true,
-            message: "Transaction stored successfully",
-            data: data,
-          });
-        })
-        .catch(async (error) => {
-          res.status(500).json({
-            result: false,
-            message: error.message ? error.message : error,
-            error: error.message,
-            code_route: serverErrors.ERROR_CREATE_ADDRESS,
-            code: error.code,
-          });
-        });
-    })
-    .catch((error) => {
-      res.status(500).json({
-        result: false,
-        message: error.message ? error.message : error,
-        error: error.message,
-        code_route: serverErrors.ERROR_CREATE_ADDRESS,
-        code: error.code,
-      });
+  try {
+    const data = req.body;
+    const addressDetails = await service.checkAddressDetails(data.from_address);
+    const response = await dao.insertTransactionNew({
+      address_id: addressDetails.id,
+      id_utente: addressDetails.idUtente,
+      wallet_id: addressDetails.wallet_id,
+      chain: data.chain,
+      chain_id: data.chain_id || null,
+      network_type: data.network_type,
+      block_number: data.block_number || null,
+      gas: data.gas || null,
+      gas_price: data.gas_price || null,
+      type: data.type || null,
+      block_hash: data.block_hash || null,
+      input: data.input || null,
+      from_address: data.from_address,
+      destination_address: data.destination_address,
+      tx: data.tx,
+      amount: data.amount,
     });
+
+    return res.status(200).json({
+      result: true,
+      message: "Transaction stored successfully",
+      data: response,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      result: false,
+      message: error.message ? error.message : error,
+      error: error.message,
+      code_route: serverErrors.ERROR_CREATE_ADDRESS,
+      code: error.code,
+    });
+  }
+};
+
+const quicknodeTransactionWebhook = async (req, res) => {
+  try {
+    const transactions = req.body.payload;
+    const payload = {};
+    console.log("transactions", transactions);
+    for (let transaction of transactions) {
+      const addressDetails = await service.checkAddressDetails(transaction.from);
+      const objLength = Object.keys(addressDetails).length;
+      payload.address_id = objLength > 0 ? addressDetails.id : null;
+      payload.id_utente = objLength > 0 ? addressDetails.idUtente : null;
+      payload.wallet_id = objLength > 0 ? addressDetails.wallet_id : null;
+      payload.chain = transaction.chain;
+      payload.chain_id = transaction.chainId ?? null;
+      payload.network_type = transaction.network;
+      payload.block_number = transaction.blockNumber ?? null;
+      payload.gas = transaction.gas ?? null;
+      payload.gas_price = transaction.gasPrice ?? null;
+      payload.type = transaction.type ?? null;
+      payload.block_hash = transaction.blockHash ?? null;
+      payload.tx = transaction.hash;
+      payload.input = transaction.input;
+      payload.from_address = transaction.from;
+      payload.destination_address = transaction.to;
+      payload.amount = transaction.amount;
+      await dao.insertTransactionNew(payload);
+      const fromAddress = await service.getDeviceTokenByFromAddress(transaction.from);
+      const designationAddress = await service.getDeviceTokenByFromAddress(transaction.to);
+
+      if (fromAddress) {
+        const notificationTitle = "Transaction Sent";
+        const notificationBody = `The transaction successfully sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}.
+Transaction ID: ${transaction.hash}`;
+
+        notification.sendNotification(fromAddress, {
+          notificationTitle,
+          notificationBody,
+        });
+        await dao.insertTransactionNotification(
+          addressDetails.idUtente,
+          addressDetails.wallet_id,
+          notificationTitle,
+          notificationBody,
+          transaction.chain
+        );
+      }
+
+      if (designationAddress) {
+        const notificationTitle = "Transaction Received";
+        const notificationBody = `The transaction successfully received ${transaction.amount} ${transaction.chain} from address ${transaction.from}.
+Transaction ID: ${transaction.hash}.`;
+
+        notification.sendNotification(designationAddress, {
+          notificationTitle,
+          notificationBody,
+        });
+        const addressDetails = await service.checkAddressDetails(transaction.to);
+        await dao.insertTransactionNotification(
+          addressDetails.idUtente,
+          addressDetails.wallet_id,
+          notificationTitle,
+          notificationBody,
+          transaction.chain
+        );
+      }
+    }
+
+    return res.status(200).json({
+      result: true,
+      message: "OK",
+    });
+  } catch (error) {
+    console.log("Error while fetching webhook data  : ", error);
+    return res.status(500).json({
+      result: false,
+      message: "An error occurred while retrieving list of transactions by address: ",
+      error: "An error occurred while retrieving list of transactions by address: ",
+    });
+  }
 };
 
 const findAddressBySearchField = async (req, res) => {
@@ -1516,7 +1596,7 @@ const fetchLookupUrls = async (req, res) => {
 
     const sharedSecret = server.computeSharedSecret(client_public_key);
     const aesKey = server.deriveAESKey(sharedSecret);
-    const encryptedPayload = server.encryptData(JSON.stringify(data), aesKey)
+    const encryptedPayload = server.encryptData(JSON.stringify(data), aesKey);
 
     return res.status(200).json({
       result: true,
@@ -1889,89 +1969,9 @@ const searchTokensUsingQuicknode = async (req, res) => {
   }
 };
 
-const quicknodeTransactionWebhook = async (req, res) => {
-  try {
-    const transactions = req.body.payload;
-    const payload = {};
-    console.log("transactions", transactions);
-    for (let transaction of transactions) {
-      const addressDetails = await service.checkAddressDetails(transaction.from);
-      const objLength = Object.keys(addressDetails).length;
-      payload.address_id = objLength > 0 ? addressDetails.id : null;
-      payload.id_utente = objLength > 0 ? addressDetails.idUtente : null;
-      payload.wallet_id = objLength > 0 ? addressDetails.wallet_id : null;
-      payload.chain = transaction.chain;
-      payload.chain_id = transaction.chainId ?? null;
-      payload.network_type = transaction.network;
-      payload.block_number = transaction.blockNumber ?? null;
-      payload.gas = transaction.gas ?? null;
-      payload.gas_price = transaction.gasPrice ?? null;
-      payload.type = transaction.type ?? null;
-      payload.block_hash = transaction.blockHash ?? null;
-      payload.tx = transaction.hash;
-      payload.input = transaction.input;
-      payload.from_address = transaction.from;
-      payload.destination_address = transaction.to;
-      payload.amount = transaction.amount;
-      await dao.insertTransactionNew(payload);
-      const fromAddress = await service.getDeviceTokenByFromAddress(transaction.from);
-      const designationAddress = await service.getDeviceTokenByFromAddress(transaction.to);
-
-      if (fromAddress) {
-        const notificationTitle = "Transaction Sent";
-        const notificationBody = `The transaction successfully sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}.
-        Transaction ID: ${transaction.hash}`;
-
-        notification.sendNotification(fromAddress, {
-          notificationTitle,
-          notificationBody,
-        });
-        await dao.insertTransactionNotification(
-          addressDetails.idUtente,
-          addressDetails.wallet_id,
-          notificationTitle,
-          notificationBody,
-          transaction.chain
-        );
-      }
-
-      if (designationAddress) {
-        const notificationTitle = "Transaction Received";
-        const notificationBody = `The transaction successfully received ${transaction.amount} ${transaction.chain} from address ${transaction.from}.
-        Transaction ID: ${transaction.hash}.`;
-
-        notification.sendNotification(designationAddress, {
-          notificationTitle,
-          notificationBody,
-        });
-        const addressDetails = await service.checkAddressDetails(transaction.to);
-        await dao.insertTransactionNotification(
-          addressDetails.idUtente,
-          addressDetails.wallet_id,
-          notificationTitle,
-          notificationBody,
-          transaction.chain
-        );
-      }
-    }
-
-    return res.status(200).json({
-      result: true,
-      message: "OK",
-    });
-  } catch (error) {
-    console.log("Error while fetching webhook data  : ", error);
-    return res.status(500).json({
-      result: false,
-      message: "An error occurred while retrieving list of transactions by address: ",
-      error: "An error occurred while retrieving list of transactions by address: ",
-    });
-  }
-};
-
 const fetchChainURLs = async (req, res) => {
   try {
-    const { wallet_id, client_public_key } = req.query;
+    let { wallet_id, client_public_key } = req.query;
     const identifier = req.user.identifier;
     const deviceResponse = await service.findDeviceDetails(identifier);
     const deviceId = deviceResponse[0].id;
@@ -2069,12 +2069,15 @@ const fetchChainURLs = async (req, res) => {
 
     const sharedSecret = server.computeSharedSecret(client_public_key);
     const aesKey = server.deriveAESKey(sharedSecret);
-    const encryptedPayload = server.encryptData(JSON.stringify(data), aesKey)
+    console.log("sharedSecret", sharedSecret);
+    console.log("aesKey", aesKey);
+    console.log("client_public_key", client_public_key);
+    const encryptedPayload = server.encryptData(JSON.stringify(data), aesKey);
 
     return res.status(200).json({
       result: true,
       message: "Chain URLs and data fetched successfully",
-      data,
+      data: { encryptedPayload },
     });
   } catch (error) {
     console.log("Error while fetching chain urls : ", error);

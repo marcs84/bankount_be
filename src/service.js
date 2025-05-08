@@ -903,6 +903,7 @@ const insertAddress = (userData) => {
       });
   });
 };
+
 const findDeviceDetails = (id) => {
   return new Promise((resolve, reject) => {
     dao
@@ -915,6 +916,7 @@ const findDeviceDetails = (id) => {
       });
   });
 };
+
 const findAddressDetails = (uid) => {
   return new Promise((resolve, reject) => {
     dao
@@ -967,33 +969,32 @@ const checkAddressDetails = (address) => {
   });
 };
 
-const insertTransactionDetails = (data) => {
-  return new Promise((resolve, reject) => {
-    let date = new Date();
-    dao
-      .insertTransaction(
-        data.type,
-        data.chain,
-        data.token,
-        data.address_id,
-        data.from_address,
-        data.tx,
-        data.destination_address,
-        data.amount,
-        date,
-        data.block_number,
-        data.idUtente,
-        data.network_type,
-        data.wallet_id
-      )
-      .then((transactionDetails) => {
-        resolve(transactionDetails);
-      })
-      .catch((error) => {
-        reject(error);
-      });
-  });
-};
+// const insertTransactionDetails = (data) => {
+//   return new Promise((resolve, reject) => {
+//     let date = new Date();
+//     dao
+//       .insertTransactionNew(
+//         data.chain,
+//         data.token,
+//         data.address_id,
+//         data.from_address,
+//         data.tx,
+//         data.destination_address,
+//         data.amount,
+//         date,
+//         data.block_number,
+//         data.idUtente,
+//         data.network_type,
+//         data.wallet_id
+//       )
+//       .then((transactionDetails) => {
+//         resolve(transactionDetails);
+//       })
+//       .catch((error) => {
+//         reject(error);
+//       });
+//   });
+// };
 
 const findAddressBySearchField = (deviceId, coin_type, address) => {
   return new Promise((resolve, reject) => {
@@ -1008,18 +1009,18 @@ const findAddressBySearchField = (deviceId, coin_type, address) => {
   });
 };
 
-const registerTatumAddress = (chain, address) => {
-  return new Promise((resolve, reject) => {
-    dao
-      .insertTatumAddress(chain, address)
-      .then(async (data) => {
-        resolve(data);
-      })
-      .catch((error) => {
-        reject(error);
-      });
-  });
-};
+// const registerTatumAddress = (chain, address) => {
+//   return new Promise((resolve, reject) => {
+//     dao
+//       .insertTatumAddress(chain, address)
+//       .then(async (data) => {
+//         resolve(data);
+//       })
+//       .catch((error) => {
+//         reject(error);
+//       });
+//   });
+// };
 
 const getAddressByUserId = (userId, address) => {
   return new Promise((resolve, reject) => {
@@ -1250,11 +1251,11 @@ module.exports = {
   findDeviceDetails,
   findAddressDetails,
   findAddressDetailsById,
-  insertTransactionDetails,
+  // insertTransactionDetails,
   checkAddressDetails,
   findAddressBySearchField,
   findPublicAddress,
-  registerTatumAddress,
+  // registerTatumAddress,
   getAddressByUserId,
   sendTransaction,
   getDeviceTokenByFromAddress,

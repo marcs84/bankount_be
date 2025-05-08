@@ -2352,13 +2352,13 @@ router.post("/api/webhook-quicknode/transaction", jsonParser, controllers.quickn
  * @swagger
  * /api/chain-urls:
  *   get:
- *     summary: Fetch chain URLs and details
- *     description: Retrieves the blockchain node URLs, explorer URLs, and other details for different chains based on the user's device and wallet.
+ *     summary: Fetch encrypted chain URLs and details
+ *     description: Retrieves blockchain node URLs, explorer URLs, and other chain details, encrypts the data using ECDH + AES, and returns the encrypted payload.
  *     operationId: fetchChainURLs
  *     tags:
  *       - Blockchain
  *     security:
- *       - BearerAuth: []  # <-- JWT authentication required
+ *       - BearerAuth: []  # JWT authentication required
  *     parameters:
  *       - in: query
  *         name: wallet_id
@@ -2366,9 +2366,15 @@ router.post("/api/webhook-quicknode/transaction", jsonParser, controllers.quickn
  *           type: string
  *         required: true
  *         description: Wallet ID to fetch associated custom chain URLs.
+ *       - in: query
+ *         name: client_public_key
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Client's public key for ECDH encryption. If not provided, a default will be used.
  *     responses:
  *       200:
- *         description: Chain URLs and data fetched successfully.
+ *         description: Encrypted chain URLs and data fetched successfully.
  *         content:
  *           application/json:
  *             schema:
@@ -2383,22 +2389,9 @@ router.post("/api/webhook-quicknode/transaction", jsonParser, controllers.quickn
  *                 data:
  *                   type: object
  *                   properties:
- *                     quicknode_btc_test:
- *                       $ref: '#/components/schemas/ChainUrlData'
- *                     quicknode_eth_test:
- *                       $ref: '#/components/schemas/ChainUrlData'
- *                     quicknode_bnb_test:
- *                       $ref: '#/components/schemas/ChainUrlData'
- *                     quicknode_sol_test:
- *                       $ref: '#/components/schemas/ChainUrlData'
- *                     quicknode_btc_main:
- *                       $ref: '#/components/schemas/ChainUrlData'
- *                     quicknode_eth_main:
- *                       $ref: '#/components/schemas/ChainUrlData'
- *                     quicknode_bnb_main:
- *                       $ref: '#/components/schemas/ChainUrlData'
- *                     quicknode_sol_main:
- *                       $ref: '#/components/schemas/ChainUrlData'
+ *                     encryptedPayload:
+ *                       type: string
+ *                       example: "U2FsdGVkX1+ZgT3tP+e..."
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  *       500:

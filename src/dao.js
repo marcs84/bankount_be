@@ -570,7 +570,6 @@ const insertAssociatedTokenAccount = (id, tokenname, decimals, tokenAccount) => 
 };
 
 const insertTransaction = (
-  type,
   chain,
   token,
   address_id,
@@ -592,32 +591,16 @@ const insertTransaction = (
       } else if (txResult && txResult.length > 0) {
         resolve(txResult);
       } else {
-        const queryInsertTx = `INSERT INTO transactions (type, chain, token, address_id, from_address, tx, destination_address, amount, data_insert, block_number, id_utente, network_type, wallet_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-        const values = [
-          type,
-          chain,
-          token,
-          address_id,
-          fromAddress,
-          tx,
-          destinationAddress,
-          amount,
-          data_insert,
-          block_number,
-          userId,
-          network_type,
-          wallet_id,
-        ];
+        const queryInsertTx = `INSERT INTO transactions (chain, address_id, from_address, tx, destination_address, amount, data_insert, block_number, id_utente, network_type, wallet_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        const values = [chain, address_id, fromAddress, tx, destinationAddress, amount, data_insert, block_number, userId, network_type, wallet_id];
         connection.query(queryInsertTx, values, (error, results) => {
           if (error) {
             reject("Error during transaction insertion: " + error.message);
           } else if (results && results.insertId) {
             resolve({
               id: results.insertId,
-              type: type,
               chain: chain,
-              token: token,
               address_id: address_id,
               from_address: fromAddress,
               tx: tx,
@@ -698,33 +681,113 @@ const insertTransactionNew = ({
   amount,
 }) => {
   return new Promise((resolve, reject) => {
-    connection.query(
-      `INSERT INTO transactions(address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        address_id,
-        id_utente,
-        wallet_id,
-        chain,
-        chain_id,
-        network_type,
-        block_number,
-        gas,
-        gas_price,
-        type,
-        block_hash,
-        input,
-        from_address,
-        destination_address,
-        tx,
-        amount,
-      ],
-      (error, result) => {
-        if (error) {
-          return reject(new Error("Error while inserting transaction : " + error.message));
-        }
-        return resolve(result);
+    connection.query(`SELECT * FROM transactions WHERE tx = ?`, [tx], (err, results) => {
+      if (err) {
+        return reject(new Error("Error while inserting transaction data : " + err.message));
       }
-    );
+      if (results.length) {
+        // update the transaction data with new data
+        connection.query(
+          `UPDATE transactions SET address_id = ?, id_utente = ?, wallet_id = ?, chain = ?, chain_id = ?, network_type = ?, block_number = ?, gas = ?, gas_price = ?, type = ?, block_hash = ?, input = ?, from_address = ?, destination_address = ?, amount = ?, tx_status = ? WHERE id = ?`,
+          [
+            address_id,
+            id_utente,
+            wallet_id,
+            chain,
+            chain_id,
+            network_type,
+            block_number,
+            gas,
+            gas_price,
+            type,
+            block_hash,
+            input,
+            from_address,
+            destination_address,
+            amount,
+            'success',            //update will execute when there will be webhook call from quicknode
+            results[0].id,
+          ],
+          (error, result) => {
+            if (error) {
+              return reject(new Error("Error while inserting transaction data : " + error.message));
+            }
+            if (result.affectedRows) {
+              connection.query(`SELECT * FROM transactions WHERE tx = ?`, [tx], (error, result) => {
+                if (error || result.length === 0) {
+                  return reject(new Error("Error while fetching updated transaction data : " + error.message));
+                }
+                return resolve({
+                  id: result[0].id,
+                  chain: result[0].chain,
+                  token: result[0].token,
+                  address_id: result[0].address_id,
+                  from_address: result[0].from_address,
+                  tx: result[0].tx,
+                  destination_address: result[0].destination_address,
+                  amount: amount.toString(),
+                  data_insert: result[0].data_insert,
+                  // block_number: block_number,
+                  network_type: network_type,
+                  wallet_id: result[0].wallet_id,
+                  is_synced: 1,
+                  status: result[0].address_id ? "outgoing" : "incoming",
+                });
+              });
+            }
+          }
+        );
+      } else {
+        connection.query(
+          `INSERT INTO transactions(address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount, data_insert) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            address_id,
+            id_utente,
+            wallet_id,
+            chain,
+            chain_id,
+            network_type,
+            block_number,
+            gas,
+            gas_price,
+            type,
+            block_hash,
+            input,
+            from_address,
+            destination_address,
+            tx,
+            amount,
+            new Date()
+          ],
+          (error, result) => {
+            if (error) {
+              return reject(new Error("Error while inserting transaction : " + error.message));
+            }
+            connection.query(`SELECT * FROM transactions WHERE id = ?`, [result.insertId], (error, result) => {
+              if (error) {
+                return reject(new Error("Error while fetching inserted data : " + error.message));
+              }
+              return resolve({
+                id: result[0].id,
+                chain: result[0].chain,
+                token: result[0].token,
+                address_id: result[0].address_id,
+                from_address: result[0].from_address,
+                tx: result[0].tx,
+                destination_address: result[0].destination_address,
+                amount: amount.toString(),
+                data_insert: result[0].data_insert,
+                // block_number: block_number,
+                network_type: network_type,
+                wallet_id: result[0].wallet_id,
+                is_synced: 1,
+                status: result[0].address_id ? "outgoing" : "incoming",
+              });
+            });
+          }
+        );
+      }
+    });
   });
 };
 
@@ -1075,7 +1138,7 @@ const verifyDevice = (identifier, passkey, device_token) => {
         if (error) {
           return reject(new Error("Failed to retrieve device: " + error.message));
         }
-  
+
         if (results.length) {
           if (results[0].passkey !== passkey) {
             connection.query(`UPDATE device SET is_active = 0 WHERE identifier = ?`, [identifier], (error, results) => {
@@ -1095,7 +1158,7 @@ const verifyDevice = (identifier, passkey, device_token) => {
                       });
                     }
                     return resolve(results.insertId); // Return existing record's ID
-                  })
+                  });
                 }
               );
             });
@@ -1112,7 +1175,7 @@ const verifyDevice = (identifier, passkey, device_token) => {
                   });
                 }
                 resolve(results[0].id); // Return existing record's ID
-              })
+              });
             });
           }
         } else {
@@ -1129,7 +1192,7 @@ const verifyDevice = (identifier, passkey, device_token) => {
           });
         }
       });
-    })
+    });
   });
 };
 
@@ -1284,37 +1347,37 @@ const findAddressBySearchKey = (deviceId, coin_type, address) => {
   });
 };
 
-const insertTatumAddress = (chain, address) => {
-  return new Promise((resolve, reject) => {
-    const options = {
-      method: "POST",
-      url: "https://api.tatum.io/v4/subscription",
-      headers: {
-        accept: "application/json",
-        "content-type": "application/json",
-        "x-api-key": process.env.TATUM_KEY,
-      },
-      body: {
-        type: "ADDRESS_EVENT",
-        attr: {
-          chain: chain,
-          address: address,
-          url: process.env.TATUM_URL,
-        },
-        //   mempool: true
-      },
-      json: true,
-    };
-    request(options, function (error, response, body) {
-      if (error) {
-        return reject("Error querying the transaction count: " + error.message);
-      }
-      if (response) {
-        return resolve(response);
-      }
-    });
-  });
-};
+// const insertTatumAddress = (chain, address) => {
+//   return new Promise((resolve, reject) => {
+//     const options = {
+//       method: "POST",
+//       url: "https://api.tatum.io/v4/subscription",
+//       headers: {
+//         accept: "application/json",
+//         "content-type": "application/json",
+//         "x-api-key": process.env.TATUM_KEY,
+//       },
+//       body: {
+//         type: "ADDRESS_EVENT",
+//         attr: {
+//           chain: chain,
+//           address: address,
+//           url: process.env.TATUM_URL,
+//         },
+//         //   mempool: true
+//       },
+//       json: true,
+//     };
+//     request(options, function (error, response, body) {
+//       if (error) {
+//         return reject("Error querying the transaction count: " + error.message);
+//       }
+//       if (response) {
+//         return resolve(response);
+//       }
+//     });
+//   });
+// };
 
 const getAddressByUserIdAndAddress = (userId, senderAddress) => {
   const query = `SELECT * FROM addresses WHERE id_utente = ? AND address = ?`;
@@ -2008,7 +2071,7 @@ module.exports = {
   fetchAddressById,
   findAddressBySearchKey,
   fetchAddressArray,
-  insertTatumAddress,
+  // insertTatumAddress,
   getAddressByUserIdAndAddress,
   getDeviceTokenByFromAddress,
   updateAddressStatus,
