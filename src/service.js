@@ -1123,7 +1123,7 @@ const getLatestCoinRates = async (currency) => {
   return response.data;
 };
 
-const convertCoinsToAmount = async (coinType, coins, currency, coinRates) => {
+const convertCoinsToAmount = (coinType, coins, currency, coinRates) => {
   try {
     if (coinType === "Ethereum" || coinType === "ETH") {
       return coinRates.ethereum[currency] * coins;

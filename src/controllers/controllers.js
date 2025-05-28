@@ -300,8 +300,9 @@ const filterTransactions = async (req, res) => {
   try {
     const resData = await service.findDeviceDetails(req.user.identifier);
     const device_id = resData[0].id;
-    let { limit, offset, wallet_id, start_date, end_date, duration_type, search, chain, network_type } = req.query;
+    let { limit, offset, wallet_id, start_date, end_date, duration_type, search, chain, network_type, selected_currency } = req.query;
     let invalidParamsMessage;
+    const coinRates = await service.getLatestCoinRates(selected_currency);
 
     if (!wallet_id) {
       invalidParamsMessage = "wallet_id is mandatory to pass";
@@ -349,6 +350,9 @@ const filterTransactions = async (req, res) => {
     };
 
     const { transactions, totalCount } = await dao.filterTransactions(data);
+    transactions.map((transaction)=>{
+      transaction.converted_amount = service.convertCoinsToAmount(transaction.chain, parseFloat(transaction.amount), selected_currency, coinRates);
+    })
     return res.status(200).json({
       result: true,
       data: { totalCount, transactions },
@@ -1008,6 +1012,7 @@ const insertTransaction = async (req, res) => {
     const data = req.body;
     const addressDetails = await service.checkAddressDetails(data.from_address);
     const response = await dao.insertTransactionNew({
+      isHistoryReceivedFromWebhook: false,
       address_id: addressDetails.id,
       id_utente: addressDetails.idUtente,
       wallet_id: addressDetails.wallet_id,
@@ -1048,9 +1053,17 @@ const quicknodeTransactionWebhook = async (req, res) => {
     const payload = {};
     console.log("transactions", transactions);
     for (let transaction of transactions) {
-      const addressDetails = await service.checkAddressDetails(transaction.from);
-      const objLength = Object.keys(addressDetails).length;
-      payload.address_id = objLength > 0 ? addressDetails.id : null;
+      let addressDetails = await service.checkAddressDetails(transaction.from);
+      let objLength = Object.keys(addressDetails).length;
+
+      //check if transaction is done from third party to our application address, when
+      if(!objLength){
+        addressDetails = await service.checkAddressDetails(transaction.to);
+        objLength = Object.keys(addressDetails).length;
+      } 
+
+      payload.isHistoryReceivedFromWebhook = true;
+      payload.address_id =  objLength > 0 ? addressDetails.id : null;
       payload.id_utente = objLength > 0 ? addressDetails.idUtente : null;
       payload.wallet_id = objLength > 0 ? addressDetails.wallet_id : null;
       payload.chain = transaction.chain;
@@ -1411,6 +1424,7 @@ const fetchAssets = async (req, res) => {
     const addresses = await dao.filterAddresses(filters);
 
     const assets = {};
+    const coinRates = await service.getLatestCoinRates(selected_currency);
     for (const index in addresses) {
       let balance;
       try {
@@ -1454,7 +1468,7 @@ const fetchAssets = async (req, res) => {
 
     let walletTotalBalance = 0; //wallet total balance
     let convertedTotalAmount = 0;
-    const coinRates = await service.getLatestCoinRates(selected_currency);
+    
     for (let key in assets) {
       let coinWiseTotal = 0; //coin total balance
       for (const add of assets[key]["addresses"]) {
@@ -1462,7 +1476,7 @@ const fetchAssets = async (req, res) => {
         walletTotalBalance += add.balance;
       }
       assets[key]["coin_balance"] = coinWiseTotal;
-      const converted_amount = await service.convertCoinsToAmount(key, coinWiseTotal, selected_currency, coinRates);
+      const converted_amount = service.convertCoinsToAmount(key, coinWiseTotal, selected_currency, coinRates);
       assets[key]["converted_amount"] = converted_amount;
       convertedTotalAmount += converted_amount;
       delete assets[key]["addresses"]; //remove addresses field in response as not required in frontend
@@ -1476,19 +1490,27 @@ const fetchAssets = async (req, res) => {
         if (index === -1) {
           continue;
         }
+        let blockchain = addresses[index].coin_type;
+        if(blockchain === "BNB"){
+          blockchain = 'BSC';
+        }
+        if(blockchain === 'SOL'){
+          blockchain = 'SOLANA'
+        }
         token.balance = await rango.tokenBalance({
           walletAddress: addresses[index].address,
-          blockchain: addresses[index].coin_type === "BNB" ? "BSC" : addresses[index].coin_type,
+          blockchain,
           symbol: token.symbol,
           // address: token.address,
         });
         // console.log('addresses[index].chain', addresses[index].coin_type)
-        token.balance.converted_balance = await service.convertCoinsToAmount(
+        token.balance.converted_balance = service.convertCoinsToAmount(
           addresses[index].coin_type,
           token.balance.balance,
           selected_currency,
           coinRates
         );
+        // token.balance = token.balance.balance;
       }
     }
 

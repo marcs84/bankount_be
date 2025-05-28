@@ -663,6 +663,7 @@ const insertTransaction = (
 };
 
 const insertTransactionNew = ({
+  isHistoryReceivedFromWebhook,
   address_id,
   id_utente,
   wallet_id,
@@ -739,7 +740,7 @@ const insertTransactionNew = ({
         );
       } else {
         connection.query(
-          `INSERT INTO transactions(address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount, data_insert) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO transactions(address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount, data_insert, tx_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             address_id,
             id_utente,
@@ -757,7 +758,8 @@ const insertTransactionNew = ({
             destination_address,
             tx,
             amount,
-            new Date()
+            new Date(),
+            isHistoryReceivedFromWebhook ? 'success' : 'pending', // tx_status will be 'success' if the transaction is received from webhook, otherwise 'pending'
           ],
           (error, result) => {
             if (error) {
@@ -1163,7 +1165,7 @@ const verifyDevice = (identifier, passkey, device_token) => {
               );
             });
           } else {
-            const updateQuery = `UPDATE device SET device_token = ? WHERE id = ?`;
+            const updateQuery = `UPDATE device SET device_token = ? WHERE id = ? AND is_active = 1`;
             connection.query(updateQuery, [device_token, results[0].id], (updateError) => {
               if (updateError) {
                 return reject(new Error("Failed to update device token: " + updateError.message));
