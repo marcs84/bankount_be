@@ -1,18 +1,19 @@
-require('dotenv').config();
+require("dotenv").config();
 
-const utils = require('./src/utils');
-const fs = require('fs');
-const https = require('https');
+const utils = require("./src/utils");
+const fs = require("fs");
+const https = require("https");
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
-const routes = require('./src/server/routes');
-const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('./src/config/swagger');
+const routes = require("./src/server/routes");
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpec = require("./src/config/swagger");
+const { Redis } = require("ioredis");
 
-const { startSolanaCron } = require('./cron/solana-cron');
-const { startBinanceCron } = require('./cron/binance-cron');
-const { startEthereumCron } = require('./cron/ethereum-cron');
+const { startSolanaCron } = require("./cron/solana-cron");
+const { startBinanceCron } = require("./cron/binance-cron");
+const { startEthereumCron } = require("./cron/ethereum-cron");
 
 // ------ DB Connection ------
 const connection = utils.mysql.createConnection({
@@ -20,8 +21,20 @@ const connection = utils.mysql.createConnection({
   user: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
-  connectTimeout: 60000
+  connectTimeout: 60000,
 });
+
+
+const redisClient = new Redis();
+(async () => {
+  try {
+    await redisClient.connect();
+    console.log("Connection to Redis successful!");
+  } catch (error) {
+    console.error("Error while connecting to Redis:", error.message);
+  }
+})();
+
 
 connection.connect((error) => {
   if (error) {
@@ -43,34 +56,37 @@ connection.connect((error) => {
 const app = express();
 const port = 3000;
 
-app.use(cors({
-  origin: '*',
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-  allowedHeaders: '*'
-}));
+app.use(
+  cors({
+    origin: "*",
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+    allowedHeaders: "*",
+  })
+);
 app.use(morgan("tiny"));
 
-
 // Importa le rotte dal file routes.js
-app.use('/', routes);
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use("/", routes);
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+setInterval(async () => {
+  await utils.cacheCoinPrices();
+}, parseInt(process.env.COIN_GECKO_CACHE_INTERVAL) || 5 * 60 * 1000); // default 5 minute
 
 // Avvia il server API
 if (process.env.HTTPS == "true") {
   // configuro le credenziali https
-  const privateKey  = fs.readFileSync(process.env.HTTPS_PRIVATEKEY, 'utf8');
-  const certificate = fs.readFileSync(process.env.HTTPS_CERTIFICATE, 'utf8');
-  const credentials = {key: privateKey, cert: certificate};
+  const privateKey = fs.readFileSync(process.env.HTTPS_PRIVATEKEY, "utf8");
+  const certificate = fs.readFileSync(process.env.HTTPS_CERTIFICATE, "utf8");
+  const credentials = { key: privateKey, cert: certificate };
 
   var httpsServer = https.createServer(credentials, app);
 
   httpsServer.listen(port, () => {
     console.log(`Server in ascolto sulla porta ${port} in HTTPS`);
-    
   });
 } else {
   app.listen(port, () => {
     console.log(`Server in ascolto sulla porta ${port} in HTTP`);
   });
 }
-

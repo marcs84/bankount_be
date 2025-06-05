@@ -1374,6 +1374,12 @@ const filterAddresses = async (req, res) => {
     }
 
     const addresses = await dao.filterAddresses(filter1);
+    if(!addresses || addresses.length === 0) {
+      return res.status(400).json({
+        result: false,
+        message: "No addresses found for the given filters",
+      })
+    }
 
     for (const address of addresses) {
       const balance = await service.getBalance(address.coin_type, address.address, network, user_id, wallet_id);
