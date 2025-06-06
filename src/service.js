@@ -1117,9 +1117,38 @@ const sendTransaction = (userId, chain, fromAddress, toAddress, amount, network,
 
 const getLatestCoinRates = async (currency) => {
   try {
-    const data = await redisClient.get("cached_coin_prices");
-    console.log('data', data)
-    return JSON.parse(data);
+    if (currency === "usd" || currency === "USD") {
+      const cacheValues = await redisClient.get("cached_coin_prices_usd");
+      if (cacheValues) {
+        return JSON.parse(cacheValues);
+      }
+      const response = await axios.get(`${process.env.COIN_GECKO_COIN_PRICE_URI}?ids=bitcoin,ethereum,solana,binancecoin&vs_currencies=${currency}`, {
+        headers: {
+          accept: "application/json",
+          "x-pro-cg-api-key": `${process.env.COIN_GECKO_API_KEY}`,
+        },
+      });
+      const data = response.data;
+      await redisClient.set("cached_coin_prices_usd", JSON.stringify(data), "EX", process.env.COIN_GECKO_CACHE_INTERVAL || 300);
+      return data;
+    }
+
+    if (currency === "eur" || currency === "EUR") {
+      const cacheValues = await redisClient.get("cached_coin_prices_eur");
+      if (cacheValues) {
+        return JSON.parse(cacheValues);
+      }
+      const response = await axios.get(`${process.env.COIN_GECKO_COIN_PRICE_URI}?ids=bitcoin,ethereum,solana,binancecoin&vs_currencies=${currency}`, {
+        headers: {
+          accept: "application/json",
+          "x-pro-cg-api-key": `${process.env.COIN_GECKO_API_KEY}`,
+        },
+      });
+      const data = response.data;
+      await redisClient.set("cached_coin_prices_eur", JSON.stringify(data), "EX", process.env.COIN_GECKO_CACHE_INTERVAL || 300);
+      return data;
+    }
+
   } catch (error) {
     console.error("Error fetching coin rates from cache:", error);
     setTimeout(async () => {

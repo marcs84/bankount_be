@@ -73,30 +73,6 @@ class ECDH_AES_Server {
     }
 }
 
-// Function to fetch and cache coin prices
-const cacheCoinPrices = async () => {
-    const redisClient = new Redis()
-  try {
-    const currency = "usd"; // You can parametrize if needed
-
-    const response = await axios.get(`${process.env.COIN_GECKO_COIN_PRICE_URI}?ids=bitcoin,ethereum,solana,binancecoin&vs_currencies=${currency}`, {
-      headers: {
-        accept: "application/json",
-        "x-pro-cg-api-key": `${process.env.COIN_GECKO_API_KEY}`,
-      },
-    });
-
-    const data = response.data;
-    data.timestamp = new Date().toISOString(); // Add timestamp to the data
-    console.log('data', data)
-    await redisClient.set("cached_coin_prices", JSON.stringify(data));
-
-    console.log("✅ Coin prices cached at:", new Date().toISOString());
-
-  } catch (error) {
-    console.error("❌ Error fetching CoinGecko prices:", error.message);
-  }
-};
 
 
 module.exports = {
@@ -121,7 +97,6 @@ module.exports = {
     MoneroNetworkType,
     createCustomError,
     ECDH_AES_Server,
-    cacheCoinPrices
 };
 
 

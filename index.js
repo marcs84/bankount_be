@@ -54,7 +54,7 @@ connection.connect((error) => {
 // openssl rsa -in keytmp.pem -out key.pem
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 app.use(
   cors({
@@ -68,10 +68,6 @@ app.use(morgan("tiny"));
 // Importa le rotte dal file routes.js
 app.use("/", routes);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-
-setInterval(async () => {
-  await utils.cacheCoinPrices();
-}, parseInt(process.env.COIN_GECKO_CACHE_INTERVAL) || 5 * 60 * 1000); // default 5 minute
 
 // Avvia il server API
 if (process.env.HTTPS == "true") {
