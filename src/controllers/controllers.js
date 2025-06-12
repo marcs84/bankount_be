@@ -350,9 +350,9 @@ const filterTransactions = async (req, res) => {
     };
 
     const { transactions, totalCount } = await dao.filterTransactions(data);
-    transactions.map((transaction)=>{
+    transactions.map((transaction) => {
       transaction.converted_amount = service.convertCoinsToAmount(transaction.chain, parseFloat(transaction.amount), selected_currency, coinRates);
-    })
+    });
     return res.status(200).json({
       result: true,
       data: { totalCount, transactions },
@@ -1050,74 +1050,166 @@ const insertTransaction = async (req, res) => {
 const quicknodeTransactionWebhook = async (req, res) => {
   try {
     const transactions = req.body.payload;
+    const receipts = req.body.receipts;
     const payload = {};
-    console.log("transactions", transactions);
-    for (let transaction of transactions) {
-      let addressDetails = await service.checkAddressDetails(transaction.from);
-      let objLength = Object.keys(addressDetails).length;
+    console.log('transactions', transactions)
+    console.log('receipts', receipts)
 
-      //check if transaction is done from third party to our application address, when
-      if(!objLength){
-        addressDetails = await service.checkAddressDetails(transaction.to);
-        objLength = Object.keys(addressDetails).length;
-      } 
+    if (transactions && transactions.length) {
+      for (let transaction of transactions) {
+        let addressDetails = await service.checkAddressDetails(transaction.from);
+        let objLength = Object.keys(addressDetails).length;
 
-      payload.isHistoryReceivedFromWebhook = true;
-      payload.address_id =  objLength > 0 ? addressDetails.id : null;
-      payload.id_utente = objLength > 0 ? addressDetails.idUtente : null;
-      payload.wallet_id = objLength > 0 ? addressDetails.wallet_id : null;
-      payload.chain = transaction.chain;
-      payload.chain_id = transaction.chainId ?? null;
-      payload.network_type = transaction.network;
-      payload.block_number = transaction.blockNumber ?? null;
-      payload.gas = transaction.gas ?? null;
-      payload.gas_price = transaction.gasPrice ?? null;
-      payload.type = transaction.type ?? null;
-      payload.block_hash = transaction.blockHash ?? null;
-      payload.tx = transaction.hash;
-      payload.input = transaction.input;
-      payload.from_address = transaction.from;
-      payload.destination_address = transaction.to;
-      payload.amount = transaction.amount;
-      await dao.insertTransactionNew(payload);
-      const fromAddress = await service.getDeviceTokenByFromAddress(transaction.from);
-      const designationAddress = await service.getDeviceTokenByFromAddress(transaction.to);
+        //check if transaction is done from third party to our application address, when
+        if (!objLength) {
+          addressDetails = await service.checkAddressDetails(transaction.to);
+          objLength = Object.keys(addressDetails).length;
+        }
 
-      if (fromAddress) {
-        const notificationTitle = "Transaction Sent";
-        const notificationBody = `The transaction successfully sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}.
+        payload.isHistoryReceivedFromWebhook = true;
+        payload.address_id = objLength > 0 ? addressDetails.id : null;
+        payload.id_utente = objLength > 0 ? addressDetails.idUtente : null;
+        payload.wallet_id = objLength > 0 ? addressDetails.wallet_id : null;
+        payload.chain = transaction.chain;
+        payload.chain_id = transaction.chainId ?? null;
+        payload.network_type = transaction.network;
+        payload.block_number = transaction.blockNumber ?? null;
+        payload.gas = transaction.gas ?? null;
+        payload.gas_price = transaction.gasPrice ?? null;
+        payload.type = transaction.type ?? null;
+        payload.block_hash = transaction.blockHash ?? null;
+        payload.tx = transaction.hash;
+        payload.input = transaction.input;
+        payload.from_address = transaction.from;
+        payload.destination_address = transaction.to;
+        payload.amount = transaction.amount;
+        await dao.insertTransactionNew(payload);
+        const fromAddress = await service.getDeviceTokenByFromAddress(transaction.from);
+        const designationAddress = await service.getDeviceTokenByFromAddress(transaction.to);
+
+        if (fromAddress) {
+          const notificationTitle = "Transaction Sent";
+          const notificationBody = `The transaction successfully sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}.
 Transaction ID: ${transaction.hash}`;
+          try {
+            notification.sendNotification(fromAddress, {
+              notificationTitle,
+              notificationBody,
+            });
+            await dao.insertTransactionNotification(
+              addressDetails.idUtente,
+              addressDetails.wallet_id,
+              notificationTitle,
+              notificationBody,
+              transaction.chain
+            );
+          } catch (error) {
+            console.error("Error sending notification: ", error);
+          }
+        }
 
-        notification.sendNotification(fromAddress, {
-          notificationTitle,
-          notificationBody,
-        });
-        await dao.insertTransactionNotification(
-          addressDetails.idUtente,
-          addressDetails.wallet_id,
-          notificationTitle,
-          notificationBody,
-          transaction.chain
-        );
-      }
-
-      if (designationAddress) {
-        const notificationTitle = "Transaction Received";
-        const notificationBody = `The transaction successfully received ${transaction.amount} ${transaction.chain} from address ${transaction.from}.
+        if (designationAddress) {
+          const notificationTitle = "Transaction Received";
+          const notificationBody = `The transaction successfully received ${transaction.amount} ${transaction.chain} from address ${transaction.from}.
 Transaction ID: ${transaction.hash}.`;
+          try {
+            notification.sendNotification(designationAddress, {
+              notificationTitle,
+              notificationBody,
+            });
 
-        notification.sendNotification(designationAddress, {
-          notificationTitle,
-          notificationBody,
-        });
-        const addressDetails = await service.checkAddressDetails(transaction.to);
-        await dao.insertTransactionNotification(
-          addressDetails.idUtente,
-          addressDetails.wallet_id,
-          notificationTitle,
-          notificationBody,
-          transaction.chain
-        );
+            const addressDetails = await service.checkAddressDetails(transaction.to);
+            await dao.insertTransactionNotification(
+              addressDetails.idUtente,
+              addressDetails.wallet_id,
+              notificationTitle,
+              notificationBody,
+              transaction.chain
+            );
+          } catch (error) {
+            console.error("Error sending notification: ", error);
+          }
+        }
+      }
+    }
+
+    if (receipts && receipts.length) {    
+      for (let receipt of receipts) {
+        let addressDetails = await service.checkAddressDetails(receipt.from);
+        let objLength = Object.keys(addressDetails).length;
+
+        //check if transaction is done from third party to our application address, when
+        if (!objLength) {
+          addressDetails = await service.checkAddressDetails(receipt.to);
+          objLength = Object.keys(addressDetails).length;
+          console.log("addressDetails", addressDetails);
+        }
+
+        payload.isHistoryReceivedFromWebhook = true;
+        payload.address_id = objLength > 0 ? addressDetails.id : null;
+        payload.id_utente = objLength > 0 ? addressDetails.idUtente : null;
+        payload.wallet_id = objLength > 0 ? addressDetails.wallet_id : null;
+        payload.chain = receipt.chain;
+        payload.chain_id = receipt.chainId ?? null;
+        payload.network_type = receipt.network;
+        payload.block_number = receipt.blockNumber ?? null;
+        payload.gas = receipt.gas ?? null;
+        payload.gas_price = receipt.gasPrice ?? null;
+        payload.type = receipt.type ?? null;
+        payload.block_hash = receipt.blockHash ?? null;
+        payload.tx = receipt.hash;
+        payload.input = receipt.input;
+        payload.from_address = receipt.from;
+        payload.destination_address = receipt.to;
+        payload.amount = receipt.amount;
+        await dao.insertTransactionNew(payload);
+        const fromAddress = await service.getDeviceTokenByFromAddress(receipt.from);
+        const designationAddress = await service.getDeviceTokenByFromAddress(receipt.to);
+
+        if (fromAddress) {
+          const notificationTitle = "Transaction Sent";
+          const notificationBody = `The transaction successfully sent ${receipt.amount} ${receipt.chain} to address ${receipt.to}.
+Transaction ID: ${receipt.hash}`;
+          try {
+            notification.sendNotification(fromAddress, {
+              notificationTitle,
+              notificationBody,
+            });
+            await dao.insertTransactionNotification(
+              addressDetails.idUtente,
+              addressDetails.wallet_id,
+              notificationTitle,
+              notificationBody,
+              receipt.chain
+            );
+          } catch (error) {
+            console.error("Error sending notification: ", error);
+          }
+        }
+
+        if (designationAddress) {
+          const notificationTitle = "Transaction Received";
+          const notificationBody = `The transaction successfully received ${receipt.amount} ${receipt.chain} from address ${receipt.from}.
+Transaction ID: ${receipt.hash}.`;
+          try {
+            notification.sendNotification(designationAddress, {
+              notificationTitle,
+              notificationBody,
+            });
+
+            const addressDetails = await service.checkAddressDetails(receipt.to);
+            console.log("addressDetails", addressDetails);
+            await dao.insertTransactionNotification(
+              addressDetails.idUtente,
+              addressDetails.wallet_id,
+              notificationTitle,
+              notificationBody,
+              receipt.chain
+            );
+          } catch (error) {
+            console.error("Error sending notification: ", error);
+          }
+        }
       }
     }
 
@@ -1374,11 +1466,11 @@ const filterAddresses = async (req, res) => {
     }
 
     const addresses = await dao.filterAddresses(filter1);
-    if(!addresses || addresses.length === 0) {
+    if (!addresses || addresses.length === 0) {
       return res.status(400).json({
         result: false,
         message: "No addresses found for the given filters",
-      })
+      });
     }
 
     for (const address of addresses) {
@@ -1474,7 +1566,7 @@ const fetchAssets = async (req, res) => {
 
     let walletTotalBalance = 0; //wallet total balance
     let convertedTotalAmount = 0;
-    
+
     for (let key in assets) {
       let coinWiseTotal = 0; //coin total balance
       for (const add of assets[key]["addresses"]) {
@@ -1497,11 +1589,11 @@ const fetchAssets = async (req, res) => {
           continue;
         }
         let blockchain = addresses[index].coin_type;
-        if(blockchain === "BNB"){
-          blockchain = 'BSC';
+        if (blockchain === "BNB") {
+          blockchain = "BSC";
         }
-        if(blockchain === 'SOL'){
-          blockchain = 'SOLANA'
+        if (blockchain === "SOL") {
+          blockchain = "SOLANA";
         }
         token.balance = await rango.tokenBalance({
           walletAddress: addresses[index].address,
