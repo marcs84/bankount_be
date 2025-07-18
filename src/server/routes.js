@@ -953,6 +953,107 @@ router.put("/api/sync-address", jsonParser, auth.authenticateToken, controllers.
 
 /**
  * @swagger
+ * /api/sync-wallets:
+ *   put:
+ *     summary: Synchronize user wallets
+ *     description: Syncs wallet list from the client to the server, supporting offline-created wallets. Updates existing wallets and adds new ones.
+ *     tags: [Wallet]
+ *     security:
+ *       - BearerAuth: []  # <-- Requires JWT authentication
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - wallet_list
+ *             properties:
+ *               wallet_list:
+ *                 type: array
+ *                 description: List of wallets to be synced
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - id
+ *                     - wallet_type
+ *                     - name
+ *                     - is_active
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       description: Wallet unique identifier (UUID or Mongo ID)
+ *                       example: "38a05e7b-48f5-4b91-a9e7-15df1b37d8a1"
+ *                     wallet_type:
+ *                       type: string
+ *                       enum: [hardware, phone]
+ *                       description: Type of wallet
+ *                       example: "phone"
+ *                     name:
+ *                       type: string
+ *                       description: Name of the wallet
+ *                       example: "My Phone Wallet"
+ *                     is_active:
+ *                       type: integer
+ *                       enum: [0, 1]
+ *                       description: Wallet active status (1 = active, 0 = inactive)
+ *                       example: 1
+ *     responses:
+ *       200:
+ *         description: Wallets synchronized successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Wallets synchronized successfully"
+ *                 data:
+ *                   type: array
+ *                   description: Updated or created wallets
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         example: "38a05e7b-48f5-4b91-a9e7-15df1b37d8a1"
+ *                       wallet_type:
+ *                         type: string
+ *                         example: "phone"
+ *                       name:
+ *                         type: string
+ *                         example: "My Phone Wallet"
+ *                       is_active:
+ *                         type: integer
+ *                         example: 1
+ *       400:
+ *         description: Invalid payload format
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid payload format"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
+router.put("/api/sync-wallets", jsonParser, auth.authenticateToken, controllers.syncWallets);
+
+/**
+ * @swagger
  * /api/wallet/new:
  *   post:
  *     summary: Create a new wallet

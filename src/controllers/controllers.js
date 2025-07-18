@@ -263,6 +263,57 @@ const syncAddresses = async (req, res) => {
   }
 };
 
+const syncWallets = async (req, res) => {
+  try {
+    const data = req.body;
+    const resData = await service.findDeviceDetails(req.user.identifier);
+    const userId = resData[0].id;
+    const walletList = data.wallet_list;
+    if (!Array.isArray(walletList) || walletList.length === 0) {
+      return res.status(400).json({
+        result: false,
+        message: "Invalid wallet list provided",
+      });
+    }
+    const existingWallets = await dao.getWalletsByDeviceId(userId) ?? [];
+    console.log('existingWallets', existingWallets)
+    const newWalletList = [];
+    for (const wallet of walletList) {
+      const matchingWallet = existingWallets.find((w) => w.id === wallet.id);
+      if (matchingWallet) {
+        //update existing wallet
+        await dao.updateWallet(matchingWallet.id, {
+          name: matchingWallet.name,
+          is_active: matchingWallet.is_active,
+          wallet_type: matchingWallet.wallet_type,
+        });
+      } else {
+        //pass it to new wallet list
+        newWalletList.push(wallet);
+      }
+    }
+    //insert new wallets
+    if (newWalletList.length > 0) {
+      console.log('newWalletList', newWalletList)
+      for (const wallet of newWalletList) {
+        //create new wallet
+        await dao.createWallet(wallet.name, wallet.wallet_type, wallet.is_active, userId, userId);
+      }
+    }
+
+    return res.status(200).json({
+      result: true,
+      message: "Wallets synced successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      result: false,
+      message: "An error occurred while syncing wallets: " + error.message,
+      error: error.message,
+    });
+  }
+};
+
 //below function is very partial, will be continued, once get confirmation on correctness
 const getUtilsForTransaction = async (req, res) => {
   try {
@@ -1052,8 +1103,8 @@ const quicknodeTransactionWebhook = async (req, res) => {
     const transactions = req.body.payload;
     const receipts = req.body.receipts;
     const payload = {};
-    console.log('transactions', transactions)
-    console.log('receipts', receipts)
+    console.log("transactions", transactions);
+    console.log("receipts", receipts);
 
     if (transactions && transactions.length) {
       for (let transaction of transactions) {
@@ -1133,7 +1184,7 @@ Transaction ID: ${transaction.hash}.`;
       }
     }
 
-    if (receipts && receipts.length) {    
+    if (receipts && receipts.length) {
       for (let receipt of receipts) {
         let addressDetails = await service.checkAddressDetails(receipt.from);
         let objLength = Object.keys(addressDetails).length;
@@ -2515,4 +2566,5 @@ module.exports = {
   fetchDappsList,
   fetchTransactionNotification,
   deleteWallets,
+  syncWallets,
 };
