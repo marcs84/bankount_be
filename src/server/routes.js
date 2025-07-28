@@ -1070,11 +1070,15 @@ router.put("/api/sync-wallets", jsonParser, auth.authenticateToken, controllers.
  *           schema:
  *             type: object
  *             required:
+ *               - id
  *               - name
  *               - wallet_type
  *               - is_active
  *               - user_id
  *             properties:
+ *               id:
+ *                 type: string
+ *                 description: Unique identifier for the wallet
  *               name:
  *                 type: string
  *                 description: Name of the wallet

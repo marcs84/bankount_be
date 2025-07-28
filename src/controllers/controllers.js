@@ -1,5 +1,5 @@
 const service = require("../service");
-const { solanaWeb3, ECDH_AES_Server } = require("../../src/utils");
+const { ECDH_AES_Server } = require("../../src/utils");
 const dao = require("../dao");
 const crypto = require("crypto");
 const moment = require("moment");
@@ -282,7 +282,7 @@ const syncWallets = async (req, res) => {
       const matchingWallet = existingWallets.find((w) => w.id === wallet.id);
       if (matchingWallet) {
         //update existing wallet
-        await dao.updateWallet(matchingWallet.id, {
+        await dao.updateWalletDuringSync(matchingWallet.id, {
           name: matchingWallet.name,
           is_active: matchingWallet.is_active,
           wallet_type: matchingWallet.wallet_type,
@@ -297,7 +297,7 @@ const syncWallets = async (req, res) => {
       console.log('newWalletList', newWalletList)
       for (const wallet of newWalletList) {
         //create new wallet
-        await dao.createWallet(wallet.name, wallet.wallet_type, wallet.is_active, userId, userId);
+        await dao.createWallet(wallet.id, wallet.name, wallet.wallet_type, wallet.is_active, userId, userId);
       }
     }
 
@@ -1409,10 +1409,10 @@ const sendTransaction = async (req, res) => {
 
 const createNewWallet = async (req, res) => {
   try {
-    const { name, wallet_type, is_active, user_id } = req.body;
+    const { id, name, wallet_type, is_active, user_id } = req.body;
     const deviceDetails = await dao.verifyDeviceDetails(req.user.identifier);
-    const response = await dao.createWallet(name, wallet_type, is_active, deviceDetails[0].id, user_id);
-    const data = await dao.getWalletById(response.insertId);
+    const response = await dao.createWallet(id, name, wallet_type, is_active, deviceDetails[0].id, user_id);
+    const data = await dao.getWalletById(id);
     return res.status(200).json({
       result: true,
       message: "Wallet created successfully",

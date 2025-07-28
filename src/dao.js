@@ -1474,9 +1474,9 @@ const getDeviceTokenByFromAddress = (address) => {
   });
 };
 
-const createWallet = async (name, wallet_type, is_active, device_id, user_id) => {
-  const query = `INSERT INTO wallet(name, wallet_type, is_active, device_id, user_id) VALUES (?, ?, ?, ?, ?)`;
-  const queryParams = [name, wallet_type, is_active, device_id, user_id];
+const createWallet = async (id, name, wallet_type, is_active, device_id, user_id) => {
+  const query = `INSERT INTO wallet(id, name, wallet_type, is_active, device_id, user_id) VALUES (?, ?, ?, ?, ?, ?)`;
+  const queryParams = [id, name, wallet_type, is_active, device_id, user_id];
 
   const existingUserWallets = await getWalletsByUserId(user_id);
   if (existingUserWallets) {
@@ -1494,7 +1494,7 @@ const createWallet = async (name, wallet_type, is_active, device_id, user_id) =>
         }
         return reject(new Error("Failed to create wallet : " + error.message));
       }
-      connection.query("UPDATE wallet SET is_active = 0 WHERE device_id = ? AND id != ?", [device_id, results.insertId], (err, result) => {
+      connection.query("UPDATE wallet SET is_active = 0 WHERE device_id = ? AND id != ?", [device_id, id], (err, result) => {
         if (err) {
           return reject(new Error("Failed to create wallet : " + err.message));
         }
@@ -1552,7 +1552,6 @@ const updateWalletStatus = async (walletId, status) => {
 
 const updateWallet = async (wallet_id, updates) => {
   try {
-    console.log("wallet_id, updates", wallet_id, updates);
     // Construct the SET clause dynamically based on the fields provided
     let setClause = [];
     let queryParams = [];
@@ -1593,6 +1592,50 @@ const updateWallet = async (wallet_id, updates) => {
     });
   } catch (error) {
     throw error;
+  }
+};
+
+const updateWalletDuringSync = async (wallet_id, updates) => {
+  try {
+   // Construct the SET clause dynamically based on the fields provided
+    let setClause = [];
+    let queryParams = [];
+
+    if (updates.name != null) {
+      setClause.push("name = ?");
+      queryParams.push(updates.name);
+    }
+    if (updates.wallet_type != null) {
+      setClause.push("wallet_type = ?");
+      queryParams.push(updates.wallet_type);
+    }
+    if (updates.is_active != null) {
+      // Checks for boolean value
+      setClause.push("is_active = ?");
+      queryParams.push(updates.is_active);
+    }
+
+    // If no fields are provided, return an error
+    if (setClause.length === 0) {
+      return Promise.reject(new Error("No fields to update"));
+    }
+
+    // Add walletId at the end of the queryParams
+    queryParams.push(wallet_id);
+
+    // Construct the final query
+    const query = `UPDATE wallet SET ${setClause.join(", ")} WHERE id = ?`;
+
+    return new Promise((resolve, reject) => {
+      connection.query(query, queryParams, (error, result) => {
+        if (error) {
+          return reject(new Error("Failed to update wallet: " + error.message));
+        }
+        resolve(result);
+      });
+    });
+  } catch (error) {
+    throw new Error("Failed to update wallet during sync: " + error.message);
   }
 };
 
@@ -2082,6 +2125,7 @@ module.exports = {
   setAllAddressesToInactive,
   createWallet,
   updateWallet,
+  updateWalletDuringSync,
   getWalletById,
   getWalletsByDeviceId,
   getWalletsByUserId,
