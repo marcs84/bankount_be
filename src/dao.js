@@ -1640,7 +1640,7 @@ const updateWalletDuringSync = async (wallet_id, updates) => {
 };
 
 const getWalletById = async (walletId) => {
-  const query = `SELECT wallet.* FROM wallet JOIN device ON wallet.device_id = device.id WHERE wallet.id = ? AND device.is_active=1`;
+  const query = `SELECT wallet.* FROM wallet JOIN device ON wallet.device_id = device.id WHERE wallet.id = ? AND device.is_active=1 ORDER BY wallet.created_at DESC`;
   const queryParams = [walletId];
 
   return new Promise((resolve, reject) => {
@@ -1657,7 +1657,7 @@ const getWalletById = async (walletId) => {
 };
 
 const getWalletsByDeviceId = async (deviceId) => {
-  const query = `SELECT wallet.* FROM wallet JOIN device ON wallet.device_id = device.id WHERE device_id = ? AND device.is_active=1`;
+  const query = `SELECT wallet.* FROM wallet JOIN device ON wallet.device_id = device.id WHERE device_id = ? AND device.is_active=1 ORDER BY wallet.created_at DESC`;
   const queryParams = [deviceId];
 
   return new Promise((resolve, reject) => {
@@ -1674,7 +1674,7 @@ const getWalletsByDeviceId = async (deviceId) => {
 };
 
 const getWalletsByUserId = async (userId) => {
-  const query = `SELECT wallet.* FROM wallet JOIN device ON wallet.device_id = device.id WHERE user_id = ? AND device.is_active=1`;
+  const query = `SELECT wallet.* FROM wallet JOIN device ON wallet.device_id = device.id WHERE user_id = ? AND device.is_active=1 ORDER BY wallet.created_at DESC`;
   const queryParams = [userId];
 
   return new Promise((resolve, reject) => {
