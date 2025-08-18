@@ -1419,7 +1419,7 @@ CREATE TABLE `transactions` (
   `block_number` int DEFAULT NULL,
   `type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
   `network_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-  `wallet_id` int DEFAULT NULL,
+  `wallet_id`  varchar(255) DEFAULT NULL,
   `id_utente` int DEFAULT NULL,
   `data_insert` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `block_hash` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
