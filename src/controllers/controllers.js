@@ -275,8 +275,8 @@ const syncWallets = async (req, res) => {
         message: "Invalid wallet list provided",
       });
     }
-    const existingWallets = await dao.getWalletsByDeviceId(userId) ?? [];
-    console.log('existingWallets', existingWallets)
+    const existingWallets = (await dao.getWalletsByDeviceId(userId)) ?? [];
+    console.log("existingWallets", existingWallets);
     const newWalletList = [];
     for (const wallet of walletList) {
       const matchingWallet = existingWallets.find((w) => w.id === wallet.id);
@@ -294,7 +294,7 @@ const syncWallets = async (req, res) => {
     }
     //insert new wallets
     if (newWalletList.length > 0) {
-      console.log('newWalletList', newWalletList)
+      console.log("newWalletList", newWalletList);
       for (const wallet of newWalletList) {
         //create new wallet
         await dao.createWallet(wallet.id, wallet.name, wallet.wallet_type, wallet.is_active, userId, userId);
@@ -1650,8 +1650,16 @@ const fetchAssets = async (req, res) => {
           walletAddress: addresses[index].address,
           blockchain,
           symbol: token.symbol,
-          // address: token.address,
+          address: token.address,
         });
+
+        if (token.balance && token.balance.balance) {
+          const tokenDetails = await rango.token({ blockchain, address: token.address });
+          if (tokenDetails) {
+            token.balance.balance = token.balance.balance / Math.pow(10, tokenDetails.token.decimals);
+            console.log("token.balance", token.balance);
+          }
+        }
         // console.log('addresses[index].chain', addresses[index].coin_type)
         token.balance.converted_balance = service.convertCoinsToAmount(
           addresses[index].coin_type,
@@ -2480,7 +2488,7 @@ const fetchTransactionNotification = async (req, res) => {
 
 const deleteWallets = async (req, res) => {
   try {
-    const walletIds = req.query.wallet_ids?.split(",").map((id) => parseInt(id));
+    const walletIds = req.query.wallet_ids?.split(",").map((id) => id);
 
     const response = await dao.deleteWallets(walletIds);
 
