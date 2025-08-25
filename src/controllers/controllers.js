@@ -391,7 +391,7 @@ const filterTransactions = async (req, res) => {
     const data = {
       limit: parseInt(limit) || 20,
       offset: parseInt(offset) || 0,
-      wallet_id: parseInt(wallet_id),
+      wallet_id: wallet_id,
       start_date,
       end_date,
       search,
