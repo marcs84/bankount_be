@@ -1109,36 +1109,35 @@ const quicknodeTransactionWebhook = async (req, res) => {
     if (transactions && transactions.length) {
       for (let transaction of transactions) {
         let addressDetails = await service.checkAddressDetails(transaction.from);
-        let objLength = Object.keys(addressDetails).length;
+        const fromAddressDetails = await service.checkAddressDetails(transaction.from);
+        const destinationAddressDetails = await service.checkAddressDetails(transaction.to);
 
-        //check if transaction is done from third party to our application address, when
-        if (!objLength) {
-          addressDetails = await service.checkAddressDetails(transaction.to);
-          objLength = Object.keys(addressDetails).length;
-        }
+        //check if from address exists in our db/application or not
+        const doesFromAddressExist = Object.keys(fromAddressDetails).length > 0;
+        const doesToAddressExist = Object.keys(destinationAddressDetails).length > 0;
 
-        payload.isHistoryReceivedFromWebhook = true;
-        payload.address_id = objLength > 0 ? addressDetails.id : null;
-        payload.id_utente = objLength > 0 ? addressDetails.idUtente : null;
-        payload.wallet_id = objLength > 0 ? addressDetails.wallet_id : null;
-        payload.chain = transaction.chain;
-        payload.chain_id = transaction.chainId ?? null;
-        payload.network_type = transaction.network;
-        payload.block_number = transaction.blockNumber ?? null;
-        payload.gas = transaction.gas ?? null;
-        payload.gas_price = transaction.gasPrice ?? null;
-        payload.type = transaction.type ?? null;
-        payload.block_hash = transaction.blockHash ?? null;
-        payload.tx = transaction.hash;
-        payload.input = transaction.input;
-        payload.from_address = transaction.from;
-        payload.destination_address = transaction.to;
-        payload.amount = transaction.amount;
-        await dao.insertTransactionNew(payload);
-        const fromAddress = await service.getDeviceTokenByFromAddress(transaction.from);
-        const designationAddress = await service.getDeviceTokenByFromAddress(transaction.to);
-
-        if (fromAddress) {
+        if (doesFromAddressExist) {
+          const fromAddress = await service.getDeviceTokenByFromAddress(transaction.from);
+          const payload = {
+            isHistoryReceivedFromWebhook: true,
+            address_id: fromAddressDetails.id ?? null,
+            id_utente: fromAddressDetails.idUtente ?? null,
+            wallet_id: fromAddressDetails.wallet_id ?? null,
+            chain: transaction.chain,
+            chain_id: transaction.chainId ?? null,
+            network_type: transaction.network ?? null,
+            block_number: transaction.blockNumber ?? null,
+            gas: transaction.gas ?? null,
+            gas_price: transaction.gasPrice ?? null,
+            type: transaction.type ?? null,
+            block_hash: transaction.blockHash ?? null,
+            tx: transaction.hash,
+            input: transaction.input,
+            from_address: transaction.from,
+            destination_address: transaction.to,
+            amount: transaction.amount,
+          };
+          await dao.insertTransactionNew(payload);
           const notificationTitle = "Transaction Sent";
           const notificationBody = `The transaction successfully sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}.
 Transaction ID: ${transaction.hash}`;
@@ -1159,7 +1158,28 @@ Transaction ID: ${transaction.hash}`;
           }
         }
 
-        if (designationAddress) {
+        if (doesToAddressExist) {
+          const designationAddress = await service.getDeviceTokenByFromAddress(transaction.to);
+          const payload = {
+            isHistoryReceivedFromWebhook: true,
+            address_id: destinationAddressDetails.id ?? null,
+            id_utente: destinationAddressDetails.idUtente ?? null,
+            wallet_id: destinationAddressDetails.wallet_id ?? null,
+            chain: transaction.chain,
+            chain_id: transaction.chainId ?? null,
+            network_type: transaction.network ?? null,
+            block_number: transaction.blockNumber ?? null,
+            gas: transaction.gas ?? null,
+            gas_price: transaction.gasPrice ?? null,
+            type: transaction.type ?? null,
+            block_hash: transaction.blockHash ?? null,
+            tx: transaction.hash,
+            input: transaction.input,
+            from_address: transaction.from,
+            destination_address: transaction.to,
+            amount: transaction.amount,
+          };
+          await dao.insertTransactionNew(payload);
           const notificationTitle = "Transaction Received";
           const notificationBody = `The transaction successfully received ${transaction.amount} ${transaction.chain} from address ${transaction.from}.
 Transaction ID: ${transaction.hash}.`;
@@ -1186,38 +1206,33 @@ Transaction ID: ${transaction.hash}.`;
 
     if (receipts && receipts.length) {
       for (let receipt of receipts) {
-        let addressDetails = await service.checkAddressDetails(receipt.from);
-        let objLength = Object.keys(addressDetails).length;
+        const fromAddressDetails = await service.checkAddressDetails(receipt.from);
+        const destinationAddressDetails = await service.checkAddressDetails(receipt.to);
+        const doesToAddressExist = Object.keys(destinationAddressDetails).length > 0;
+        const doesFromAddressExist = Object.keys(fromAddressDetails).length > 0;
 
-        //check if transaction is done from third party to our application address, when
-        if (!objLength) {
-          addressDetails = await service.checkAddressDetails(receipt.to);
-          objLength = Object.keys(addressDetails).length;
-          console.log("addressDetails", addressDetails);
-        }
-
-        payload.isHistoryReceivedFromWebhook = true;
-        payload.address_id = objLength > 0 ? addressDetails.id : null;
-        payload.id_utente = objLength > 0 ? addressDetails.idUtente : null;
-        payload.wallet_id = objLength > 0 ? addressDetails.wallet_id : null;
-        payload.chain = receipt.chain;
-        payload.chain_id = receipt.chainId ?? null;
-        payload.network_type = receipt.network;
-        payload.block_number = receipt.blockNumber ?? null;
-        payload.gas = receipt.gas ?? null;
-        payload.gas_price = receipt.gasPrice ?? null;
-        payload.type = receipt.type ?? null;
-        payload.block_hash = receipt.blockHash ?? null;
-        payload.tx = receipt.hash;
-        payload.input = receipt.input;
-        payload.from_address = receipt.from;
-        payload.destination_address = receipt.to;
-        payload.amount = receipt.amount;
-        await dao.insertTransactionNew(payload);
-        const fromAddress = await service.getDeviceTokenByFromAddress(receipt.from);
-        const designationAddress = await service.getDeviceTokenByFromAddress(receipt.to);
-
-        if (fromAddress) {
+        if (doesFromAddressExist) {
+          const fromAddress = await service.getDeviceTokenByFromAddress(receipt.from);
+          const payload = {
+            isHistoryReceivedFromWebhook: true,
+            address_id: fromAddressDetails.id ?? null,
+            id_utente: fromAddressDetails.idUtente ?? null,
+            wallet_id: fromAddressDetails.wallet_id ?? null,
+            chain: receipt.chain,
+            chain_id: receipt.chainId ?? null,
+            network_type: receipt.network ?? null,
+            block_number: receipt.blockNumber ?? null,
+            gas: receipt.gas ?? null,
+            gas_price: receipt.gasPrice ?? null,
+            type: receipt.type ?? null,
+            block_hash: receipt.blockHash ?? null,
+            tx: receipt.hash,
+            input: receipt.input,
+            from_address: receipt.from,
+            destination_address: receipt.to,
+            amount: receipt.amount,
+          };
+          await dao.insertTransactionNew(payload);
           const notificationTitle = "Transaction Sent";
           const notificationBody = `The transaction successfully sent ${receipt.amount} ${receipt.chain} to address ${receipt.to}.
 Transaction ID: ${receipt.hash}`;
@@ -1238,7 +1253,28 @@ Transaction ID: ${receipt.hash}`;
           }
         }
 
-        if (designationAddress) {
+        if (doesToAddressExist) {
+          const designationAddress = await service.getDeviceTokenByFromAddress(receipt.to);
+          const payload = {
+            isHistoryReceivedFromWebhook: true,
+            address_id: destinationAddressDetails.id ?? null,
+            id_utente: destinationAddressDetails.idUtente ?? null,
+            wallet_id: destinationAddressDetails.wallet_id ?? null,
+            chain: receipt.chain,
+            chain_id: receipt.chainId ?? null,
+            network_type: receipt.network ?? null,
+            block_number: receipt.blockNumber ?? null,
+            gas: receipt.gas ?? null,
+            gas_price: receipt.gasPrice ?? null,
+            type: receipt.type ?? null,
+            block_hash: receipt.blockHash ?? null,
+            tx: receipt.hash,
+            input: receipt.input,
+            from_address: receipt.from,
+            destination_address: receipt.to,
+            amount: receipt.amount,
+          };
+          await dao.insertTransactionNew(payload);
           const notificationTitle = "Transaction Received";
           const notificationBody = `The transaction successfully received ${receipt.amount} ${receipt.chain} from address ${receipt.from}.
 Transaction ID: ${receipt.hash}.`;
@@ -1247,12 +1283,9 @@ Transaction ID: ${receipt.hash}.`;
               notificationTitle,
               notificationBody,
             });
-
-            const addressDetails = await service.checkAddressDetails(receipt.to);
-            console.log("addressDetails", addressDetails);
             await dao.insertTransactionNotification(
-              addressDetails.idUtente,
-              addressDetails.wallet_id,
+              destinationAddressDetails.idUtente,
+              destinationAddressDetails.wallet_id,
               notificationTitle,
               notificationBody,
               receipt.chain
