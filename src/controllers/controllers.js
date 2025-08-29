@@ -1102,19 +1102,17 @@ const quicknodeTransactionWebhook = async (req, res) => {
   try {
     const transactions = req.body.payload;
     const receipts = req.body.receipts;
-    const payload = {};
     console.log("transactions", transactions);
     console.log("receipts", receipts);
 
     if (transactions && transactions.length) {
       for (let transaction of transactions) {
-        let addressDetails = await service.checkAddressDetails(transaction.from);
         const fromAddressDetails = await service.checkAddressDetails(transaction.from);
         const destinationAddressDetails = await service.checkAddressDetails(transaction.to);
 
         //check if from address exists in our db/application or not
-        const doesFromAddressExist = Object.keys(fromAddressDetails).length > 0;
-        const doesToAddressExist = Object.keys(destinationAddressDetails).length > 0;
+        const doesFromAddressExist = fromAddressDetails && Object.keys(fromAddressDetails).length > 0;
+        const doesToAddressExist = destinationAddressDetails && Object.keys(destinationAddressDetails).length > 0;
 
         if (doesFromAddressExist) {
           const fromAddress = await service.getDeviceTokenByFromAddress(transaction.from);
@@ -1142,13 +1140,13 @@ const quicknodeTransactionWebhook = async (req, res) => {
           const notificationBody = `The transaction successfully sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}.
 Transaction ID: ${transaction.hash}`;
           try {
-            notification.sendNotification(fromAddress, {
+            await notification.sendNotification(fromAddress, {
               notificationTitle,
               notificationBody,
             });
             await dao.insertTransactionNotification(
-              addressDetails.idUtente,
-              addressDetails.wallet_id,
+              fromAddressDetails.idUtente,
+              fromAddressDetails.wallet_id,
               notificationTitle,
               notificationBody,
               transaction.chain
@@ -1184,15 +1182,14 @@ Transaction ID: ${transaction.hash}`;
           const notificationBody = `The transaction successfully received ${transaction.amount} ${transaction.chain} from address ${transaction.from}.
 Transaction ID: ${transaction.hash}.`;
           try {
-            notification.sendNotification(designationAddress, {
+            await notification.sendNotification(designationAddress, {
               notificationTitle,
               notificationBody,
             });
 
-            const addressDetails = await service.checkAddressDetails(transaction.to);
             await dao.insertTransactionNotification(
-              addressDetails.idUtente,
-              addressDetails.wallet_id,
+              destinationAddressDetails.idUtente,
+              destinationAddressDetails.wallet_id,
               notificationTitle,
               notificationBody,
               transaction.chain
@@ -1208,8 +1205,8 @@ Transaction ID: ${transaction.hash}.`;
       for (let receipt of receipts) {
         const fromAddressDetails = await service.checkAddressDetails(receipt.from);
         const destinationAddressDetails = await service.checkAddressDetails(receipt.to);
-        const doesToAddressExist = Object.keys(destinationAddressDetails).length > 0;
-        const doesFromAddressExist = Object.keys(fromAddressDetails).length > 0;
+        const doesToAddressExist = destinationAddressDetails && Object.keys(destinationAddressDetails).length > 0;
+        const doesFromAddressExist = fromAddressDetails && Object.keys(fromAddressDetails).length > 0;
 
         if (doesFromAddressExist) {
           const fromAddress = await service.getDeviceTokenByFromAddress(receipt.from);
@@ -1242,8 +1239,8 @@ Transaction ID: ${receipt.hash}`;
               notificationBody,
             });
             await dao.insertTransactionNotification(
-              addressDetails.idUtente,
-              addressDetails.wallet_id,
+              fromAddressDetails.idUtente,
+              fromAddressDetails.wallet_id,
               notificationTitle,
               notificationBody,
               receipt.chain
@@ -1302,7 +1299,7 @@ Transaction ID: ${receipt.hash}.`;
       message: "OK",
     });
   } catch (error) {
-    console.log("Error while fetching webhook data  : ", error);
+    console.log("Error while fetching webhook data  : ", error, "Message:", error.message);
     return res.status(500).json({
       result: false,
       message: "An error occurred while retrieving list of transactions by address: ",
