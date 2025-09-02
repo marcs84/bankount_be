@@ -347,18 +347,11 @@ const filterTransactions = (data) => {
     let query = `
             SELECT
                 t.id, 
-                t.*, 
-                a.address AS payload_address,
-                CASE 
-                    WHEN t.from_address = a.address THEN 'outgoing'
-                    WHEN t.destination_address = a.address THEN 'incoming'
-                END AS transaction_type
+                t.*
             FROM 
                 transactions t
             JOIN 
-                addresses a ON (t.from_address = a.address OR t.destination_address = a.address)
-            JOIN 
-                device d ON a.id_utente = d.id
+                device d ON t.id_utente = d.id
             WHERE 
                 d.id = ?
             `;
@@ -409,12 +402,34 @@ const filterTransactions = (data) => {
     }
 
     return new Promise((resolve, reject) => {
-      connection.query(query, params, (error, transactions) => {
+      connection.query(query, params, async (error, transactions) => {
         if (error) {
           console.log("error", error);
           reject("Error querying the transactions: " + error.message);
           return;
         }
+        //for wallet address in each transaction check if from address belongs to it or destination address, and accordingly assign the transaction_type
+        const walletAddresses = await new Promise((resolve, reject)=>{
+          connection.query(`SELECT * FROM addresses WHERE wallet_id = ?`, [wallet_id], (error, results) => {
+            if (error) {
+              reject("Error querying wallet addresses: " + error.message);
+              return;
+            }
+            resolve(results);
+          });
+        });
+        const walletAddressesMap = walletAddresses.map((addressObj) => addressObj.address);
+        console.log('walletAddresses', walletAddressesMap)
+        transactions = transactions.map((tx) => {
+          if (walletAddressesMap.includes(tx.from_address)) {
+            console.log('Outgoing transaction detected:', tx);
+            tx.transaction_type = "outgoing";
+          } else if (walletAddressesMap.includes(tx.destination_address)) {
+            console.log('Incoming transaction detected:', tx);
+            tx.transaction_type = "incoming";
+          } 
+          return tx;
+        });
         resolve({ transactions, totalCount: transactions.length });
       });
     });
