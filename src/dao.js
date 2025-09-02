@@ -682,7 +682,7 @@ const insertTransactionNew = ({
   amount,
 }) => {
   return new Promise((resolve, reject) => {
-    connection.query(`SELECT * FROM transactions WHERE tx = ?`, [tx], (err, results) => {
+    connection.query(`SELECT * FROM transactions WHERE tx = ? AND wallet_id = ?`, [tx, wallet_id], (err, results) => {
       if (err) {
         return reject(new Error("Error while inserting transaction data : " + err.message));
       }

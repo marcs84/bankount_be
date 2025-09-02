@@ -198,7 +198,7 @@ router.post("/api/getTransactions", jsonParser, auth.authenticateToken, controll
  *         name: wallet_id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: ID of the wallet whose transactions are to be fetched
  *       - in: query
  *         name: limit
@@ -597,9 +597,9 @@ router.post("/api/insertAddress", jsonParser, auth.authenticateToken, controller
  *                 description: The blockchain network type (e.g., MAINNET, TESTNET)
  *                 example: "TESTNET"
  *               wallet_id:
- *                 type: integer
+ *                 type: string
  *                 description: Wallet ID associated with the transaction
- *                 example: 77
+ *                 example: "77"
  *     responses:
  *       200:
  *         description: Transaction stored successfully
