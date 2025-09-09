@@ -1222,8 +1222,8 @@ const fetchLookupUrls = async (user_id, wallet_id, coin_type, data) => {
         data["quicknode_mainnet_url"] = existigNodeUrl("Bitcoin Mainnet") ?? process.env.QUICKNODE_BTC_MAIN_URL;
         data["explorer_testnet_url"] = existingExplorerUrl("Bitcoin Testnet") ?? process.env.QUICKNODE_BTC_TEST_EXPLORER_URL;
         data["explorer_mainnet_url"] = existingExplorerUrl("Bitcoin Mainnet") ?? process.env.QUICKNODE_BTC_MAIN_EXPLORER_URL;
-        data["testnet"] = process.env.BITCORE_TEST_URL;
-        data["mainnet"] = process.env.BITCORE_MAIN_URL;
+        data["testnet"] = process.env.BITCORE_TEST_URL ?? null;
+        data["mainnet"] = process.env.BITCORE_MAIN_URL ?? null;
         break;
       }
 
@@ -1232,8 +1232,8 @@ const fetchLookupUrls = async (user_id, wallet_id, coin_type, data) => {
         data["quicknode_mainnet_url"] = existigNodeUrl("Ethereum Mainnet") ?? process.env.QUICKNODE_ETH_MAIN_URL;
         data["explorer_testnet_url"] = existingExplorerUrl("Ethereum Testnet") ?? process.env.QUICKNODE_ETH_TEST_EXPLORER_URL;
         data["explorer_mainnet_url"] = existingExplorerUrl("Ethereum Mainnet") ?? process.env.QUICKNODE_ETH_MAIN_EXPLORER_URL;
-        data["testnet"] = process.env.ETH_TEST_URL;
-        data["mainnet"] = process.env.ETH_MAIN_URL;
+        data["testnet"] = process.env.ETH_TEST_URL ?? null;
+        data["mainnet"] = process.env.ETH_MAIN_URL ?? null;
         break;
       }
 
@@ -1242,8 +1242,8 @@ const fetchLookupUrls = async (user_id, wallet_id, coin_type, data) => {
         data["quicknode_mainnet_url"] = existigNodeUrl("Binance Mainnet") ?? process.env.QUICKNODE_BNB_MAIN_URL;
         data["explorer_testnet_url"] = existingExplorerUrl("Binance Testnet") ?? process.env.QUICKNODE_BNB_TEST_EXPLORER_URL;
         data["explorer_mainnet_url"] = existingExplorerUrl("Binance Mainnet") ?? process.env.QUICKNODE_BNB_MAIN_EXPLORER_URL;
-        data["testnet"] = process.env.BNB_TEST_URL;
-        data["mainnet"] = process.env.BNB_MAIN_URL;
+        data["testnet"] = process.env.BNB_TEST_URL ?? null;
+        data["mainnet"] = process.env.BNB_MAIN_URL ?? null;
         break;
       }
 
@@ -1252,8 +1252,8 @@ const fetchLookupUrls = async (user_id, wallet_id, coin_type, data) => {
         data["quicknode_mainnet_url"] = existigNodeUrl("Solana Mainnet") ?? process.env.QUICKNODE_SOL_MAIN_URL;
         data["explorer_testnet_url"] = existingExplorerUrl("Solana Testnet") ?? process.env.QUICKNODE_SOL_TEST_EXPLORER_URL;
         data["explorer_mainnet_url"] = existingExplorerUrl("Solana Mainnet") ?? process.env.QUICKNODE_SOL_MAIN_EXPLORER_URL;
-        data["testnet"] = process.env.SOL_TEST_URL;
-        data["mainnet"] = solanaWeb3.clusterApiUrl("mainnet-beta");
+        data["testnet"] = process.env.SOL_TEST_URL ?? null;
+        data["mainnet"] = utils.solanaWeb3.clusterApiUrl("mainnet-beta") ?? null;
         break;
       }
     }
