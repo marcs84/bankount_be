@@ -375,7 +375,7 @@ const filterTransactions = (data) => {
       params.push(search, search);
     }
 
-    if (chain) {
+    if (chain && chain != 'ALL') {
       query += " AND t.chain = ?";
       params.push(chain);
     }
