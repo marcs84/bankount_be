@@ -1215,36 +1215,47 @@ Transaction ID: ${transaction.hash}.`;
 
     if (receipts && receipts.length) {
       for (let receipt of receipts) {
-        const fromAddressDetails = await service.checkAddressDetails(receipt.from);
-        const destinationAddressDetails = await service.checkAddressDetails(receipt.to);
-        const doesToAddressExist = destinationAddressDetails && Object.keys(destinationAddressDetails).length > 0;
-        const doesFromAddressExist = fromAddressDetails && Object.keys(fromAddressDetails).length > 0;
+        const fromAddresses = await dao.getAllMatchingAddresses(receipt.from);
+        const destinationAddresses = await dao.getAllMatchingAddresses(receipt.to);
+        const doesToAddressExist = destinationAddresses.length > 0;
+        const doesFromAddressExist = fromAddresses.length > 0;
 
         if (doesFromAddressExist) {
           const fromDeviceTokens = await service.getDeviceTokenByFromAddress(receipt.from);
-          const payload = {
-            isHistoryReceivedFromWebhook: true,
-            address_id: fromAddressDetails.id ?? null,
-            id_utente: fromAddressDetails.idUtente ?? null,
-            wallet_id: fromAddressDetails.wallet_id ?? null,
-            chain: receipt.chain,
-            chain_id: receipt.chainId ?? null,
-            network_type: receipt.network ?? null,
-            block_number: receipt.blockNumber ?? null,
-            gas: receipt.gas ?? null,
-            gas_price: receipt.gasPrice ?? null,
-            type: receipt.type ?? null,
-            block_hash: receipt.blockHash ?? null,
-            tx: receipt.hash,
-            input: receipt.input,
-            from_address: receipt.from,
-            destination_address: receipt.to,
-            amount: receipt.amount,
-          };
-          await dao.insertTransactionNew(payload);
           const notificationTitle = "Transaction Sent";
           const notificationBody = `The transaction successfully sent ${receipt.amount} ${receipt.chain} to address ${receipt.to}.
 Transaction ID: ${receipt.hash}`;
+
+          for (const fromAddressDetails of fromAddresses) {
+            const payload = {
+              isHistoryReceivedFromWebhook: true,
+              address_id: fromAddressDetails.id ?? null,
+              id_utente: fromAddressDetails.id_utente ?? null,
+              wallet_id: fromAddressDetails.wallet_id ?? null,
+              chain: receipt.chain,
+              chain_id: receipt.chainId ?? null,
+              network_type: receipt.network ?? null,
+              block_number: receipt.blockNumber ?? null,
+              gas: receipt.gas ?? null,
+              gas_price: receipt.gasPrice ?? null,
+              type: receipt.type ?? null,
+              block_hash: receipt.blockHash ?? null,
+              tx: receipt.hash,
+              input: receipt.input,
+              from_address: receipt.from,
+              destination_address: receipt.to,
+              amount: receipt.amount,
+            };
+            await dao.insertTransactionNew(payload);
+            await dao.insertTransactionNotification(
+              fromAddressDetails.id_utente,
+              fromAddressDetails.wallet_id,
+              notificationTitle,
+              notificationBody,
+              receipt.chain
+            );
+          }
+
           try {
             if (fromDeviceTokens && fromDeviceTokens.length > 0) {
               await notification.sendNotificationToMultipleDevices(fromDeviceTokens, {
@@ -1252,13 +1263,6 @@ Transaction ID: ${receipt.hash}`;
                 notificationBody,
               });
             }
-            await dao.insertTransactionNotification(
-              fromAddressDetails.idUtente,
-              fromAddressDetails.wallet_id,
-              notificationTitle,
-              notificationBody,
-              receipt.chain
-            );
           } catch (error) {
             console.error("Error sending notification: ", error);
           }
@@ -1266,29 +1270,40 @@ Transaction ID: ${receipt.hash}`;
 
         if (doesToAddressExist) {
           const toDeviceTokens = await service.getDeviceTokenByFromAddress(receipt.to);
-          const payload = {
-            isHistoryReceivedFromWebhook: true,
-            address_id: destinationAddressDetails.id ?? null,
-            id_utente: destinationAddressDetails.idUtente ?? null,
-            wallet_id: destinationAddressDetails.wallet_id ?? null,
-            chain: receipt.chain,
-            chain_id: receipt.chainId ?? null,
-            network_type: receipt.network ?? null,
-            block_number: receipt.blockNumber ?? null,
-            gas: receipt.gas ?? null,
-            gas_price: receipt.gasPrice ?? null,
-            type: receipt.type ?? null,
-            block_hash: receipt.blockHash ?? null,
-            tx: receipt.hash,
-            input: receipt.input,
-            from_address: receipt.from,
-            destination_address: receipt.to,
-            amount: receipt.amount,
-          };
-          await dao.insertTransactionNew(payload);
           const notificationTitle = "Transaction Received";
           const notificationBody = `The transaction successfully received ${receipt.amount} ${receipt.chain} from address ${receipt.from}.
 Transaction ID: ${receipt.hash}.`;
+
+          for (const destinationAddressDetails of destinationAddresses) {
+            const payload = {
+              isHistoryReceivedFromWebhook: true,
+              address_id: destinationAddressDetails.id ?? null,
+              id_utente: destinationAddressDetails.idUtente ?? null,
+              wallet_id: destinationAddressDetails.wallet_id ?? null,
+              chain: receipt.chain,
+              chain_id: receipt.chainId ?? null,
+              network_type: receipt.network ?? null,
+              block_number: receipt.blockNumber ?? null,
+              gas: receipt.gas ?? null,
+              gas_price: receipt.gasPrice ?? null,
+              type: receipt.type ?? null,
+              block_hash: receipt.blockHash ?? null,
+              tx: receipt.hash,
+              input: receipt.input,
+              from_address: receipt.from,
+              destination_address: receipt.to,
+              amount: receipt.amount,
+            };
+            await dao.insertTransactionNew(payload);
+            await dao.insertTransactionNotification(
+              destinationAddressDetails.id_utente,
+              destinationAddressDetails.wallet_id,
+              notificationTitle,
+              notificationBody,
+              receipt.chain
+            );
+          }
+
           try {
             if (toDeviceTokens && toDeviceTokens.length > 0) {
               await notification.sendNotificationToMultipleDevices(toDeviceTokens, {
@@ -1296,13 +1311,6 @@ Transaction ID: ${receipt.hash}.`;
                 notificationBody,
               });
             }
-            await dao.insertTransactionNotification(
-              destinationAddressDetails.idUtente,
-              destinationAddressDetails.wallet_id,
-              notificationTitle,
-              notificationBody,
-              receipt.chain
-            );
           } catch (error) {
             console.error("Error sending notification: ", error);
           }
