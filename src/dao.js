@@ -557,6 +557,19 @@ const getAddressByAddress = (address) => {
   });
 };
 
+const getAllMatchingAddresses = (address) => {
+  return new Promise((resolve, reject) => {
+    const query = `SELECT * FROM addresses WHERE address LIKE ?`;
+    connection.query(query, [`%${address}%`], (error, results) => {
+      if (error) {
+        reject("Error querying the address: " + error.message);
+        return;
+      }
+      resolve(results)
+    });
+  });
+};
+
 const getPathByAddress = (address) => {
   return new Promise((resolve, reject) => {
     const query = `SELECT * FROM addresses WHERE address = ?`;
@@ -2105,6 +2118,7 @@ module.exports = {
   getAddresses,
   selectUserByEmail,
   getAddressByAddress,
+  getAllMatchingAddresses,
   createAddress,
   selectTokenByEmail,
   getMaxIndexAddress,
