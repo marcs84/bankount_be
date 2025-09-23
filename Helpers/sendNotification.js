@@ -16,5 +16,26 @@ async function sendNotification(deviceToken, { notificationTitle, notificationBo
   }
 }
 
+// Aggiungere una nuova funzione per dispositivi multipli
+const sendNotificationToMultipleDevices = async (deviceTokens, { notificationTitle, notificationBody }) => {
+  if (!deviceTokens || deviceTokens.length === 0) {
+    console.log('No device tokens provided');
+    return;
+  }
 
-module.exports = { sendNotification };
+  const promises = deviceTokens.map(deviceToken => 
+    sendNotification(deviceToken, { notificationTitle, notificationBody })
+  );
+
+  try {
+    await Promise.all(promises);
+    console.log(`Notifications sent to ${deviceTokens.length} devices`);
+  } catch (error) {
+    console.error('Error sending notifications to multiple devices:', error);
+  }
+};
+
+module.exports = {
+  sendNotification,
+  sendNotificationToMultipleDevices
+};

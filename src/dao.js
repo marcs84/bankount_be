@@ -1469,10 +1469,14 @@ const setUnmatchedAddressesToInactive = (userId, activeAddresses) => {
 
 const getDeviceTokenByFromAddress = (address) => {
   const query = `
-        SELECT d.device_token 
+        SELECT DISTINCT d.device_token 
         FROM addresses a
-        JOIN device d ON d.id = a.id_utente
-        WHERE a.address = ?`;
+        JOIN wallet w ON w.user_id = a.id_utente
+        JOIN device d ON d.id = w.device_id
+        WHERE a.address = ? 
+        AND d.device_token IS NOT NULL 
+        AND d.is_active = 1
+        AND w.is_active = 1`;
 
   const queryParams = [address];
 
@@ -1482,9 +1486,10 @@ const getDeviceTokenByFromAddress = (address) => {
         return reject(new Error("Failed to retrieve device token: " + error.message));
       }
       if (results.length === 0) {
-        return resolve(null);
+        return resolve([]);
       }
-      return resolve(results[0].device_token);
+      // Restituisce array di device token per gestire dispositivi multipli
+      return resolve(results.map(row => row.device_token));
     });
   });
 };

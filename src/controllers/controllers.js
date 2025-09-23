@@ -1115,7 +1115,7 @@ const quicknodeTransactionWebhook = async (req, res) => {
         const doesToAddressExist = destinationAddressDetails && Object.keys(destinationAddressDetails).length > 0;
 
         if (doesFromAddressExist) {
-          const fromAddress = await service.getDeviceTokenByFromAddress(transaction.from);
+          const fromDeviceTokens = await service.getDeviceTokenByFromAddress(transaction.from);
           const payload = {
             isHistoryReceivedFromWebhook: true,
             address_id: fromAddressDetails.id ?? null,
@@ -1135,15 +1135,18 @@ const quicknodeTransactionWebhook = async (req, res) => {
             destination_address: transaction.to,
             amount: transaction.amount,
           };
+          
           await dao.insertTransactionNew(payload);
           const notificationTitle = "Transaction Sent";
-          const notificationBody = `The transaction successfully sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}.
-Transaction ID: ${transaction.hash}`;
+          const notificationBody = `The transaction successfully sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}.Transaction ID: ${transaction.hash}`;
+          
           try {
-            await notification.sendNotification(fromAddress, {
-              notificationTitle,
-              notificationBody,
-            });
+            if (fromDeviceTokens && fromDeviceTokens.length > 0) {
+              await notification.sendNotificationToMultipleDevices(fromDeviceTokens, {
+                notificationTitle,
+                notificationBody,
+              });
+            }
             await dao.insertTransactionNotification(
               fromAddressDetails.idUtente,
               fromAddressDetails.wallet_id,
@@ -1157,7 +1160,7 @@ Transaction ID: ${transaction.hash}`;
         }
 
         if (doesToAddressExist) {
-          const designationAddress = await service.getDeviceTokenByFromAddress(transaction.to);
+          const toDeviceTokens = await service.getDeviceTokenByFromAddress(transaction.to);
           const payload = {
             isHistoryReceivedFromWebhook: true,
             address_id: destinationAddressDetails.id ?? null,
@@ -1182,10 +1185,12 @@ Transaction ID: ${transaction.hash}`;
           const notificationBody = `The transaction successfully received ${transaction.amount} ${transaction.chain} from address ${transaction.from}.
 Transaction ID: ${transaction.hash}.`;
           try {
-            await notification.sendNotification(designationAddress, {
-              notificationTitle,
-              notificationBody,
-            });
+            if (toDeviceTokens && toDeviceTokens.length > 0) {
+              await notification.sendNotificationToMultipleDevices(toDeviceTokens, {
+                notificationTitle,
+                notificationBody,
+              });
+            }
 
             await dao.insertTransactionNotification(
               destinationAddressDetails.idUtente,
@@ -1209,7 +1214,7 @@ Transaction ID: ${transaction.hash}.`;
         const doesFromAddressExist = fromAddressDetails && Object.keys(fromAddressDetails).length > 0;
 
         if (doesFromAddressExist) {
-          const fromAddress = await service.getDeviceTokenByFromAddress(receipt.from);
+          const fromDeviceTokens = await service.getDeviceTokenByFromAddress(receipt.from);
           const payload = {
             isHistoryReceivedFromWebhook: true,
             address_id: fromAddressDetails.id ?? null,
@@ -1234,10 +1239,12 @@ Transaction ID: ${transaction.hash}.`;
           const notificationBody = `The transaction successfully sent ${receipt.amount} ${receipt.chain} to address ${receipt.to}.
 Transaction ID: ${receipt.hash}`;
           try {
-            notification.sendNotification(fromAddress, {
-              notificationTitle,
-              notificationBody,
-            });
+            if (fromDeviceTokens && fromDeviceTokens.length > 0) {
+              await notification.sendNotificationToMultipleDevices(fromDeviceTokens, {
+                notificationTitle,
+                notificationBody,
+              });
+            }
             await dao.insertTransactionNotification(
               fromAddressDetails.idUtente,
               fromAddressDetails.wallet_id,
@@ -1251,7 +1258,7 @@ Transaction ID: ${receipt.hash}`;
         }
 
         if (doesToAddressExist) {
-          const designationAddress = await service.getDeviceTokenByFromAddress(receipt.to);
+          const toDeviceTokens = await service.getDeviceTokenByFromAddress(receipt.to);
           const payload = {
             isHistoryReceivedFromWebhook: true,
             address_id: destinationAddressDetails.id ?? null,
@@ -1276,10 +1283,12 @@ Transaction ID: ${receipt.hash}`;
           const notificationBody = `The transaction successfully received ${receipt.amount} ${receipt.chain} from address ${receipt.from}.
 Transaction ID: ${receipt.hash}.`;
           try {
-            notification.sendNotification(designationAddress, {
-              notificationTitle,
-              notificationBody,
-            });
+            if (toDeviceTokens && toDeviceTokens.length > 0) {
+              await notification.sendNotificationToMultipleDevices(toDeviceTokens, {
+                notificationTitle,
+                notificationBody,
+              });
+            }
             await dao.insertTransactionNotification(
               destinationAddressDetails.idUtente,
               destinationAddressDetails.wallet_id,
