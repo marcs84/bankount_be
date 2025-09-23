@@ -286,7 +286,7 @@ const updateTokenVerifica = (tokenVerifica, email) => {
 
 const getTransactions = (id, network_type, limit, offset) => {
   return new Promise((resolve, reject) => {
-    const query = `SELECT 
+    const query = `SELECT DISTINCT
                 t.*,
                 a.address AS payload_address,
                 CASE 
@@ -298,24 +298,32 @@ const getTransactions = (id, network_type, limit, offset) => {
             JOIN 
                 addresses a ON (t.from_address = a.address OR t.destination_address = a.address)
             JOIN 
-                device d ON a.id_utente = d.id
+                wallet w ON a.wallet_id = w.id
+            JOIN 
+                device d ON w.device_id = d.id
             WHERE 
                 d.id = ?
                 AND t.network_type = ?
+                AND w.is_active = 1
+                AND d.is_active = 1
             ORDER BY t.data_insert DESC
             LIMIT ? OFFSET ?`;
 
     const countQuery = `SELECT 
-                COUNT(*) AS total_transactions
+                COUNT(DISTINCT t.id) AS total_transactions
             FROM 
                 transactions t
             JOIN 
                 addresses a ON (t.from_address = a.address OR t.destination_address = a.address)
             JOIN 
-                device d ON a.id_utente = d.id
+                wallet w ON a.wallet_id = w.id
+            JOIN 
+                device d ON w.device_id = d.id
             WHERE 
                 d.id = ?
-                AND t.network_type LIKE ?`;
+                AND t.network_type LIKE ?
+                AND w.is_active = 1
+                AND d.is_active = 1`;
     // network_type = '%'+network_type+'%';
     connection.query(query, [id, network_type, limit, offset], (error, transactions) => {
       if (error) {
@@ -343,17 +351,21 @@ const filterTransactions = (data) => {
   const { limit, offset, wallet_id, start_date, end_date, search, chain, network_type, device_id } = data;
 
   try {
-    // Start building the query
+    // Query corretta usando wallet come ponte
     let query = `
-            SELECT
+            SELECT DISTINCT
                 t.id, 
                 t.*
             FROM 
                 transactions t
             JOIN 
-                device d ON t.id_utente = d.id
+                wallet w ON t.wallet_id = w.id
+            JOIN 
+                device d ON w.device_id = d.id
             WHERE 
                 d.id = ?
+                AND w.is_active = 1
+                AND d.is_active = 1
             `;
 
     // Initialize the parameters array with the `device_id` first
