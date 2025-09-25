@@ -404,7 +404,7 @@ const filterTransactions = async (req, res) => {
     for (const transaction of transactions) {
       if (transaction.token) {
         if (selected_currency === "USD" || selected_currency === "usd") {
-          transaction.converted_amount = transaction.usd_price;
+          transaction.converted_amount = transaction.usd_price * transaction.amount;
         } else if (selected_currency === "EUR" || selected_currency === "eur") {
           const response = await axios.get(`https://api.frankfurter.app/latest?amount=${transaction.amount}&from=USD&to=EUR`);
           transaction.converted_amount = response.data.rates["EUR"];
@@ -1746,7 +1746,7 @@ const fetchAssets = async (req, res) => {
             console.log("token.balance", token.balance);
           }
           if (selected_currency === "USD" || selected_currency === "usd") {
-            token.balance.converted_balance = tokenDetails.token.usdPrice;
+            token.balance.converted_balance = tokenDetails.token.usdPrice * token.balance.balance;
           } else if (selected_currency === "EUR" || selected_currency === "eur") {
             const response = await axios.get(`https://api.frankfurter.app/latest?amount=${token.balance.balance}&from=USD&to=EUR`);
             token.balance.converted_balance = response.data.rates["EUR"];
