@@ -1219,6 +1219,12 @@ Transaction ID: ${transaction.hash}.`;
         const destinationAddresses = await dao.getAllMatchingAddresses(receipt.to);
         const doesToAddressExist = destinationAddresses.length > 0;
         const doesFromAddressExist = fromAddresses.length > 0;
+        if(receipt.chain === 'ETH' || receipt.chain === 'BNB'){
+          const tokenDetails = await rango.token({blockchain: receipt.chain, address: receipt.tokenAddress})
+          console.log('tokenDetails', tokenDetails)
+          receipt.token = tokenDetails.symbol;
+          receipt.logo = tokenDetails.image
+        }
 
         if (doesFromAddressExist) {
           const fromDeviceTokens = await service.getDeviceTokenByFromAddress(receipt.from);
@@ -1245,6 +1251,8 @@ Transaction ID: ${receipt.hash}`;
               from_address: receipt.from,
               destination_address: receipt.to,
               amount: receipt.amount,
+              token: receipt.token ?? null,
+              logo: receipt.logo ?? null
             };
             await dao.insertTransactionNew(payload);
             await dao.insertTransactionNotification(
@@ -1293,6 +1301,8 @@ Transaction ID: ${receipt.hash}.`;
               from_address: receipt.from,
               destination_address: receipt.to,
               amount: receipt.amount,
+              token: receipt.token ?? null,
+              logo: receipt.logo ?? null
             };
             await dao.insertTransactionNew(payload);
             await dao.insertTransactionNotification(

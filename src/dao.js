@@ -387,7 +387,7 @@ const filterTransactions = (data) => {
       params.push(search, search);
     }
 
-    if (chain && chain != 'ALL') {
+    if (chain && chain != "ALL") {
       query += " AND t.chain = ?";
       params.push(chain);
     }
@@ -421,7 +421,7 @@ const filterTransactions = (data) => {
           return;
         }
         //for wallet address in each transaction check if from address belongs to it or destination address, and accordingly assign the transaction_type
-        const walletAddresses = await new Promise((resolve, reject)=>{
+        const walletAddresses = await new Promise((resolve, reject) => {
           connection.query(`SELECT * FROM addresses WHERE wallet_id = ?`, [wallet_id], (error, results) => {
             if (error) {
               reject("Error querying wallet addresses: " + error.message);
@@ -431,15 +431,15 @@ const filterTransactions = (data) => {
           });
         });
         const walletAddressesMap = walletAddresses.map((addressObj) => addressObj.address);
-        console.log('walletAddresses', walletAddressesMap)
+        console.log("walletAddresses", walletAddressesMap);
         transactions = transactions.map((tx) => {
           if (walletAddressesMap.includes(tx.from_address)) {
-            console.log('Outgoing transaction detected:', tx);
+            console.log("Outgoing transaction detected:", tx);
             tx.transaction_type = "outgoing";
           } else if (walletAddressesMap.includes(tx.destination_address)) {
-            console.log('Incoming transaction detected:', tx);
+            console.log("Incoming transaction detected:", tx);
             tx.transaction_type = "incoming";
-          } 
+          }
           return tx;
         });
         resolve({ transactions, totalCount: transactions.length });
@@ -565,7 +565,7 @@ const getAllMatchingAddresses = (address) => {
         reject("Error querying the address: " + error.message);
         return;
       }
-      resolve(results)
+      resolve(results);
     });
   });
 };
@@ -720,6 +720,8 @@ const insertTransactionNew = ({
   destination_address,
   tx,
   amount,
+  logo = null,
+  token = null,
 }) => {
   return new Promise((resolve, reject) => {
     connection.query(`SELECT * FROM transactions WHERE tx = ? AND wallet_id = ?`, [tx, wallet_id], (err, results) => {
@@ -729,7 +731,7 @@ const insertTransactionNew = ({
       if (results.length) {
         // update the transaction data with new data
         connection.query(
-          `UPDATE transactions SET address_id = ?, id_utente = ?, wallet_id = ?, chain = ?, chain_id = ?, network_type = ?, block_number = ?, gas = ?, gas_price = ?, type = ?, block_hash = ?, input = ?, from_address = ?, destination_address = ?, amount = ?, tx_status = ? WHERE id = ?`,
+          `UPDATE transactions SET address_id = ?, id_utente = ?, wallet_id = ?, chain = ?, chain_id = ?, network_type = ?, block_number = ?, gas = ?, gas_price = ?, type = ?, block_hash = ?, input = ?, from_address = ?, destination_address = ?, amount = ?, tx_status = ?, token = ?, logo = ? WHERE id = ?`,
           [
             address_id,
             id_utente,
@@ -746,7 +748,9 @@ const insertTransactionNew = ({
             from_address,
             destination_address,
             amount,
-            'success',            //update will execute when there will be webhook call from quicknode
+            "success", //update will execute when there will be webhook call from quicknode
+            token,
+            logo,
             results[0].id,
           ],
           (error, result) => {
@@ -780,7 +784,7 @@ const insertTransactionNew = ({
         );
       } else {
         connection.query(
-          `INSERT INTO transactions(address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount, data_insert, tx_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO transactions(address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount, data_insert, tx_status, token, logo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             address_id,
             id_utente,
@@ -799,7 +803,9 @@ const insertTransactionNew = ({
             tx,
             amount,
             new Date(),
-            isHistoryReceivedFromWebhook ? 'success' : 'pending', // tx_status will be 'success' if the transaction is received from webhook, otherwise 'pending'
+            isHistoryReceivedFromWebhook ? "success" : "pending", // tx_status will be 'success' if the transaction is received from webhook, otherwise 'pending'
+            token,
+            logo,
           ],
           (error, result) => {
             if (error) {
@@ -1514,7 +1520,7 @@ const getDeviceTokenByFromAddress = (address) => {
         return resolve([]);
       }
       // Restituisce array di device token per gestire dispositivi multipli
-      return resolve(results.map(row => row.device_token));
+      return resolve(results.map((row) => row.device_token));
     });
   });
 };
@@ -1642,7 +1648,7 @@ const updateWallet = async (wallet_id, updates) => {
 
 const updateWalletDuringSync = async (wallet_id, updates) => {
   try {
-   // Construct the SET clause dynamically based on the fields provided
+    // Construct the SET clause dynamically based on the fields provided
     let setClause = [];
     let queryParams = [];
 
