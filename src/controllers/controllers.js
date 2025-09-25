@@ -1751,6 +1751,7 @@ const fetchAssets = async (req, res) => {
             const response = await axios.get(`https://api.frankfurter.app/latest?amount=${token.balance.balance}&from=USD&to=EUR`);
             token.balance.converted_balance = response.data.rates["EUR"];
           }
+          convertedTotalAmount += token.balance.converted_balance;
         }
       }
     }
