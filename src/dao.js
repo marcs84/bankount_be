@@ -722,6 +722,7 @@ const insertTransactionNew = ({
   amount,
   logo = null,
   token = null,
+  usd_price = null,
 }) => {
   return new Promise((resolve, reject) => {
     connection.query(`SELECT * FROM transactions WHERE tx = ? AND wallet_id = ?`, [tx, wallet_id], (err, results) => {
@@ -731,7 +732,7 @@ const insertTransactionNew = ({
       if (results.length) {
         // update the transaction data with new data
         connection.query(
-          `UPDATE transactions SET address_id = ?, id_utente = ?, wallet_id = ?, chain = ?, chain_id = ?, network_type = ?, block_number = ?, gas = ?, gas_price = ?, type = ?, block_hash = ?, input = ?, from_address = ?, destination_address = ?, amount = ?, tx_status = ?, token = ?, logo = ? WHERE id = ?`,
+          `UPDATE transactions SET address_id = ?, id_utente = ?, wallet_id = ?, chain = ?, chain_id = ?, network_type = ?, block_number = ?, gas = ?, gas_price = ?, type = ?, block_hash = ?, input = ?, from_address = ?, destination_address = ?, amount = ?, tx_status = ?, token = ?, logo = ?, usd_price = ? WHERE id = ?`,
           [
             address_id,
             id_utente,
@@ -751,6 +752,7 @@ const insertTransactionNew = ({
             "success", //update will execute when there will be webhook call from quicknode
             token,
             logo,
+            usd_price,
             results[0].id,
           ],
           (error, result) => {
@@ -777,6 +779,9 @@ const insertTransactionNew = ({
                   wallet_id: result[0].wallet_id,
                   is_synced: 1,
                   status: result[0].address_id ? "outgoing" : "incoming",
+                  token: result[0].token,
+                  logo: result[0].logo,
+                  usd_price: result[0].usd_price,
                 });
               });
             }
@@ -784,7 +789,7 @@ const insertTransactionNew = ({
         );
       } else {
         connection.query(
-          `INSERT INTO transactions(address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount, data_insert, tx_status, token, logo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO transactions(address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount, data_insert, tx_status, token, logo, usd_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             address_id,
             id_utente,
@@ -803,9 +808,10 @@ const insertTransactionNew = ({
             tx,
             amount,
             new Date(),
-            isHistoryReceivedFromWebhook ? "success" : "pending", // tx_status will be 'success' if the transaction is received from webhook, otherwise 'pending'
+            isHistoryReceivedFromWebhook ? "success" : "pending", // tx_status will be 'success' if the transaction is received from webhook, otherwise 'pending',
             token,
             logo,
+            usd_price,
           ],
           (error, result) => {
             if (error) {

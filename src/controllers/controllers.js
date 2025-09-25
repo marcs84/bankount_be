@@ -401,9 +401,18 @@ const filterTransactions = async (req, res) => {
     };
 
     const { transactions, totalCount } = await dao.filterTransactions(data);
-    transactions.map((transaction) => {
-      transaction.converted_amount = service.convertCoinsToAmount(transaction.chain, parseFloat(transaction.amount), selected_currency, coinRates);
-    });
+    for (const transaction of transactions) {
+      if (transaction.token) {
+        if (selected_currency === "USD" || selected_currency === "usd") {
+          transaction.converted_amount = transaction.usd_price;
+        } else if (selected_currency === "EUR" || selected_currency === "eur") {
+          const response = await axios.get(`https://api.frankfurter.app/latest?amount=${transaction.amount}&from=USD&to=EUR`);
+          transaction.converted_amount = response.data.rates["EUR"];
+        }
+      } else {
+        transaction.converted_amount = service.convertCoinsToAmount(transaction.chain, parseFloat(transaction.amount), selected_currency, coinRates);
+      }
+    }
     return res.status(200).json({
       result: true,
       data: { totalCount, transactions },
@@ -1139,6 +1148,9 @@ const quicknodeTransactionWebhook = async (req, res) => {
               from_address: transaction.from,
               destination_address: transaction.to,
               amount: transaction.amount,
+              token: null,
+              logo: null,
+              usd_price: null
             };
             await dao.insertTransactionNotification(
               fromAddressDetails.id_utente,
@@ -1186,6 +1198,9 @@ Transaction ID: ${transaction.hash}.`;
               from_address: transaction.from,
               destination_address: transaction.to,
               amount: transaction.amount,
+              token: null,
+              logo: null,
+              usd_price: null
             };
             await dao.insertTransactionNew(payload);
             await dao.insertTransactionNotification(
@@ -1219,17 +1234,20 @@ Transaction ID: ${transaction.hash}.`;
         const destinationAddresses = await dao.getAllMatchingAddresses(receipt.to);
         const doesToAddressExist = destinationAddresses.length > 0;
         const doesFromAddressExist = fromAddresses.length > 0;
-        if(receipt.chain === 'ETH' || receipt.chain === 'BNB'){
-          const tokenDetails = await rango.token({blockchain: receipt.chain, address: receipt.tokenAddress})
-          console.log('tokenDetails', tokenDetails)
-          receipt.token = tokenDetails.symbol;
-          receipt.logo = tokenDetails.image
+        if (receipt.chain === "ETH" || receipt.chain === "BNB") {
+          const tokenDetails = await rango.token({ blockchain: receipt.chain, address: receipt.tokenAddress });
+          console.log("tokenDetails", tokenDetails);
+          receipt.token = tokenDetails.token.symbol;
+          receipt.logo = tokenDetails.token.image;
+          receipt.usd_price = tokenDetails.token.usdPrice || null;
         }
 
         if (doesFromAddressExist) {
           const fromDeviceTokens = await service.getDeviceTokenByFromAddress(receipt.from);
           const notificationTitle = "Transaction Sent";
-          const notificationBody = `The transaction successfully sent ${receipt.amount} ${receipt.chain} to address ${receipt.to}.
+          const notificationBody = `The transaction successfully sent ${receipt.amount} ${receipt.token ? receipt.token : receipt.chain} to address ${
+            receipt.to
+          }.
 Transaction ID: ${receipt.hash}`;
 
           for (const fromAddressDetails of fromAddresses) {
@@ -1252,7 +1270,8 @@ Transaction ID: ${receipt.hash}`;
               destination_address: receipt.to,
               amount: receipt.amount,
               token: receipt.token ?? null,
-              logo: receipt.logo ?? null
+              logo: receipt.logo ?? null,
+              usd_price: receipt.usd_price,
             };
             await dao.insertTransactionNew(payload);
             await dao.insertTransactionNotification(
@@ -1279,7 +1298,9 @@ Transaction ID: ${receipt.hash}`;
         if (doesToAddressExist) {
           const toDeviceTokens = await service.getDeviceTokenByFromAddress(receipt.to);
           const notificationTitle = "Transaction Received";
-          const notificationBody = `The transaction successfully received ${receipt.amount} ${receipt.chain} from address ${receipt.from}.
+          const notificationBody = `The transaction successfully received ${receipt.amount} ${
+            receipt.token ? receipt.token : receipt.chain
+          } from address ${receipt.from}.
 Transaction ID: ${receipt.hash}.`;
 
           for (const destinationAddressDetails of destinationAddresses) {
@@ -1302,7 +1323,8 @@ Transaction ID: ${receipt.hash}.`;
               destination_address: receipt.to,
               amount: receipt.amount,
               token: receipt.token ?? null,
-              logo: receipt.logo ?? null
+              logo: receipt.logo ?? null,
+              usd_price: receipt.usd_price,
             };
             await dao.insertTransactionNew(payload);
             await dao.insertTransactionNotification(
@@ -1723,15 +1745,13 @@ const fetchAssets = async (req, res) => {
             token.balance.balance = token.balance.balance / Math.pow(10, tokenDetails.token.decimals);
             console.log("token.balance", token.balance);
           }
+          if (selected_currency === "USD" || selected_currency === "usd") {
+            token.balance.converted_balance = tokenDetails.token.usdPrice;
+          } else if (selected_currency === "EUR" || selected_currency === "eur") {
+            const response = await axios.get(`https://api.frankfurter.app/latest?amount=${token.balance.balance}&from=USD&to=EUR`);
+            token.balance.converted_balance = response.data.rates["EUR"];
+          }
         }
-        // console.log('addresses[index].chain', addresses[index].coin_type)
-        token.balance.converted_balance = service.convertCoinsToAmount(
-          addresses[index].coin_type,
-          token.balance.balance,
-          selected_currency,
-          coinRates
-        );
-        // token.balance = token.balance.balance;
       }
     }
 
