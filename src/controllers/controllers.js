@@ -998,7 +998,7 @@ const verifyOTP = async (req, res) => {
 
 const deviceLogin = async (req, res) => {
   const dati = req.body;
-  const { identifier, passkey, device_token } = dati;
+  const { identifier, passkey, device_token, selected_language } = dati;
   console.log("dati", dati);
   const token = auth.generateToken({
     identifier,
@@ -1006,7 +1006,7 @@ const deviceLogin = async (req, res) => {
   });
   console.log("token", token);
   await service
-    .devicelogin(dati.identifier, dati.passkey, dati.device_token)
+    .devicelogin(dati.identifier, dati.passkey, dati.device_token, dati.selected_language)
     .then((responseId) => {
       res.json({
         result: true,
@@ -2592,6 +2592,37 @@ const deleteWallets = async (req, res) => {
   }
 };
 
+const updateDeviceLanguage = async (req, res)=>{
+  const {user_id, selected_language} = req.body;
+  try {
+    if(!user_id || !selected_language){
+      return res.status(400).json({
+        result: false,
+        message: 'device_id and selected_language are mandate fields'
+      })
+    }
+    const deviceExists = await dao.getDeviceById(user_id);
+    if(!deviceExists){
+      return res.status(404).json({
+        result: false,
+        message: 'User not found'
+      })
+    }
+    await dao.updateDeviceLanguage(user_id, selected_language);
+    return res.status(200).json({
+      result: true,
+      message: 'Language updated successfully'
+    })
+
+  } catch (error) {
+    return res.status(500).json({
+      result: false,
+      message: 'Error while updating user language',
+      error: error.message
+    })
+  }
+}
+
 module.exports = {
   emailVerification,
   restoreUser,
@@ -2660,4 +2691,5 @@ module.exports = {
   fetchTransactionNotification,
   deleteWallets,
   syncWallets,
+  updateDeviceLanguage
 };

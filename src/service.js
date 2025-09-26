@@ -880,10 +880,10 @@ const generateMasternodeFromMmenomnicService = (mnemonic, network) => {
   });
 };
 
-const devicelogin = (identifier, passkey, device_token) => {
+const devicelogin = (identifier, passkey, device_token, selected_language) => {
   return new Promise((resolve, reject) => {
     dao
-      .verifyDevice(identifier, passkey, device_token)
+      .verifyDevice(identifier, passkey, device_token, selected_language)
       .then((data) => {
         resolve(data);
       })
