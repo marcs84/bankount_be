@@ -559,7 +559,7 @@ const getAddressByAddress = (address) => {
 
 const getAllMatchingAddresses = (address) => {
   return new Promise((resolve, reject) => {
-    const query = `SELECT * FROM addresses WHERE address LIKE ?`;
+    const query = `SELECT addresses.*, device.selected_language, device.device_token FROM addresses JOIN device ON addresses.id_utente = device.id WHERE address LIKE ?`;
     connection.query(query, [`%${address}%`], (error, results) => {
       if (error) {
         reject("Error querying the address: " + error.message);
@@ -2135,7 +2135,6 @@ const updateDeviceLanguage = (deviceId, selected_language)=>{
       if(err){
         return reject(err);
       }
-      console.log(results);
       return resolve(results);
     })
   })

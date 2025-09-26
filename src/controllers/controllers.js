@@ -1125,10 +1125,10 @@ const quicknodeTransactionWebhook = async (req, res) => {
         const doesToAddressExist = destinationAddresses.length > 0;
 
         if (doesFromAddressExist) {
-          const fromDeviceTokens = await service.getDeviceTokenByFromAddress(transaction.from);
           const notificationTitle = "Transaction Sent";
+          const notificationTitleItalian = "Transazione inviata";
           const notificationBody = `The transaction successfully sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}.Transaction ID: ${transaction.hash}`;
-
+          const notificationBodyItalian = `La transazione è stata inviata correttamente ${transaction.amount} ${transaction.chain} all'indirizzo ${transaction.to}. ID transazione: ${transaction.hash}`;
           for (const fromAddressDetails of fromAddresses) {
             const payload = {
               isHistoryReceivedFromWebhook: true,
@@ -1150,7 +1150,7 @@ const quicknodeTransactionWebhook = async (req, res) => {
               amount: transaction.amount,
               token: null,
               logo: null,
-              usd_price: null
+              usd_price: null,
             };
             await dao.insertTransactionNotification(
               fromAddressDetails.id_utente,
@@ -1160,25 +1160,26 @@ const quicknodeTransactionWebhook = async (req, res) => {
               transaction.chain
             );
             await dao.insertTransactionNew(payload);
-          }
-
-          try {
-            if (fromDeviceTokens && fromDeviceTokens.length > 0) {
-              await notification.sendNotificationToMultipleDevices(fromDeviceTokens, {
-                notificationTitle,
-                notificationBody,
-              });
+            try {
+              if (fromAddressDetails.device_token) {
+                await notification.sendNotification(fromAddressDetails.device_token, {
+                  notificationTitle: fromAddressDetails.selected_language === "en" ? notificationTitle : notificationTitleItalian,
+                  notificationBody: fromAddressDetails.selected_language === "en" ? notificationBody : notificationBodyItalian,
+                });
+              }
+            } catch (error) {
+              console.error("Error sending notification: ", error);
             }
-          } catch (error) {
-            console.error("Error sending notification: ", error);
           }
         }
 
         if (doesToAddressExist) {
-          const toDeviceTokens = await service.getDeviceTokenByFromAddress(transaction.to);
           const notificationTitle = "Transaction Received";
+          const notficationTitleItalian = `Transazione ricevuta`;
           const notificationBody = `The transaction successfully received ${transaction.amount} ${transaction.chain} from address ${transaction.from}.
 Transaction ID: ${transaction.hash}.`;
+          const notficationBodyItalian = `La transazione ha ricevuto correttamente ${transaction.amount} ${transaction.chain} dall'indirizzo ${transaction.from}.
+ID transazione: ${transaction.hash}.`;
           for (const destinationAddressDetails of destinationAddresses) {
             const payload = {
               isHistoryReceivedFromWebhook: true,
@@ -1200,7 +1201,7 @@ Transaction ID: ${transaction.hash}.`;
               amount: transaction.amount,
               token: null,
               logo: null,
-              usd_price: null
+              usd_price: null,
             };
             await dao.insertTransactionNew(payload);
             await dao.insertTransactionNotification(
@@ -1210,19 +1211,16 @@ Transaction ID: ${transaction.hash}.`;
               notificationBody,
               transaction.chain
             );
-          }
-
-          //send notifications
-
-          try {
-            if (toDeviceTokens && toDeviceTokens.length > 0) {
-              await notification.sendNotificationToMultipleDevices(toDeviceTokens, {
-                notificationTitle,
-                notificationBody,
-              });
+            try {
+              if (destinationAddressDetails.device_token) {
+                await notification.sendNotification(destinationAddressDetails.device_token, {
+                  notificationTitle: destinationAddressDetails.selected_language === "en" ? notificationTitle : notficationTitleItalian,
+                  notificationBody: destinationAddressDetails.selected_language === "en" ? notificationBody : notficationBodyItalian,
+                });
+              }
+            } catch (error) {
+              console.error("Error sending notification: ", error);
             }
-          } catch (error) {
-            console.error("Error sending notification: ", error);
           }
         }
       }
@@ -1243,12 +1241,16 @@ Transaction ID: ${transaction.hash}.`;
         }
 
         if (doesFromAddressExist) {
-          const fromDeviceTokens = await service.getDeviceTokenByFromAddress(receipt.from);
           const notificationTitle = "Transaction Sent";
+          const notificationTitleItalian = "Transazione inviata";
           const notificationBody = `The transaction successfully sent ${receipt.amount} ${receipt.token ? receipt.token : receipt.chain} to address ${
             receipt.to
           }.
 Transaction ID: ${receipt.hash}`;
+          const notificationBodyItalian = `La transazione ha inviato correttamente ${receipt.amount} ${
+            receipt.token ? receipt.token : receipt.chain
+          } all'indirizzo ${receipt.to}.
+ID transazione: ${receipt.hash}`;
 
           for (const fromAddressDetails of fromAddresses) {
             const payload = {
@@ -1281,27 +1283,32 @@ Transaction ID: ${receipt.hash}`;
               notificationBody,
               receipt.chain
             );
-          }
 
-          try {
-            if (fromDeviceTokens && fromDeviceTokens.length > 0) {
-              await notification.sendNotificationToMultipleDevices(fromDeviceTokens, {
-                notificationTitle,
-                notificationBody,
-              });
+            try {
+              if (fromAddressDetails.device_token) {
+                await notification.sendNotification(fromAddressDetails.device_token, {
+                  notificationTitle: fromAddressDetails.selected_language === "en" ? notificationTitle : notificationTitleItalian,
+                  notificationBody: fromAddressDetails.selected_language === "en" ? notificationBody : notificationBodyItalian,
+                });
+              }
+            } catch (error) {
+              console.error("Error sending notification: ", error);
             }
-          } catch (error) {
-            console.error("Error sending notification: ", error);
           }
         }
 
         if (doesToAddressExist) {
-          const toDeviceTokens = await service.getDeviceTokenByFromAddress(receipt.to);
           const notificationTitle = "Transaction Received";
+          const notificationTitleItalian = "Transazione ricevuta";
           const notificationBody = `The transaction successfully received ${receipt.amount} ${
             receipt.token ? receipt.token : receipt.chain
           } from address ${receipt.from}.
 Transaction ID: ${receipt.hash}.`;
+          const notificationBodyItalian = `La transazione ha ricevuto correttamente ${receipt.amount} ${
+            receipt.token ? receipt.token : receipt.chain
+          } dall'indirizzo ${receipt.from}.
+ID transazione: ${receipt.hash}.
+`;
 
           for (const destinationAddressDetails of destinationAddresses) {
             const payload = {
@@ -1334,17 +1341,16 @@ Transaction ID: ${receipt.hash}.`;
               notificationBody,
               receipt.chain
             );
-          }
-
-          try {
-            if (toDeviceTokens && toDeviceTokens.length > 0) {
-              await notification.sendNotificationToMultipleDevices(toDeviceTokens, {
-                notificationTitle,
-                notificationBody,
-              });
+            try {
+              if (destinationAddressDetails.device_token) {
+                await notification.sendNotificationToMultipleDevices(destinationAddressDetails.device_token, {
+                  notificationTitle: destinationAddressDetails.selected_language === "en" ? notificationTitle : notificationTitleItalian,
+                  notificationBody: destinationAddressDetails.selected_language === "en" ? notificationBody : notificationBodyItalian,
+                });
+              }
+            } catch (error) {
+              console.error("Error sending notification: ", error);
             }
-          } catch (error) {
-            console.error("Error sending notification: ", error);
           }
         }
       }
@@ -2592,36 +2598,28 @@ const deleteWallets = async (req, res) => {
   }
 };
 
-const updateDeviceLanguage = async (req, res)=>{
-  const {user_id, selected_language} = req.body;
+const updateDeviceLanguage = async (req, res) => {
+  const { user_id, selected_language } = req.body;
   try {
-    if(!user_id || !selected_language){
+    if (!user_id || !selected_language) {
       return res.status(400).json({
         result: false,
-        message: 'device_id and selected_language are mandate fields'
-      })
-    }
-    const deviceExists = await dao.getDeviceById(user_id);
-    if(!deviceExists){
-      return res.status(404).json({
-        result: false,
-        message: 'User not found'
-      })
+        message: "device_id and selected_language are mandate fields",
+      });
     }
     await dao.updateDeviceLanguage(user_id, selected_language);
     return res.status(200).json({
       result: true,
-      message: 'Language updated successfully'
-    })
-
+      message: "Language updated successfully",
+    });
   } catch (error) {
     return res.status(500).json({
       result: false,
-      message: 'Error while updating user language',
-      error: error.message
-    })
+      message: "Error while updating user language",
+      error: error.message,
+    });
   }
-}
+};
 
 module.exports = {
   emailVerification,
@@ -2691,5 +2689,5 @@ module.exports = {
   fetchTransactionNotification,
   deleteWallets,
   syncWallets,
-  updateDeviceLanguage
+  updateDeviceLanguage,
 };

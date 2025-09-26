@@ -3065,6 +3065,6 @@ router.get("/api/dapps-list", jsonParser, auth.authenticateToken, controllers.fe
  */
 router.get("/api/transaction-notifications", jsonParser, auth.authenticateToken, controllers.fetchTransactionNotification);
 
-router.get('/api/update-user-language', jsonParser, auth.authenticateToken, controllers.updateDeviceLanguage)
+router.patch('/api/update-user-language', jsonParser, auth.authenticateToken, controllers.updateDeviceLanguage)
 
 module.exports = router;
