@@ -2150,7 +2150,7 @@ const getTokenBalance = async (req, res) => {
         walletAddress: wallet_address,
         blockchain: blockchain,
         symbol: symbol,
-        address: token_address || null,
+        address: token_address === "" ? null : token_address || null,
       });
     } catch (error) {
       if (error?.response?.data?.error) {
