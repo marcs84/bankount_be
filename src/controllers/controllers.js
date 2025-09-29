@@ -2100,8 +2100,14 @@ const getSwapRoutes = async (req, res) => {
     let response;
     try {
       response = await rango.quote({
-        from: { blockchain: from_blockchain, address: from_address },
-        to: { blockchain: to_blockchain, address: to_address },
+        from: { 
+          blockchain: from_blockchain, 
+          address: from_address || null // null per native coin
+        },
+        to: { 
+          blockchain: to_blockchain, 
+          address: to_address || null // null per native coin
+        },
         amount: amount,
         slippage: slippage,
       });
@@ -2144,7 +2150,7 @@ const getTokenBalance = async (req, res) => {
         walletAddress: wallet_address,
         blockchain: blockchain,
         symbol: symbol,
-        address: token_address,
+        address: token_address || null,
       });
     } catch (error) {
       if (error?.response?.data?.error) {
