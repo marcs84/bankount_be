@@ -2097,20 +2097,27 @@ const initiateSwap = async (req, res) => {
 const getSwapRoutes = async (req, res) => {
   try {
     const { from_blockchain, from_address, to_blockchain, to_address, amount, slippage } = req.query;
+    
     let response;
     try {
-      response = await rango.quote({
+      const processedFromAddress = from_address && from_address.trim() !== '' ? from_address : null;
+      const processedToAddress = to_address && to_address.trim() !== '' ? to_address : null;
+      
+      const rangoParams = {
         from: { 
           blockchain: from_blockchain, 
-          address: from_address || null // null per native coin
+          address: processedFromAddress
         },
         to: { 
           blockchain: to_blockchain, 
-          address: to_address || null // null per native coin
+          address: processedToAddress
         },
         amount: amount,
         slippage: slippage,
-      });
+      };
+      
+      response = await rango.quote(rangoParams);
+      
     } catch (error) {
       if (error?.response?.data?.error) {
         throw new Error(error.response.data.error);
