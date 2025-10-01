@@ -2063,15 +2063,21 @@ const initiateSwap = async (req, res) => {
       req.body;
     let response;
     try {
-      response = await rango.swap({
-        from: { blockchain: from_blockchain, address: from_token_address },
-        to: { blockchain: to_blockchain, address: to_token_address },
+      // Gestisci gli indirizzi vuoti convertendoli in null per i token nativi
+      const processedFromTokenAddress = from_token_address && from_token_address.trim() !== '' ? from_token_address : null;
+      const processedToTokenAddress = to_token_address && to_token_address.trim() !== '' ? to_token_address : null;
+      
+      const rangoSwapParams = {
+        from: { blockchain: from_blockchain, address: processedFromTokenAddress },
+        to: { blockchain: to_blockchain, address: processedToTokenAddress },
         amount: amount,
         fromAddress: from_wallet_address,
         toAddress: to_wallet_address,
         disableEstimate: true,
         slippage: slippage,
-      });
+      };
+      
+      response = await rango.swap(rangoSwapParams);
     } catch (error) {
       if (error?.response?.data?.error) {
         throw new Error(error.response.data.error);
@@ -2079,13 +2085,13 @@ const initiateSwap = async (req, res) => {
         throw error;
       }
     }
+    
     return res.status(200).json({
       result: true,
       message: "Swap initiated successfully",
       data: response,
     });
   } catch (error) {
-    console.log("Error while initiating swap : ", error);
     return res.status(500).json({
       result: false,
       message: "Error while initiating swap : " + error.message,
@@ -2187,10 +2193,11 @@ const checkTxStatus = async (req, res) => {
     if (!request_id || !tx_id) {
       return res.status(400).json({
         result: false,
-        message: "wallet_address, blockchain, symbol are required",
-        error: "wallet_address, blockchain, symbol are required",
+        message: "request_id and tx_id are required",
+        error: "request_id and tx_id are required",
       });
     }
+    
     let response;
     try {
       response = await rango.status({ requestId: request_id, txId: tx_id });
