@@ -1752,12 +1752,18 @@ const fetchAssets = async (req, res) => {
             console.log("token.balance", token.balance);
           }
           if (selected_currency === "USD" || selected_currency === "usd") {
-            token.balance.converted_balance = tokenDetails.token.usdPrice * token.balance.balance;
+            token.balance.converted_balance = tokenDetails.token.usdPrice ? tokenDetails.token.usdPrice * token.balance.balance : null;
           } else if (selected_currency === "EUR" || selected_currency === "eur") {
-            const response = await axios.get(`https://api.frankfurter.app/latest?amount=${token.balance.balance}&from=USD&to=EUR`);
-            token.balance.converted_balance = response.data.rates["EUR"];
+            if (tokenDetails.token.usdPrice) {
+              const response = await axios.get(`https://api.frankfurter.app/latest?amount=${token.balance.balance}&from=USD&to=EUR`);
+              token.balance.converted_balance = response.data.rates["EUR"];
+            } else {
+              token.balance.converted_balance = null;
+            }
           }
-          convertedTotalAmount += token.balance.converted_balance;
+          if (token.balance.converted_balance) {
+            convertedTotalAmount += token.balance.converted_balance;
+          }
         }
       }
     }
@@ -2064,9 +2070,9 @@ const initiateSwap = async (req, res) => {
     let response;
     try {
       // Gestisci gli indirizzi vuoti convertendoli in null per i token nativi
-      const processedFromTokenAddress = from_token_address && from_token_address.trim() !== '' ? from_token_address : null;
-      const processedToTokenAddress = to_token_address && to_token_address.trim() !== '' ? to_token_address : null;
-      
+      const processedFromTokenAddress = from_token_address && from_token_address.trim() !== "" ? from_token_address : null;
+      const processedToTokenAddress = to_token_address && to_token_address.trim() !== "" ? to_token_address : null;
+
       const rangoSwapParams = {
         from: { blockchain: from_blockchain, address: processedFromTokenAddress },
         to: { blockchain: to_blockchain, address: processedToTokenAddress },
@@ -2076,7 +2082,7 @@ const initiateSwap = async (req, res) => {
         disableEstimate: true,
         slippage: slippage,
       };
-      
+
       response = await rango.swap(rangoSwapParams);
     } catch (error) {
       if (error?.response?.data?.error) {
@@ -2085,7 +2091,7 @@ const initiateSwap = async (req, res) => {
         throw error;
       }
     }
-    
+
     return res.status(200).json({
       result: true,
       message: "Swap initiated successfully",
@@ -2103,27 +2109,26 @@ const initiateSwap = async (req, res) => {
 const getSwapRoutes = async (req, res) => {
   try {
     const { from_blockchain, from_address, to_blockchain, to_address, amount, slippage } = req.query;
-    
+
     let response;
     try {
-      const processedFromAddress = from_address && from_address.trim() !== '' ? from_address : null;
-      const processedToAddress = to_address && to_address.trim() !== '' ? to_address : null;
-      
+      const processedFromAddress = from_address && from_address.trim() !== "" ? from_address : null;
+      const processedToAddress = to_address && to_address.trim() !== "" ? to_address : null;
+
       const rangoParams = {
-        from: { 
-          blockchain: from_blockchain, 
-          address: processedFromAddress
+        from: {
+          blockchain: from_blockchain,
+          address: processedFromAddress,
         },
-        to: { 
-          blockchain: to_blockchain, 
-          address: processedToAddress
+        to: {
+          blockchain: to_blockchain,
+          address: processedToAddress,
         },
         amount: amount,
         slippage: slippage,
       };
-      
+
       response = await rango.quote(rangoParams);
-      
     } catch (error) {
       if (error?.response?.data?.error) {
         throw new Error(error.response.data.error);
@@ -2197,7 +2202,7 @@ const checkTxStatus = async (req, res) => {
         error: "request_id and tx_id are required",
       });
     }
-    
+
     let response;
     try {
       response = await rango.status({ requestId: request_id, txId: tx_id });
