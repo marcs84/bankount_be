@@ -402,11 +402,11 @@ const filterTransactions = async (req, res) => {
 
     const { transactions, totalCount } = await dao.filterTransactions(data);
     for (const transaction of transactions) {
-      if (transaction.token) {
+      if (transaction.token && transaction.usd_price) {
         if (selected_currency === "USD" || selected_currency === "usd") {
           transaction.converted_amount = transaction.usd_price * transaction.amount;
         } else if (selected_currency === "EUR" || selected_currency === "eur") {
-          const response = await axios.get(`https://api.frankfurter.app/latest?amount=${transaction.amount}&from=USD&to=EUR`);
+          const response = await axios.get(`https://api.frankfurter.app/latest?amount=${transaction.amount * transaction.usd_price}&from=USD&to=EUR`);
           transaction.converted_amount = response.data.rates["EUR"];
         }
       } else {
@@ -1343,7 +1343,7 @@ ID transazione: ${receipt.hash}.
             );
             try {
               if (destinationAddressDetails.device_token) {
-                await notification.sendNotificationToMultipleDevices(destinationAddressDetails.device_token, {
+                await notification.sendNotification(destinationAddressDetails.device_token, {
                   notificationTitle: destinationAddressDetails.selected_language === "en" ? notificationTitle : notificationTitleItalian,
                   notificationBody: destinationAddressDetails.selected_language === "en" ? notificationBody : notificationBodyItalian,
                 });
