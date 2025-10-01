@@ -406,8 +406,18 @@ const filterTransactions = async (req, res) => {
         if (selected_currency === "USD" || selected_currency === "usd") {
           transaction.converted_amount = transaction.usd_price * transaction.amount;
         } else if (selected_currency === "EUR" || selected_currency === "eur") {
-          const response = await axios.get(`https://api.frankfurter.app/latest?amount=${transaction.amount * transaction.usd_price}&from=USD&to=EUR`);
-          transaction.converted_amount = response.data.rates["EUR"];
+          const amountToConvert = transaction.amount * transaction.usd_price;
+          if (amountToConvert > 0) {
+            try {
+              const response = await axios.get(`https://api.frankfurter.app/latest?amount=${amountToConvert}&from=USD&to=EUR`);
+              transaction.converted_amount = response.data.rates["EUR"];
+            } catch (error) {
+              console.log(`Error converting currency for transaction: ${error.message}`);
+              transaction.converted_amount = 0;
+            }
+          } else {
+            transaction.converted_amount = 0;
+          }
         }
       } else {
         transaction.converted_amount = service.convertCoinsToAmount(transaction.chain, parseFloat(transaction.amount), selected_currency, coinRates);
