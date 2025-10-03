@@ -1121,13 +1121,14 @@ const quicknodeTransactionWebhook = async (req, res) => {
   try {
     const transactions = req.body.payload;
     const receipts = req.body.receipts;
-    console.log("transactions", transactions);
-    console.log("receipts", receipts);
-
+    
     if (transactions && transactions.length) {
-      for (let transaction of transactions) {
+      
+      for (let i = 0; i < transactions.length; i++) {
+        const transaction = transactions[i];
         const fromAddresses = await dao.getAllMatchingAddresses(transaction.from);
         const destinationAddresses = await dao.getAllMatchingAddresses(transaction.to);
+        
         //check if from address exists in our db/application or not
         const doesFromAddressExist = fromAddresses.length > 0;
         const doesToAddressExist = destinationAddresses.length > 0;
@@ -1137,6 +1138,7 @@ const quicknodeTransactionWebhook = async (req, res) => {
           const notificationTitleItalian = "Transazione inviata";
           const notificationBody = `You have sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}. Transaction ID: ${transaction.hash}`;
           const notificationBodyItalian = `Hai inviato ${transaction.amount} ${transaction.chain} all'indirizzo ${transaction.to}. ID transazione: ${transaction.hash}`;
+          
           for (const fromAddressDetails of fromAddresses) {
             const payload = {
               isHistoryReceivedFromWebhook: true,
@@ -1170,13 +1172,17 @@ const quicknodeTransactionWebhook = async (req, res) => {
             await dao.insertTransactionNew(payload);
             try {
               if (fromAddressDetails.device_token) {
-                await notification.sendNotification(fromAddressDetails.device_token, {
-                  notificationTitle: fromAddressDetails.selected_language === "en" ? notificationTitle : notificationTitleItalian,
-                  notificationBody: fromAddressDetails.selected_language === "en" ? notificationBody : notificationBodyItalian,
-                });
+                const result = await notification.sendNotification(
+                  fromAddressDetails.device_token, 
+                  {
+                    notificationTitle: fromAddressDetails.selected_language === "en" ? notificationTitle : notificationTitleItalian,
+                    notificationBody: fromAddressDetails.selected_language === "en" ? notificationBody : notificationBodyItalian,
+                  },
+                  fromAddressDetails.id_utente
+                );
               }
             } catch (error) {
-              console.error("Error sending notification: ", error);
+              console.error(`[WEBHOOK] ERROR: Exception in FROM address notification:`, error);
             }
           }
         }
@@ -1217,15 +1223,21 @@ const quicknodeTransactionWebhook = async (req, res) => {
               notificationBody,
               transaction.chain
             );
+
             try {
               if (destinationAddressDetails.device_token) {
-                await notification.sendNotification(destinationAddressDetails.device_token, {
-                  notificationTitle: destinationAddressDetails.selected_language === "en" ? notificationTitle : notficationTitleItalian,
-                  notificationBody: destinationAddressDetails.selected_language === "en" ? notificationBody : notficationBodyItalian,
-                });
+                const result = await notification.sendNotification(
+                  destinationAddressDetails.device_token, 
+                  {
+                    notificationTitle: destinationAddressDetails.selected_language === "en" ? notificationTitle : notficationTitleItalian,
+                    notificationBody: destinationAddressDetails.selected_language === "en" ? notificationBody : notficationBodyItalian,
+                  },
+                  destinationAddressDetails.id_utente
+                );
+                
               }
             } catch (error) {
-              console.error("Error sending notification: ", error);
+              console.error(`[WEBHOOK] ERROR: Exception in TO address notification:`, error);
             }
           }
         }
@@ -1233,11 +1245,14 @@ const quicknodeTransactionWebhook = async (req, res) => {
     }
 
     if (receipts && receipts.length) {
-      for (let receipt of receipts) {
+      for (let i = 0; i < receipts.length; i++) {
+        const receipt = receipts[i];
         const fromAddresses = await dao.getAllMatchingAddresses(receipt.from);
         const destinationAddresses = await dao.getAllMatchingAddresses(receipt.to);
+        
         const doesToAddressExist = destinationAddresses.length > 0;
         const doesFromAddressExist = fromAddresses.length > 0;
+        
         if (receipt.chain === "ETH" || receipt.chain === "BNB") {
           try {
             const tokenDetails = await rango.token({ blockchain: receipt.chain, address: receipt.tokenAddress });
@@ -1308,13 +1323,17 @@ ID transazione: ${receipt.hash}`;
 
             try {
               if (fromAddressDetails.device_token) {
-                await notification.sendNotification(fromAddressDetails.device_token, {
-                  notificationTitle: fromAddressDetails.selected_language === "en" ? notificationTitle : notificationTitleItalian,
-                  notificationBody: fromAddressDetails.selected_language === "en" ? notificationBody : notificationBodyItalian,
-                });
+                const result = await notification.sendNotification(
+                  fromAddressDetails.device_token, 
+                  {
+                    notificationTitle: fromAddressDetails.selected_language === "en" ? notificationTitle : notificationTitleItalian,
+                    notificationBody: fromAddressDetails.selected_language === "en" ? notificationBody : notificationBodyItalian,
+                  },
+                  fromAddressDetails.id_utente
+                );
               }
             } catch (error) {
-              console.error("Error sending notification: ", error);
+              console.error(`[WEBHOOK] ERROR: Exception in receipts FROM address notification:`, error);
             }
           }
         }
@@ -1365,29 +1384,32 @@ ID transazione: ${receipt.hash}.
             );
             try {
               if (destinationAddressDetails.device_token) {
-                await notification.sendNotification(destinationAddressDetails.device_token, {
-                  notificationTitle: destinationAddressDetails.selected_language === "en" ? notificationTitle : notificationTitleItalian,
-                  notificationBody: destinationAddressDetails.selected_language === "en" ? notificationBody : notificationBodyItalian,
-                });
+                const result = await notification.sendNotification(
+                  destinationAddressDetails.device_token, 
+                  {
+                    notificationTitle: destinationAddressDetails.selected_language === "en" ? notificationTitle : notificationTitleItalian,
+                    notificationBody: destinationAddressDetails.selected_language === "en" ? notificationBody : notificationBodyItalian,
+                  },
+                  destinationAddressDetails.id_utente
+                );
               }
             } catch (error) {
-              console.error("Error sending notification: ", error);
+              console.error(`[WEBHOOK] ERROR: Exception in receipts TO address notification:`, error);
             }
           }
         }
       }
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       result: true,
-      message: "OK",
+      message: "Webhook processed successfully",
     });
   } catch (error) {
-    console.log("Error while fetching webhook data  : ", error, "Message:", error.message);
-    return res.status(500).json({
+    res.status(500).json({
       result: false,
-      message: "An error occurred while retrieving list of transactions by address: ",
-      error: "An error occurred while retrieving list of transactions by address: ",
+      message: "An error occurred while processing webhook: " + error.message,
+      error: error.message,
     });
   }
 };

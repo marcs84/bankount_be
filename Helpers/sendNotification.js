@@ -1,6 +1,12 @@
 const admin = require('./firebase');
+const dao = require('../src/dao');
 
-async function sendNotification(deviceToken, { notificationTitle, notificationBody }) {
+async function sendNotification(deviceToken, { notificationTitle, notificationBody }, userId = null) {
+  
+  if (!deviceToken) {
+    return { success: false, tokenInvalid: false, error: 'Device token is null' };
+  }
+
   const message = {
       notification: {
           title: notificationTitle,
@@ -8,31 +14,50 @@ async function sendNotification(deviceToken, { notificationTitle, notificationBo
       },
       token: deviceToken,
   };
+  
   try {
       await admin.messaging().send(message);
       console.log(`Notification sent to ${deviceToken}`);
+      return { success: true };
   } catch (error) {
-      console.error('Error sending notification:', error);
+      // Gestione specifica per token non validi
+      if (error.code === 'messaging/registration-token-not-registered' || 
+          error.code === 'messaging/invalid-registration-token') {
+        
+        try {
+          if (userId) {
+            await dao.removeInvalidDeviceToken(userId);
+          } else {
+            await dao.removeDeviceTokenByToken(deviceToken);
+          }
+        } catch (dbError) {
+          console.error(`[NOTIFICATION] DATABASE ERROR: Failed to remove invalid token for user ${userId}:`, dbError);
+        }
+        
+        return { success: false, tokenInvalid: true };
+      }
+      
+      return { success: false, tokenInvalid: false, error: error.message };
   }
 }
 
-// Aggiungere una nuova funzione per dispositivi multipli
 const sendNotificationToMultipleDevices = async (deviceTokens, { notificationTitle, notificationBody }) => {
   if (!deviceTokens || deviceTokens.length === 0) {
-    console.log('No device tokens provided');
-    return;
+    return [];
   }
 
-  const promises = deviceTokens.map(deviceToken => 
-    sendNotification(deviceToken, { notificationTitle, notificationBody })
-  );
-
-  try {
-    await Promise.all(promises);
-    console.log(`Notifications sent to ${deviceTokens.length} devices`);
-  } catch (error) {
-    console.error('Error sending notifications to multiple devices:', error);
+  const results = [];
+  for (let i = 0; i < deviceTokens.length; i++) {
+    const deviceToken = deviceTokens[i];
+    const result = await sendNotification(deviceToken, { notificationTitle, notificationBody });
+    results.push({ deviceToken, ...result });
   }
+
+  const successCount = results.filter(r => r.success).length;
+  const invalidTokenCount = results.filter(r => r.tokenInvalid).length;
+  const errorCount = results.filter(r => !r.success && !r.tokenInvalid).length;
+  
+  return results;
 };
 
 module.exports = {

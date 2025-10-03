@@ -2155,6 +2155,39 @@ const udpateDeviceToken = (deviceId, device_token) => {
   });
 };
 
+const removeInvalidDeviceToken = (userId) => {
+  return new Promise((resolve, reject) => {
+    connection.query(
+      `UPDATE device SET device_token = NULL WHERE id = ?`, 
+      [userId], 
+      (err, results) => {
+        if (err) {
+          return reject(err);
+        }
+        
+        return resolve(results);
+      }
+    );
+  });
+};
+
+const removeDeviceTokenByToken = (deviceToken) => {
+  return new Promise((resolve, reject) => {    
+    connection.query(
+      `UPDATE device SET device_token = NULL WHERE device_token = ?`, 
+      [deviceToken], 
+      (err, results) => {
+        if (err) {
+          console.error(`[DAO] ERROR in removeDeviceTokenByToken:`, err);
+          return reject(err);
+        }
+        
+        return resolve(results);
+      }
+    );
+  });
+};
+
 module.exports = {
   generateKeystore,
   createUser,
@@ -2245,4 +2278,6 @@ module.exports = {
   getDeviceById,
   updateDeviceLanguage,
   udpateDeviceToken,
+  removeInvalidDeviceToken,
+  removeDeviceTokenByToken,
 };
