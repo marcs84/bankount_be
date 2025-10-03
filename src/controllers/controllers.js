@@ -1243,11 +1243,27 @@ ID transazione: ${transaction.hash}.`;
         const doesToAddressExist = destinationAddresses.length > 0;
         const doesFromAddressExist = fromAddresses.length > 0;
         if (receipt.chain === "ETH" || receipt.chain === "BNB") {
-          const tokenDetails = await rango.token({ blockchain: receipt.chain, address: receipt.tokenAddress });
-          console.log("tokenDetails", tokenDetails);
-          receipt.token = tokenDetails.token.symbol;
-          receipt.logo = tokenDetails.token.image;
-          receipt.usd_price = tokenDetails.token.usdPrice || null;
+          try {
+            const tokenDetails = await rango.token({ blockchain: receipt.chain, address: receipt.tokenAddress });
+            console.log("tokenDetails", tokenDetails);
+            
+            // Controllo se tokenDetails e token esistono prima di accedere alle proprietà
+            if (tokenDetails && tokenDetails.token) {
+              receipt.token = tokenDetails.token.symbol || null;
+              receipt.logo = tokenDetails.token.image || null;
+              receipt.usd_price = tokenDetails.token.usdPrice || null;
+            } else {
+              console.warn(`Token details not found for ${receipt.chain} address: ${receipt.tokenAddress}`);
+              receipt.token = null;
+              receipt.logo = null;
+              receipt.usd_price = null;
+            }
+          } catch (error) {
+            console.error(`Error fetching token details for ${receipt.chain} address ${receipt.tokenAddress}:`, error);
+            receipt.token = null;
+            receipt.logo = null;
+            receipt.usd_price = null;
+          }
         }
 
         if (doesFromAddressExist) {
