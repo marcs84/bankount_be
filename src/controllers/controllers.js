@@ -1137,8 +1137,8 @@ const quicknodeTransactionWebhook = async (req, res) => {
         if (doesFromAddressExist) {
           const notificationTitle = "Transaction Sent";
           const notificationTitleItalian = "Transazione inviata";
-          const notificationBody = `The transaction successfully sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}.Transaction ID: ${transaction.hash}`;
-          const notificationBodyItalian = `La transazione è stata inviata correttamente ${transaction.amount} ${transaction.chain} all'indirizzo ${transaction.to}. ID transazione: ${transaction.hash}`;
+          const notificationBody = `You have sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}. Transaction ID: ${transaction.hash}`;
+          const notificationBodyItalian = `Hai inviato ${transaction.amount} ${transaction.chain} all'indirizzo ${transaction.to}. ID transazione: ${transaction.hash}`;
           for (const fromAddressDetails of fromAddresses) {
             const payload = {
               isHistoryReceivedFromWebhook: true,
@@ -1186,10 +1186,8 @@ const quicknodeTransactionWebhook = async (req, res) => {
         if (doesToAddressExist) {
           const notificationTitle = "Transaction Received";
           const notficationTitleItalian = `Transazione ricevuta`;
-          const notificationBody = `The transaction successfully received ${transaction.amount} ${transaction.chain} from address ${transaction.from}.
-Transaction ID: ${transaction.hash}.`;
-          const notficationBodyItalian = `La transazione ha ricevuto correttamente ${transaction.amount} ${transaction.chain} dall'indirizzo ${transaction.from}.
-ID transazione: ${transaction.hash}.`;
+          const notificationBody = `You have received ${transaction.amount} ${transaction.chain} from address ${transaction.from}. Transaction ID: ${transaction.hash}.`;
+          const notficationBodyItalian = `Hai ricevuto ${transaction.amount} ${transaction.chain} dall'indirizzo ${transaction.from}. ID transazione: ${transaction.hash}.`;
           for (const destinationAddressDetails of destinationAddresses) {
             const payload = {
               isHistoryReceivedFromWebhook: true,
