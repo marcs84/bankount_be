@@ -559,8 +559,8 @@ const getAddressByAddress = (address) => {
 
 const getAllMatchingAddresses = (address) => {
   return new Promise((resolve, reject) => {
-    const query = `SELECT addresses.*, device.selected_language, device.device_token FROM addresses JOIN device ON addresses.id_utente = device.id WHERE address LIKE ?`;
-    connection.query(query, [`%${address}%`], (error, results) => {
+    const query = `SELECT addresses.*, device.selected_language, device.device_token FROM addresses JOIN device ON addresses.id_utente = device.id WHERE address LIKE ? AND device.is_active=?`;
+    connection.query(query, [`%${address}%`, 1], (error, results) => {
       if (error) {
         reject("Error querying the address: " + error.message);
         return;
