@@ -1195,27 +1195,31 @@ const verifyDevice = (identifier, passkey, device_token, selected_language) => {
 
         if (results.length) {
           if (results[0].passkey !== passkey) {
-            connection.query(`UPDATE device SET is_active = 0, selected_language = ? WHERE identifier = ?`, [selected_language, identifier], (error, results) => {
-              if (error) {
-                return connection.rollback(() => {
-                  reject(new Error("Failed to update device active status : " + error.message));
-                });
-              }
-              connection.query(
-                `INSERT INTO device (identifier, passkey, device_token, selected_language) VALUES (?, ?, ? ,?)`,
-                [identifier, passkey, device_token, selected_language],
-                (error, results) => {
-                  connection.commit((err) => {
-                    if (error || err) {
-                      return connection.rollback(() => {
-                        reject(new Error("Failed to insert device : " + error.message));
-                      });
-                    }
-                    return resolve(results.insertId); // Return existing record's ID
+            connection.query(
+              `UPDATE device SET is_active = 0, selected_language = ? WHERE identifier = ?`,
+              [selected_language, identifier],
+              (error, results) => {
+                if (error) {
+                  return connection.rollback(() => {
+                    reject(new Error("Failed to update device active status : " + error.message));
                   });
                 }
-              );
-            });
+                connection.query(
+                  `INSERT INTO device (identifier, passkey, device_token, selected_language) VALUES (?, ?, ? ,?)`,
+                  [identifier, passkey, device_token, selected_language],
+                  (error, results) => {
+                    connection.commit((err) => {
+                      if (error || err) {
+                        return connection.rollback(() => {
+                          reject(new Error("Failed to insert device : " + error.message));
+                        });
+                      }
+                      return resolve(results.insertId); // Return existing record's ID
+                    });
+                  }
+                );
+              }
+            );
           } else {
             const updateQuery = `UPDATE device SET device_token = ?, selected_language = ? WHERE id = ? AND is_active = 1`;
             connection.query(updateQuery, [device_token, selected_language, results[0].id], (updateError) => {
@@ -2118,27 +2122,38 @@ const deleteWallets = (wallet_ids = []) => {
   });
 };
 
-const getDeviceById = (deviceId)=>{
-  return new Promise((resolve, reject)=>{
-    connection.query(`SELECT * FROM device WHERE id = ?`, [deviceId], (err, results)=>{
-      if(err){
-        return reject(new Error('Error fetching device '+err))
+const getDeviceById = (deviceId) => {
+  return new Promise((resolve, reject) => {
+    connection.query(`SELECT * FROM device WHERE id = ?`, [deviceId], (err, results) => {
+      if (err) {
+        return reject(new Error("Error fetching device " + err));
       }
-      return results.length ? results[0] : null; 
-    })
-  })
-}
+      return results.length ? results[0] : null;
+    });
+  });
+};
 
-const updateDeviceLanguage = (deviceId, selected_language)=>{
-  return new Promise((resolve, reject)=>{
-    connection.query(`UPDATE device SET selected_language = ? WHERE id = ?`, [selected_language, deviceId], (err, results)=>{
-      if(err){
+const updateDeviceLanguage = (deviceId, selected_language) => {
+  return new Promise((resolve, reject) => {
+    connection.query(`UPDATE device SET selected_language = ? WHERE id = ?`, [selected_language, deviceId], (err, results) => {
+      if (err) {
         return reject(err);
       }
       return resolve(results);
-    })
-  })
-}
+    });
+  });
+};
+
+const udpateDeviceToken = (deviceId, device_token) => {
+  return new Promise((resolve, reject) => {
+    connection.query(`UPDATE device SET device_token = ? WHERE id = ?`, [device_token, deviceId], (err, results) => {
+      if (err) {
+        return reject(err);
+      }
+      return resolve(results);
+    });
+  });
+};
 
 module.exports = {
   generateKeystore,
@@ -2228,5 +2243,6 @@ module.exports = {
   fetchTransactionNotification,
   deleteWallets,
   getDeviceById,
-  updateDeviceLanguage
+  updateDeviceLanguage,
+  udpateDeviceToken,
 };

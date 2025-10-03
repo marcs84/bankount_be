@@ -1128,8 +1128,6 @@ const quicknodeTransactionWebhook = async (req, res) => {
       for (let transaction of transactions) {
         const fromAddresses = await dao.getAllMatchingAddresses(transaction.from);
         const destinationAddresses = await dao.getAllMatchingAddresses(transaction.to);
-        console.log("fromAddresses", fromAddresses);
-        console.log("destinationAddresses", destinationAddresses);
         //check if from address exists in our db/application or not
         const doesFromAddressExist = fromAddresses.length > 0;
         const doesToAddressExist = destinationAddresses.length > 0;
@@ -1243,8 +1241,8 @@ const quicknodeTransactionWebhook = async (req, res) => {
         if (receipt.chain === "ETH" || receipt.chain === "BNB") {
           try {
             const tokenDetails = await rango.token({ blockchain: receipt.chain, address: receipt.tokenAddress });
-            console.log("tokenDetails", tokenDetails);
-            
+            // console.log("tokenDetails", tokenDetails);
+
             // Controllo se tokenDetails e token esistono prima di accedere alle proprietà
             if (tokenDetails && tokenDetails.token) {
               receipt.token = tokenDetails.token.symbol || null;
@@ -2670,6 +2668,29 @@ const updateDeviceLanguage = async (req, res) => {
   }
 };
 
+const updateDeviceToken = async (req, res) => {
+  const { user_id, device_token } = req.body;
+  try {
+    if (!user_id || !device_token) {
+      return res.status(400).json({
+        result: false,
+        message: "user_id and device_token are mandate fields",
+      });
+    }
+    await dao.udpateDeviceToken(user_id, device_token);
+    return res.status(200).json({
+      result: true,
+      message: "Device token updated successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      result: false,
+      message: "Error while updating device token",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   emailVerification,
   restoreUser,
@@ -2739,4 +2760,5 @@ module.exports = {
   deleteWallets,
   syncWallets,
   updateDeviceLanguage,
+  updateDeviceToken,
 };

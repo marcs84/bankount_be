@@ -1062,7 +1062,7 @@ router.put("/api/sync-wallets", jsonParser, auth.authenticateToken, controllers.
  *     tags:
  *       - Wallet
  *     security:
- *       - BearerAuth: [] 
+ *       - BearerAuth: []
  *     requestBody:
  *       description: Wallet details required for creating a new wallet
  *       content:
@@ -3065,6 +3065,8 @@ router.get("/api/dapps-list", jsonParser, auth.authenticateToken, controllers.fe
  */
 router.get("/api/transaction-notifications", jsonParser, auth.authenticateToken, controllers.fetchTransactionNotification);
 
-router.patch('/api/update-user-language', jsonParser, auth.authenticateToken, controllers.updateDeviceLanguage)
+router.patch("/api/update-user-language", jsonParser, auth.authenticateToken, controllers.updateDeviceLanguage);
+
+router.patch("/api/update-device-token", jsonParser, auth.authenticateToken, controllers.updateDeviceToken);
 
 module.exports = router;
