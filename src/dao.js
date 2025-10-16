@@ -772,7 +772,7 @@ const insertTransactionNew = ({
                   from_address: result[0].from_address,
                   tx: result[0].tx,
                   destination_address: result[0].destination_address,
-                  amount: amount.toString(),
+                  amount: amount? amount.toString() : '0',
                   data_insert: result[0].data_insert,
                   // block_number: block_number,
                   network_type: network_type,
