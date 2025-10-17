@@ -73,47 +73,91 @@ class ECDH_AES_Server {
   }
 }
 
-function formatNumberRobust(number, maxDecimals = 18) {
-  if (typeof number !== "number") number = Number(number);
-  if (Number.isNaN(number)) return "0";
+function formatNumberRobust(value, maxDecimals = 18) {
+    const decimals = Math.max(0, Math.min(maxDecimals, 18));
+    if (value === null || value === undefined) return "0";
 
-  // ✅ Added line: round to remove floating-point noise
-  const factor = Math.pow(10, maxDecimals);
-  number = Math.round(number * factor) / factor;
+    const toDecimalString = (s) => {
+        s = String(s).trim();
+        if (s === "") return "0";
+        // Gestione segno
+        let sign = "";
+        if (s[0] === "-" || s[0] === "+") {
+            sign = s[0] === "-" ? "-" : "";
+            s = s.slice(1);
+        }
+        // Espandi notazione scientifica, se presente
+        const m = s.toLowerCase().match(/^(\d+)(?:\.(\d+))?e([+-]?\d+)$/);
+        if (m) {
+            let intPart = m[1];
+            let fracPart = m[2] || "";
+            const exp = parseInt(m[3], 10);
+            if (exp > 0) {
+                if (exp >= fracPart.length) {
+                    const zeros = "0".repeat(exp - fracPart.length);
+                    return sign + intPart + fracPart + zeros;
+                } else {
+                    const pos = exp;
+                    return sign + intPart + fracPart.slice(0, pos) + "." + fracPart.slice(pos);
+                }
+            } else {
+                const k = -exp;
+                if (k >= intPart.length) {
+                    const zeros = "0".repeat(k - intPart.length);
+                    return sign + "0." + zeros + intPart + fracPart;
+                } else {
+                    const pos = intPart.length - k;
+                    return sign + intPart.slice(0, pos) + "." + intPart.slice(pos) + fracPart;
+                }
+            }
+        }
+        return sign + s;
+    };
 
-  if (number === 0) return "0";
+    const trimZeros = (s) => {
+        if (s.includes(".")) {
+            s = s.replace(/0+$/, "");
+            s = s.replace(/\.$/, "");
+        }
+        // Rimuovi zeri iniziali dall'intero (ma lascia almeno uno)
+        s = s.replace(/^(-?)0+(?=\d)/, "$1");
+        return s === "" || s === "-" ? "0" : s;
+    };
 
-  // Per numeri molto piccoli, usa toFixed per evitare notazione scientifica
-  if (Math.abs(number) < 0.000001) {
-    let formatted = number.toFixed(maxDecimals);
+    // Se input è una stringa, tronca a maxDecimals senza arrotondare
+    if (typeof value === "string") {
+        let s = toDecimalString(value);
+        const neg = s.startsWith("-");
+        if (neg) s = s.slice(1);
+        const parts = s.split(".");
+        const intPart = parts[0] || "0";
+        let fracPart = parts[1] || "";
 
-    // Rimuovi zeri finali
-    formatted = formatted.replace(/0+$/, "");
-    // Rimuovi eventuale punto finale
-    formatted = formatted.replace(/\.$/, "");
-    return formatted;
-  }
+        if (decimals === 0) {
+            // Nessuna parte frazionaria
+            return trimZeros((neg ? "-" : "") + intPart);
+        }
 
-  try {
-    // Usa toPrecision per avere un controllo simile a toDoubleStringAsPrecised
-    let formatted = number.toPrecision(maxDecimals);
-
-    // Se toPrecision genera notazione scientifica, fallback a toFixed
-    if (formatted.includes("e") || formatted.includes("E")) {
-      formatted = number.toFixed(maxDecimals);
+        // Tronca frazione a maxDecimals (no rounding, elimina rumore)
+        fracPart = fracPart.slice(0, decimals);
+        let out = intPart + (fracPart ? "." + fracPart : "");
+        return trimZeros((neg ? "-" : "") + out);
     }
 
-    // Pulizia finale
-    formatted = formatted.replace(/0+$/, "");
-    formatted = formatted.replace(/\.$/, "");
-    return formatted;
-  } catch (e) {
-    // Fallback sicuro
-    let formatted = number.toFixed(maxDecimals);
-    formatted = formatted.replace(/0+$/, "");
-    formatted = formatted.replace(/\.$/, "");
-    return formatted;
-  }
+    // Se input è un number, usa truncation anziché rounding per evitare promozione del rumore
+    if (typeof value === "number") {
+        if (!Number.isFinite(value)) return "0";
+        if (value === 0) return "0";
+        const factor = Math.pow(10, decimals);
+        const truncated = value >= 0
+            ? Math.floor(value * factor) / factor
+            : Math.ceil(value * factor) / factor;
+        let out = truncated.toFixed(decimals);
+        return trimZeros(out);
+    }
+
+    // Fallback per tipi non gestiti
+    return "0";
 }
 
 module.exports = {
