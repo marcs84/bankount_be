@@ -1121,14 +1121,13 @@ const quicknodeTransactionWebhook = async (req, res) => {
   try {
     const transactions = req.body.payload;
     const receipts = req.body.receipts;
-    
+
     if (transactions && transactions.length) {
-      
       for (let i = 0; i < transactions.length; i++) {
         const transaction = transactions[i];
         const fromAddresses = await dao.getAllMatchingAddresses(transaction.from);
         const destinationAddresses = await dao.getAllMatchingAddresses(transaction.to);
-        
+
         //check if from address exists in our db/application or not
         const doesFromAddressExist = fromAddresses.length > 0;
         const doesToAddressExist = destinationAddresses.length > 0;
@@ -1136,9 +1135,13 @@ const quicknodeTransactionWebhook = async (req, res) => {
         if (doesFromAddressExist) {
           const notificationTitle = "Transaction Sent";
           const notificationTitleItalian = "Transazione inviata";
-          const notificationBody = `You have sent ${transaction.amount} ${transaction.chain} to address ${transaction.to}. Transaction ID: ${transaction.hash}`;
-          const notificationBodyItalian = `Hai inviato ${transaction.amount} ${transaction.chain} all'indirizzo ${transaction.to}. ID transazione: ${transaction.hash}`;
-          
+          const notificationBody = `You have sent ${utils.formatNumberRobust(transaction.amount)} ${transaction.chain} to address ${
+            transaction.to
+          }. Transaction ID: ${transaction.hash}`;
+          const notificationBodyItalian = `Hai inviato ${utils.formatNumberRobust(transaction.amount)} ${transaction.chain} all'indirizzo ${
+            transaction.to
+          }. ID transazione: ${transaction.hash}`;
+
           for (const fromAddressDetails of fromAddresses) {
             const payload = {
               isHistoryReceivedFromWebhook: true,
@@ -1173,7 +1176,7 @@ const quicknodeTransactionWebhook = async (req, res) => {
             try {
               if (fromAddressDetails.device_token) {
                 const result = await notification.sendNotification(
-                  fromAddressDetails.device_token, 
+                  fromAddressDetails.device_token,
                   {
                     notificationTitle: fromAddressDetails.selected_language === "en" ? notificationTitle : notificationTitleItalian,
                     notificationBody: fromAddressDetails.selected_language === "en" ? notificationBody : notificationBodyItalian,
@@ -1190,8 +1193,12 @@ const quicknodeTransactionWebhook = async (req, res) => {
         if (doesToAddressExist) {
           const notificationTitle = "Transaction Received";
           const notficationTitleItalian = `Transazione ricevuta`;
-          const notificationBody = `You have received ${transaction.amount} ${transaction.chain} from address ${transaction.from}. Transaction ID: ${transaction.hash}.`;
-          const notficationBodyItalian = `Hai ricevuto ${transaction.amount} ${transaction.chain} dall'indirizzo ${transaction.from}. ID transazione: ${transaction.hash}.`;
+          const notificationBody = `You have received ${utils.formatNumberRobust(transaction.amount)} ${transaction.chain} from address ${
+            transaction.from
+          }. Transaction ID: ${transaction.hash}.`;
+          const notficationBodyItalian = `Hai ricevuto ${utils.formatNumberRobust(transaction.amount)} ${transaction.chain} dall'indirizzo ${
+            transaction.from
+          }. ID transazione: ${transaction.hash}.`;
           for (const destinationAddressDetails of destinationAddresses) {
             const payload = {
               isHistoryReceivedFromWebhook: true,
@@ -1227,14 +1234,13 @@ const quicknodeTransactionWebhook = async (req, res) => {
             try {
               if (destinationAddressDetails.device_token) {
                 const result = await notification.sendNotification(
-                  destinationAddressDetails.device_token, 
+                  destinationAddressDetails.device_token,
                   {
                     notificationTitle: destinationAddressDetails.selected_language === "en" ? notificationTitle : notficationTitleItalian,
                     notificationBody: destinationAddressDetails.selected_language === "en" ? notificationBody : notficationBodyItalian,
                   },
                   destinationAddressDetails.id_utente
                 );
-                
               }
             } catch (error) {
               console.error(`[WEBHOOK] ERROR: Exception in TO address notification:`, error);
@@ -1249,10 +1255,10 @@ const quicknodeTransactionWebhook = async (req, res) => {
         const receipt = receipts[i];
         const fromAddresses = await dao.getAllMatchingAddresses(receipt.from);
         const destinationAddresses = await dao.getAllMatchingAddresses(receipt.to);
-        
+
         const doesToAddressExist = destinationAddresses.length > 0;
         const doesFromAddressExist = fromAddresses.length > 0;
-        
+
         if (receipt.chain === "ETH" || receipt.chain === "BNB") {
           try {
             const tokenDetails = await rango.token({ blockchain: receipt.chain, address: receipt.tokenAddress });
@@ -1280,11 +1286,11 @@ const quicknodeTransactionWebhook = async (req, res) => {
         if (doesFromAddressExist) {
           const notificationTitle = "Transaction Sent";
           const notificationTitleItalian = "Transazione inviata";
-          const notificationBody = `The transaction successfully sent ${receipt.amount} ${receipt.token ? receipt.token : receipt.chain} to address ${
-            receipt.to
-          }.
+          const notificationBody = `The transaction successfully sent ${utils.formatNumberRobust(receipt.amount)} ${
+            receipt.token ? receipt.token : receipt.chain
+          } to address ${receipt.to}.
 Transaction ID: ${receipt.hash}`;
-          const notificationBodyItalian = `La transazione ha inviato correttamente ${receipt.amount} ${
+          const notificationBodyItalian = `La transazione ha inviato correttamente ${utils.formatNumberRobust(receipt.amount)} ${
             receipt.token ? receipt.token : receipt.chain
           } all'indirizzo ${receipt.to}.
 ID transazione: ${receipt.hash}`;
@@ -1324,7 +1330,7 @@ ID transazione: ${receipt.hash}`;
             try {
               if (fromAddressDetails.device_token) {
                 const result = await notification.sendNotification(
-                  fromAddressDetails.device_token, 
+                  fromAddressDetails.device_token,
                   {
                     notificationTitle: fromAddressDetails.selected_language === "en" ? notificationTitle : notificationTitleItalian,
                     notificationBody: fromAddressDetails.selected_language === "en" ? notificationBody : notificationBodyItalian,
@@ -1341,11 +1347,11 @@ ID transazione: ${receipt.hash}`;
         if (doesToAddressExist) {
           const notificationTitle = "Transaction Received";
           const notificationTitleItalian = "Transazione ricevuta";
-          const notificationBody = `The transaction successfully received ${receipt.amount} ${
+          const notificationBody = `The transaction successfully received ${utils.formatNumberRobust(receipt.amount)} ${
             receipt.token ? receipt.token : receipt.chain
           } from address ${receipt.from}.
 Transaction ID: ${receipt.hash}.`;
-          const notificationBodyItalian = `La transazione ha ricevuto correttamente ${receipt.amount} ${
+          const notificationBodyItalian = `La transazione ha ricevuto correttamente ${utils.formatNumberRobust(receipt.amount)} ${
             receipt.token ? receipt.token : receipt.chain
           } dall'indirizzo ${receipt.from}.
 ID transazione: ${receipt.hash}.
@@ -1385,7 +1391,7 @@ ID transazione: ${receipt.hash}.
             try {
               if (destinationAddressDetails.device_token) {
                 const result = await notification.sendNotification(
-                  destinationAddressDetails.device_token, 
+                  destinationAddressDetails.device_token,
                   {
                     notificationTitle: destinationAddressDetails.selected_language === "en" ? notificationTitle : notificationTitleItalian,
                     notificationBody: destinationAddressDetails.selected_language === "en" ? notificationBody : notificationBodyItalian,

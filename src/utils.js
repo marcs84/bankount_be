@@ -73,6 +73,42 @@ class ECDH_AES_Server {
     }
 }
 
+function formatNumberRobust(number, maxDecimals = 18) {
+  if (number === 0) return "0";
+ 
+  // Per numeri molto piccoli, usa toFixed per evitare notazione scientifica
+  if (Math.abs(number) < 0.000001) {
+    let formatted = number.toFixed(maxDecimals);
+ 
+    // Rimuovi zeri finali
+    formatted = formatted.replace(/0+$/, "");
+    // Rimuovi eventuale punto finale
+    formatted = formatted.replace(/\.$/, "");
+    return formatted;
+  }
+ 
+  try {
+    // Usa toPrecision per avere un controllo simile a toDoubleStringAsPrecised
+    let formatted = number.toPrecision(maxDecimals);
+ 
+    // Se toPrecision genera notazione scientifica, fallback a toFixed
+    if (formatted.includes("e") || formatted.includes("E")) {
+      formatted = number.toFixed(maxDecimals);
+    }
+ 
+    // Pulizia finale
+    formatted = formatted.replace(/0+$/, "");
+    formatted = formatted.replace(/\.$/, "");
+    return formatted;
+  } catch (e) {
+    // Fallback sicuro
+    let formatted = number.toFixed(maxDecimals);
+    formatted = formatted.replace(/0+$/, "");
+    formatted = formatted.replace(/\.$/, "");
+    return formatted;
+  }
+}
+
 
 
 module.exports = {
@@ -97,6 +133,7 @@ module.exports = {
     MoneroNetworkType,
     createCustomError,
     ECDH_AES_Server,
+    formatNumberRobust
 };
 
 
