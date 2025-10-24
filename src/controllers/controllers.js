@@ -1080,7 +1080,7 @@ const insertAddress = async (req, res) => {
 const insertTransaction = async (req, res) => {
   try {
     const data = req.body;
-    const addressDetails = await service.checkAddressDetails(data.from_address);
+    const addressDetails = await service.checkAddressDetails(data.chain, data.from_address);
     const response = await dao.insertTransactionNew({
       isHistoryReceivedFromWebhook: false,
       address_id: addressDetails.id,
@@ -1463,7 +1463,7 @@ const tatumTransactionWebhook = async (req, res) => {
   try {
     console.log("req.body", req.body);
     let reqData = req.body;
-    const addressDetails = await service.checkAddressDetails(reqData.counterAddress);
+    const addressDetails = await service.checkAddressDetails(reqData.asset, reqData.counterAddress);
     const objLength = Object.keys(addressDetails).length;
     const addresId = objLength > 0 ? addressDetails.id : null;
     const userID = objLength > 0 ? addressDetails.idUtente : 0;

@@ -527,10 +527,10 @@ const getLatestTransactionsFromDB = (limit) => {
   });
 };
 
-const getAddressByAddress = (address) => {
+const getAddressByAddress = (cointype, address) => {
   return new Promise((resolve, reject) => {
-    const query = `SELECT * FROM addresses WHERE address LIKE ?`;
-    connection.query(query, [`%${address}%`], (error, results) => {
+    const query = `SELECT * FROM addresses WHERE cointype = ? AND address LIKE ?`;
+    connection.query(query, [cointype, `%${address}%`], (error, results) => {
       if (error) {
         reject("Error querying the address: " + error.message);
         return;
@@ -570,11 +570,11 @@ const getAllMatchingAddresses = (address) => {
   });
 };
 
-const getPathByAddress = (address) => {
+const getPathByAddress = (coin_type, address) => {
   return new Promise((resolve, reject) => {
-    const query = `SELECT * FROM addresses WHERE address = ?`;
+    const query = `SELECT * FROM addresses WHERE cointype = ? AND address = ?`;
 
-    connection.query(query, [address], (error, results) => {
+    connection.query(query, [coin_type, address], (error, results) => {
       if (error) {
         reject("Error querying the address: " + error.message);
         return;
@@ -1258,8 +1258,8 @@ const insertUserAddress = async (userData) => {
   const results = await Promise.all(
     userData.map((item) => {
       return new Promise((resolve, reject) => {
-        const selectQuery = `SELECT * FROM addresses WHERE id_utente = ? AND address = ?`;
-        const matches = [item.user_id, item.address];
+        const selectQuery = `SELECT * FROM addresses WHERE id_utente = ? AND address = ? AND cointype = ?`;
+        const matches = [item.user_id, item.address, item.coin_type];
         connection.query(selectQuery, matches, (error, resultData) => {
           if (error) {
             return reject(error);

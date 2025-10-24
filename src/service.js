@@ -154,12 +154,12 @@ const getBalance = (cointype, address, network, user_id, wallet_id) => {
           break;
         }
 
-        case "XMR": {
-          let addressDB = await dao.getAddressByAddress(address);
-          let wallet = await openWallet("MoneroRoot", addressDB.idUtente, addressDB.index, network);
-          balance = await cryptoCores.moneroCore.xmrCore.getBalance(wallet);
-          break;
-        }
+        // case "XMR": {
+        //   let addressDB = await dao.getAddressByAddress(address);
+        //   let wallet = await openWallet("MoneroRoot", addressDB.idUtente, addressDB.index, network);
+        //   balance = await cryptoCores.moneroCore.xmrCore.getBalance(wallet);
+        //   break;
+        // }
 
         default: {
           //coin non valido
@@ -253,12 +253,12 @@ const exchangeCoinBetweenSameBc = (cointype, fromAddress, toAddress, amount, net
     try {
       let txid;
 
-      let userAddress = await dao.getAddressByAddress(fromAddress);
+      let userAddress = await dao.getAddressByAddress(cointype, fromAddress);
 
       if (userAddress == null) {
         reject("Indirizzo non valido");
       }
-      let childPrivateKey = await recoverPrivateKey(Masternode, userAddress.address);
+      let childPrivateKey = await recoverPrivateKey(Masternode, userAddress.cointype, userAddress.address);
 
       switch (cointype) {
         case "BTC": {
@@ -387,7 +387,7 @@ const txUtilsForExchangeCoinBetweenSameBc = (cointype, fromAddress, toAddress, a
     try {
       let txid;
 
-      let userAddress = await dao.getAddressByAddress(fromAddress);
+      let userAddress = await dao.getAddressByAddress(cointype, fromAddress);
 
       if (userAddress == null) {
         reject("Indirizzo non valido");
@@ -449,7 +449,7 @@ const txUtilsForExchangeCoinBetweenSameBc = (cointype, fromAddress, toAddress, a
 const doTransactionBetweenSameBC = (signed_tx, user_id, wallet_id, coin_type, amount, from_address, to_address, latest_block, network_type) => {
   return new Promise(async (resolve, reject) => {
     let txId;
-    const userAddress = await dao.getAddressByAddress(from_address);
+    const userAddress = await dao.getAddressByAddress(coin_type, from_address);
     if (userAddress == null) {
       reject("Indirizzo non valido");
     }
@@ -564,12 +564,12 @@ const exchangeTokenBetweenSameBc = async (chain, symbol, toAddress, fromAddress,
   try {
     let receipt;
 
-    let userAddress = await dao.getAddressByAddress(fromAddress);
+    let userAddress = await dao.getAddressByAddress(chain, fromAddress);
 
     if (userAddress == null) {
       reject("Indirizzo non valido");
     }
-    let childPrivateKey = await recoverPrivateKey(Masternode, userAddress.address);
+    let childPrivateKey = await recoverPrivateKey(Masternode, userAddress.cointype, userAddress.address);
 
     switch (chain) {
       case "ETH": {
@@ -958,10 +958,10 @@ const findAddressDetailsById = (id) => {
   });
 };
 
-const checkAddressDetails = (address) => {
+const checkAddressDetails = (chain, address) => {
   return new Promise((resolve, reject) => {
     dao
-      .getAddressByAddress(address)
+      .getAddressByAddress(chain, address)
       .then((addressDetail) => {
         resolve(addressDetail);
       })

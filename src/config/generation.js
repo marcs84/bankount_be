@@ -399,8 +399,8 @@ async function hierarchyGeneration(Masternode, network, id_utente) {
   }
 }
 
-const recoverPrivateKey = async (Masternode, address) => {
-  const path = await dao.getPathByAddress(address)
+const recoverPrivateKey = async (Masternode, coin_type, address) => {
+  const path = await dao.getPathByAddress(coin_type, address)
   const child = Masternode.derivePath(path)
   return child.privateKey.toString("hex")
 };
