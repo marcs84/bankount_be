@@ -557,10 +557,10 @@ const getAddressByAddress = (cointype, address) => {
   });
 };
 
-const getAllMatchingAddresses = (address) => {
+const getAllMatchingAddresses = (address, chain) => {
   return new Promise((resolve, reject) => {
-    const query = `SELECT addresses.*, device.selected_language, device.device_token FROM addresses JOIN device ON addresses.id_utente = device.id WHERE address LIKE ? AND device.is_active=?`;
-    connection.query(query, [`%${address}%`, 1], (error, results) => {
+    const query = `SELECT addresses.*, device.selected_language, device.device_token FROM addresses JOIN device ON addresses.id_utente = device.id WHERE address LIKE ? AND addresses.cointype = ? AND device.is_active=?`;
+    connection.query(query, [`%${address}%`, chain, 1], (error, results) => {
       if (error) {
         reject("Error querying the address: " + error.message);
         return;

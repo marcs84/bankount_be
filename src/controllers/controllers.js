@@ -1125,8 +1125,8 @@ const quicknodeTransactionWebhook = async (req, res) => {
     if (transactions && transactions.length) {
       for (let i = 0; i < transactions.length; i++) {
         const transaction = transactions[i];
-        const fromAddresses = await dao.getAllMatchingAddresses(transaction.from);
-        const destinationAddresses = await dao.getAllMatchingAddresses(transaction.to);
+        const fromAddresses = await dao.getAllMatchingAddresses(transaction.from, transaction.chain);
+        const destinationAddresses = await dao.getAllMatchingAddresses(transaction.to, transaction.chain);
 
         //check if from address exists in our db/application or not
         const doesFromAddressExist = fromAddresses.length > 0;
@@ -1253,8 +1253,8 @@ const quicknodeTransactionWebhook = async (req, res) => {
     if (receipts && receipts.length) {
       for (let i = 0; i < receipts.length; i++) {
         const receipt = receipts[i];
-        const fromAddresses = await dao.getAllMatchingAddresses(receipt.from);
-        const destinationAddresses = await dao.getAllMatchingAddresses(receipt.to);
+        const fromAddresses = await dao.getAllMatchingAddresses(receipt.from, receipt.chain);
+        const destinationAddresses = await dao.getAllMatchingAddresses(receipt.to, receipt.chain);
 
         const doesToAddressExist = destinationAddresses.length > 0;
         const doesFromAddressExist = fromAddresses.length > 0;
