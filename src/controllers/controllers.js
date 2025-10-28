@@ -1805,12 +1805,18 @@ const fetchAssets = async (req, res) => {
             token.balance.converted_balance = tokenDetails.token.usdPrice ? tokenDetails.token.usdPrice * token.balance.balance : null;
           } else if (selected_currency === "EUR" || selected_currency === "eur") {
             if (tokenDetails.token.usdPrice) {
-              const response = await axios.get(`https://api.frankfurter.app/latest?amount=${token.balance.balance}&from=USD&to=EUR`);
-              token.balance.converted_balance = response.data.rates["EUR"];
+              try {
+                const response = await axios.get(`https://api.frankfurter.app/latest?amount=${token.balance.balance}&from=USD&to=EUR`);
+                token.balance.converted_balance = response.data.rates["EUR"];
+              } catch (error) {
+                console.log(`Error converting currency for transaction: ${error.message}`);
+                token.balance.converted_balance = 0;
+              }
             } else {
-              token.balance.converted_balance = null;
+              token.balance.converted_balance = 0;
             }
           }
+
           if (token.balance.converted_balance) {
             convertedTotalAmount += token.balance.converted_balance;
           }
