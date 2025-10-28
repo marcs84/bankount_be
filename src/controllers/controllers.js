@@ -1286,11 +1286,11 @@ const quicknodeTransactionWebhook = async (req, res) => {
         if (doesFromAddressExist) {
           const notificationTitle = "Transaction Sent";
           const notificationTitleItalian = "Transazione inviata";
-          const notificationBody = `The transaction successfully sent ${utils.formatNumberRobust(receipt.amount)} ${
+          const notificationBody = `You sent ${utils.formatNumberRobust(receipt.amount)} ${
             receipt.token ? receipt.token : receipt.chain
           } to address ${receipt.to}.
 Transaction ID: ${receipt.hash}`;
-          const notificationBodyItalian = `La transazione ha inviato correttamente ${utils.formatNumberRobust(receipt.amount)} ${
+          const notificationBodyItalian = `Hai inviato ${utils.formatNumberRobust(receipt.amount)} ${
             receipt.token ? receipt.token : receipt.chain
           } all'indirizzo ${receipt.to}.
 ID transazione: ${receipt.hash}`;
