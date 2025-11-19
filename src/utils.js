@@ -160,6 +160,11 @@ function formatNumberRobust(value, maxDecimals = 18) {
     return "0";
 }
 
+async function usdToEurConversion(usdAmount){
+  const response = await axios.get(`https://api.frankfurter.app/latest?amount=${usdAmount}&from=USD&to=EUR`)
+  return response.data.rates.EUR;
+}
+
 module.exports = {
   mysql,
   ECPair,
@@ -183,4 +188,5 @@ module.exports = {
   createCustomError,
   ECDH_AES_Server,
   formatNumberRobust,
+  usdToEurConversion
 };

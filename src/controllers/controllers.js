@@ -2104,6 +2104,12 @@ const fetchRangoMetadata = async (req, res) => {
         throw error;
       }
     }
+
+    for(token of response.tokens){
+      if(token.usdPrice){
+        token.eurPrice = await utils.usdToEurConversion(token.usdPrice);
+      }
+    }
     return res.status(200).json({
       result: true,
       message: "Rango metadata fetched successfully",
@@ -2185,6 +2191,7 @@ const getSwapRoutes = async (req, res) => {
       };
 
       response = await rango.quote(rangoParams);
+      response.route.outputAmountEur = (await utils.usdToEurConversion(response.route.outputAmountUsd)) || null;
     } catch (error) {
       if (error?.response?.data?.error) {
         throw new Error(error.response.data.error);
