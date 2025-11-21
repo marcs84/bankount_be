@@ -2192,7 +2192,7 @@ const syncTokenMetaDataInDB = async (tokens) => {
 
   await new Promise((resolve, reject) => {
     //delete existing tokens
-    connection.query(`DELETE FROM token_metadata`, (err, results) => {
+    connection.query(`TRUNCATE TABLE token_metadata`, (err, results) => {
       if (err) {
         return reject(new Error("Error deleting existing token metadata: " + err.message));
       }

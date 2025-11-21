@@ -72,14 +72,14 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Runs every day at 2:40 PM IST
 cron.schedule(
-  "15 18 * * *",
+  "59 23 * * *",
   async () => {
     console.log("Running daily token metadata sync...");
     await syncTokenMetaDataInDB();
-  },
-  {
-    timezone: "Asia/Kolkata"
   }
+  // {
+  //   timezone: "Asia/Kolkata"
+  // }
 );
 
 // Avvia il server API

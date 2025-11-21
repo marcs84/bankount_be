@@ -1273,6 +1273,7 @@ const syncTokenMetaDataInDB = async () => {
       throw new Error("No tokens found in Rango response");
     }
     await dao.syncTokenMetaDataInDB(response.tokens);
+    console.log("Token metadata synced successfully in DB");
   } catch (error) {
     console.log("Error while syncing token metadata in DB: ", error);
   }
