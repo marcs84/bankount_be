@@ -72,7 +72,7 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Runs every day at 2:40 PM IST
 cron.schedule(
-  "25 17 * * *",
+  "15 18 * * *",
   async () => {
     console.log("Running daily token metadata sync...");
     await syncTokenMetaDataInDB();

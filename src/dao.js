@@ -2184,6 +2184,11 @@ const syncTokenMetaDataInDB = async (tokens) => {
   function has4ByteUnicode(str) {
     return /[\u{10000}-\u{10FFFF}]/u.test(str || "");
   }
+  function strip4ByteChars(str) {
+    if (!str) return str;
+    // Remove all characters that are outside UTF-16 Basic Multilingual Plane
+    return str.replace(/[\u{10000}-\u{10FFFF}]/gu, "");
+  }
 
   await new Promise((resolve, reject) => {
     //delete existing tokens
@@ -2203,7 +2208,10 @@ const syncTokenMetaDataInDB = async (tokens) => {
     //insert new tokens all at once
     for (const t of tokens) {
       // skip tokens with 4-byte unicode characters
-      if (has4ByteUnicode(t.name) || has4ByteUnicode(t.symbol)) continue;
+      if (has4ByteUnicode(t.name) || has4ByteUnicode(t.symbol)) {
+        t.symbol = strip4ByteChars(t.symbol);
+        t.name = strip4ByteChars(t.name);
+      }
 
       rows.push([
         t.blockchain || null,
@@ -2248,10 +2256,9 @@ const fetchTokenMetadata = ({ chains, search, limit, offset }) => {
         AND (
           name LIKE ? 
           OR symbol LIKE ?
-          OR address LIKE ?
         )
       `;
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      params.push(`%${search}%`, `%${search}%`);
     }
 
     const sql = `
