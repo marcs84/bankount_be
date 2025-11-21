@@ -2086,40 +2086,78 @@ const fetchRangoBlockchainData = async (req, res) => {
 
 const fetchRangoMetadata = async (req, res) => {
   try {
-    const { blockchains } = req.query;
+    const { blockchains, search = "", page = 1, limit = 20 } = req.query;
+
     if (!blockchains) {
       return res.status(400).json({
         result: false,
-        message: "blockchain is required params",
-        error: "Invalid parameters",
+        message: "blockchain query param is required",
       });
     }
-    let response;
+
+    const chains = blockchains.split(",").map((c) => c.trim().toUpperCase());
+    const offset = (page - 1) * limit;
+
+    // Fetch metadata from DB (WITHOUT eurPrice)
+    const { data, total } = await dao.fetchTokenMetadata({
+      chains,
+      search,
+      limit: Number(limit),
+      offset,
+    });
+
+    // ----------------------------------------------------
+    // ⭐ Fetch USD → EUR conversion rate only once
+    // ----------------------------------------------------
+    let eurRate = 0.92; // fallback
     try {
-      response = await rango.meta({ blockchains: [blockchains], excludeNonPopulars: true });
-    } catch (error) {
-      if (error?.response?.data?.error) {
-        throw new Error(error.response.data.error);
-      } else {
-        throw error;
-      }
+      const resRate = await axios.get("https://api.frankfurter.app/latest?from=USD&to=EUR");
+      eurRate = resRate.data.rates.EUR;
+    } catch (e) {
+      console.warn("EUR conversion API failed, using fallback 0.92");
     }
 
-    for(token of response.tokens){
-      if(token.usdPrice){
-        token.eurPrice = await utils.usdToEurConversion(token.usdPrice);
+    // ----------------------------------------------------
+    // ⭐ Safely convert USD → EUR (skip tiny floating values)
+    // ----------------------------------------------------
+    const safeConvertToEUR = (usdPrice) => {
+      if (!usdPrice || usdPrice <= 0) return null;
+
+      // too small price → skip to avoid 422 / Infinity
+      if (usdPrice < 0.000001) return null;
+
+      try {
+        return Number((usdPrice * eurRate).toFixed(12));
+      } catch {
+        return null;
       }
-    }
+    };
+
+    // attach eurPrice to each row
+    const finalData = data.map((token) => ({
+      ...token,
+      eurPrice: safeConvertToEUR(token.usdPrice),
+    }));
+
     return res.status(200).json({
       result: true,
-      message: "Rango metadata fetched successfully",
-      data: response.tokens,
+      message: "Token metadata fetched successfully",
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPrevPage: page > 1,
+      },
+      data: finalData,
     });
   } catch (error) {
-    console.log("Error while fetching Rango metadata : ", error);
+    console.log("Error while fetching token metadata:", error);
+
     return res.status(500).json({
       result: false,
-      message: "Error while fetching Rango metadata : " + error.message,
+      message: "Error while fetching token metadata: " + error.message,
       error: error.message,
     });
   }

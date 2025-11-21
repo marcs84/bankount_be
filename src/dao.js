@@ -772,7 +772,7 @@ const insertTransactionNew = ({
                   from_address: result[0].from_address,
                   tx: result[0].tx,
                   destination_address: result[0].destination_address,
-                  amount: amount? amount.toString() : '0',
+                  amount: amount ? amount.toString() : "0",
                   data_insert: result[0].data_insert,
                   // block_number: block_number,
                   network_type: network_type,
@@ -2157,34 +2157,148 @@ const udpateDeviceToken = (deviceId, device_token) => {
 
 const removeInvalidDeviceToken = (userId) => {
   return new Promise((resolve, reject) => {
+    connection.query(`UPDATE device SET device_token = NULL WHERE id = ?`, [userId], (err, results) => {
+      if (err) {
+        return reject(err);
+      }
+
+      return resolve(results);
+    });
+  });
+};
+
+const removeDeviceTokenByToken = (deviceToken) => {
+  return new Promise((resolve, reject) => {
+    connection.query(`UPDATE device SET device_token = NULL WHERE device_token = ?`, [deviceToken], (err, results) => {
+      if (err) {
+        console.error(`[DAO] ERROR in removeDeviceTokenByToken:`, err);
+        return reject(err);
+      }
+
+      return resolve(results);
+    });
+  });
+};
+
+const syncTokenMetaDataInDB = async (tokens) => {
+  function has4ByteUnicode(str) {
+    return /[\u{10000}-\u{10FFFF}]/u.test(str || "");
+  }
+
+  await new Promise((resolve, reject) => {
+    //delete existing tokens
+    connection.query(`DELETE FROM token_metadata`, (err, results) => {
+      if (err) {
+        return reject(new Error("Error deleting existing token metadata: " + err.message));
+      }
+      resolve();
+    });
+  });
+
+  return new Promise((resolve, reject) => {
+    let rows = [];
+    if (tokens.length === 0) {
+      return resolve("No tokens to sync");
+    }
+    //insert new tokens all at once
+    for (const t of tokens) {
+      // skip tokens with 4-byte unicode characters
+      if (has4ByteUnicode(t.name) || has4ByteUnicode(t.symbol)) continue;
+
+      rows.push([
+        t.blockchain || null,
+        t.symbol || null,
+        t.name || null,
+        t.isPopular ? 1 : 0,
+        t.chainId || null,
+        t.address || null,
+        t.decimals != null ? t.decimals : null,
+        t.image || t.logo || null,
+        t.blockchainImage || null,
+        t.usdPrice != null ? t.usdPrice : null,
+        JSON.stringify(t.supportedSwappers || []),
+      ]);
+    }
+
+    if (rows.length === 0) return resolve("No valid tokens to insert");
+
     connection.query(
-      `UPDATE device SET device_token = NULL WHERE id = ?`, 
-      [userId], 
+      `INSERT INTO token_metadata 
+   (blockchain, symbol, name, isPopular, chainId, address, decimals, image, blockchainImage, usdPrice, supportedSwappers) 
+   VALUES ?`,
+      [rows],
       (err, results) => {
         if (err) {
-          return reject(err);
+          return reject(new Error("Error inserting token metadata: " + err.message));
         }
-        
-        return resolve(results);
+        resolve(results);
       }
     );
   });
 };
 
-const removeDeviceTokenByToken = (deviceToken) => {
-  return new Promise((resolve, reject) => {    
-    connection.query(
-      `UPDATE device SET device_token = NULL WHERE device_token = ?`, 
-      [deviceToken], 
-      (err, results) => {
-        if (err) {
-          console.error(`[DAO] ERROR in removeDeviceTokenByToken:`, err);
-          return reject(err);
-        }
-        
-        return resolve(results);
-      }
-    );
+const fetchTokenMetadata = ({ chains, search, limit, offset }) => {
+  return new Promise((resolve, reject) => {
+    const params = [];
+    let where = "WHERE blockchain IN (?)";
+    params.push(chains);
+
+    if (search && search.trim() !== "") {
+      where += `
+        AND (
+          name LIKE ? 
+          OR symbol LIKE ?
+          OR address LIKE ?
+        )
+      `;
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    const sql = `
+      SELECT 
+        id,
+        blockchain,
+        symbol,
+        name,
+        isPopular,
+        chainId,
+        address,
+        decimals,
+        image,
+        blockchainImage,
+        usdPrice,
+        supportedSwappers
+      FROM token_metadata
+      ${where}
+      ORDER BY symbol ASC
+      LIMIT ? OFFSET ?
+    `;
+    params.push(limit, offset);
+
+    const countSql = `SELECT COUNT(*) AS total FROM token_metadata ${where}`;
+
+    connection.query(countSql, params.slice(0, params.length - 2), (err, countRows) => {
+      if (err) return reject(err);
+
+      const total = countRows[0]?.total || 0;
+
+      connection.query(sql, params, (err, rows) => {
+        if (err) return reject(err);
+
+        // Parse swappers JSON
+        rows.forEach((r) => {
+          if (r.supportedSwappers) {
+            try {
+              r.supportedSwappers = JSON.parse(r.supportedSwappers);
+            } catch {
+              r.supportedSwappers = [];
+            }
+          }
+        });
+
+        resolve({ data: rows, total });
+      });
+    });
   });
 };
 
@@ -2280,4 +2394,6 @@ module.exports = {
   udpateDeviceToken,
   removeInvalidDeviceToken,
   removeDeviceTokenByToken,
+  syncTokenMetaDataInDB,
+  fetchTokenMetadata,
 };

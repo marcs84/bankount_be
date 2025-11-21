@@ -3,6 +3,8 @@ const dao = require("./dao");
 const { Redis } = require("ioredis");
 const tranasactionType = require("./server/tranasactionType");
 const cryptoCores = require("../lib/cryptoCores");
+const { RangoClient } = require("rango-sdk-basic");
+const rango = new RangoClient(process.env.RANGO_API_KEY);
 const {
   hierarchyGeneration,
   generateMasternode,
@@ -21,6 +23,7 @@ const Keystore = require("./config/Keystore");
 const fs = require("fs");
 const { default: axios } = require("axios");
 const crypto = require("crypto");
+
 const redisClient = new Redis();
 
 const encryptSymmetric = (key, plaintext) => {
@@ -1148,7 +1151,6 @@ const getLatestCoinRates = async (currency) => {
       await redisClient.set("cached_coin_prices_eur", JSON.stringify(data), "EX", process.env.COIN_GECKO_CACHE_INTERVAL || 300);
       return data;
     }
-
   } catch (error) {
     console.error("Error fetching coin rates from cache:", error);
     setTimeout(async () => {
@@ -1260,6 +1262,22 @@ const fetchLookupUrls = async (user_id, wallet_id, coin_type, data) => {
   }
 };
 
+const syncTokenMetaDataInDB = async () => {
+  try {
+    const response = await rango.meta({
+      blockchains: ["ETH", "BSC", "SOLANA", "BTC"],
+      excludeNonPopulars: false,
+    });
+
+    if (!response.tokens || response.tokens.length === 0) {
+      throw new Error("No tokens found in Rango response");
+    }
+    await dao.syncTokenMetaDataInDB(response.tokens);
+  } catch (error) {
+    console.log("Error while syncing token metadata in DB: ", error);
+  }
+};
+
 module.exports = {
   userRestore,
   changePasswordForLoggedUser,
@@ -1298,4 +1316,5 @@ module.exports = {
   convertCoinsToAmount,
   storeAddressInQuicknode,
   fetchLookupUrls,
+  syncTokenMetaDataInDB,
 };

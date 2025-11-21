@@ -1,6 +1,8 @@
 require("dotenv").config();
 
 const utils = require("./src/utils");
+const cron = require("node-cron");
+
 const fs = require("fs");
 const https = require("https");
 const express = require("express");
@@ -14,6 +16,7 @@ const { Redis } = require("ioredis");
 const { startSolanaCron } = require("./cron/solana-cron");
 const { startBinanceCron } = require("./cron/binance-cron");
 const { startEthereumCron } = require("./cron/ethereum-cron");
+const { syncTokenMetaDataInDB } = require("./src/service");
 
 // ------ DB Connection ------
 const connection = utils.mysql.createConnection({
@@ -24,7 +27,6 @@ const connection = utils.mysql.createConnection({
   connectTimeout: 60000,
 });
 
-
 const redisClient = new Redis();
 (async () => {
   try {
@@ -34,7 +36,6 @@ const redisClient = new Redis();
     console.error("Error while connecting to Redis:", error.message);
   }
 })();
-
 
 connection.connect((error) => {
   if (error) {
@@ -68,6 +69,18 @@ app.use(morgan("tiny"));
 // Importa le rotte dal file routes.js
 app.use("/", routes);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Runs every day at 2:40 PM IST
+cron.schedule(
+  "25 17 * * *",
+  async () => {
+    console.log("Running daily token metadata sync...");
+    await syncTokenMetaDataInDB();
+  },
+  {
+    timezone: "Asia/Kolkata"
+  }
+);
 
 // Avvia il server API
 if (process.env.HTTPS == "true") {
