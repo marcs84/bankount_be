@@ -13,10 +13,19 @@ const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./src/config/swagger");
 const { Redis } = require("ioredis");
 
-const { startSolanaCron } = require("./cron/solana-cron");
-const { startBinanceCron } = require("./cron/binance-cron");
-const { startEthereumCron } = require("./cron/ethereum-cron");
+// const { startSolanaCron } = require("./cron/solana-cron");
+// const { startBinanceCron } = require("./cron/binance-cron");
+// const { startEthereumCron } = require("./cron/ethereum-cron");
 const { syncTokenMetaDataInDB } = require("./src/service");
+
+// Global error handlers to aid debugging
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err && err.stack ? err.stack : err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled rejection at:', promise, 'reason:', reason);
+});
 
 // ------ DB Connection ------
 const connection = utils.mysql.createConnection({
@@ -27,16 +36,6 @@ const connection = utils.mysql.createConnection({
   connectTimeout: 60000,
 });
 
-const redisClient = new Redis();
-(async () => {
-  try {
-    await redisClient.connect();
-    console.log("Connection to Redis successful!");
-  } catch (error) {
-    console.error("Error while connecting to Redis:", error.message);
-  }
-})();
-
 connection.connect((error) => {
   if (error) {
     console.error("Errore di connessione al database: " + error.stack);
@@ -46,14 +45,10 @@ connection.connect((error) => {
   global.connection = connection; // Dichiarazione della variabile globale
 });
 
-// Configurazione del middleware di parsing del body della richiesta
-//app.use(bodyParser.json());
-//app.use(bodyParser.urlencoded({ extended: true }));
+// Top-level: rileva modalità manual sync
+const RUN_SYNC = process.argv.includes('--run-sync');
 
-// per creare i certificati da terminale eseguire
-// openssl req -x509 -newkey rsa:2048 -keyout keytmp.pem -out cert.pem -days 365
-// openssl rsa -in keytmp.pem -out key.pem
-
+// Configurazione dell'applicazione Express
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -70,32 +65,71 @@ app.use(morgan("tiny"));
 app.use("/", routes);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// Runs every day at 2:40 PM IST
-cron.schedule(
-  "59 23 * * *",
-  async () => {
-    console.log("Running daily token metadata sync...");
-    await syncTokenMetaDataInDB();
-  }
-  // {
-  //   timezone: "Asia/Kolkata"
+// Incapsula l'avvio del server e delle integrazioni
+async function bootstrapServer() {
+  // Avvio Redis solo se non in manual sync
+  // if (!RUN_SYNC) {
+    // Configurazione della connessione a Redis
+    // const redisClient = new Redis();
+    // (async () => {
+    //   try {
+    //     await redisClient.connect();
+    //     console.log("Connection to Redis successful!");
+    //   } catch (error) {
+    //     console.error("Error while connecting to Redis:", error.message);
+    //   }
+    // })();
   // }
-);
 
-// Avvia il server API
-if (process.env.HTTPS == "true") {
-  // configuro le credenziali https
-  const privateKey = fs.readFileSync(process.env.HTTPS_PRIVATEKEY, "utf8");
-  const certificate = fs.readFileSync(process.env.HTTPS_CERTIFICATE, "utf8");
-  const credentials = { key: privateKey, cert: certificate };
+  // Pianifica cron solo in modalità normale
+  if (!RUN_SYNC) {
+    // Runs every day at 23:59
+    cron.schedule(
+      "59 23 * * *",
+      async () => {
+        console.log("Running daily token metadata sync...");
+        await syncTokenMetaDataInDB();
+      }
+    );
+  }
 
-  var httpsServer = https.createServer(credentials, app);
+  // Avvio Express solo se non in manual sync
+  if (!RUN_SYNC) {
+    // Avvia il server API
+    if (process.env.HTTPS == "true") {
+      // configuro le credenziali https
+      const privateKey = fs.readFileSync(process.env.HTTPS_PRIVATEKEY, "utf8");
+      const certificate = fs.readFileSync(process.env.HTTPS_CERTIFICATE, "utf8");
+      const credentials = { key: privateKey, cert: certificate };
 
-  httpsServer.listen(port, () => {
-    console.log(`Server in ascolto sulla porta ${port} in HTTPS`);
-  });
+      var httpsServer = https.createServer(credentials, app);
+
+      httpsServer.listen(port, () => {
+        console.log(`Server in ascolto sulla porta ${port} in HTTPS`);
+      });
+    } else {
+      app.listen(port, () => {
+        console.log(`Server in ascolto sulla porta ${port} in HTTP`);
+      });
+    }
+  }
+}
+
+// Esecuzione manuale (isolata) e uscita
+if (RUN_SYNC) {
+  (async () => {
+    console.log('Running manual token metadata sync (manual trigger)...');
+    console.log('Manual sync start.');
+    try {
+      await syncTokenMetaDataInDB();
+      console.log('Manual sync completed successfully.');
+      process.exit(0);
+    } catch (err) {
+      console.error('Manual sync failed:', err && err.stack ? err.stack : err);
+      process.exit(1);
+    }
+  })();
 } else {
-  app.listen(port, () => {
-    console.log(`Server in ascolto sulla porta ${port} in HTTP`);
-  });
+  // Avvio normale dell’app
+  bootstrapServer();
 }
