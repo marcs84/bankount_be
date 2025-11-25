@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const utils = require("./src/utils");
 const cron = require("node-cron");
+const path = require("path");
 
 const fs = require("fs");
 const https = require("https");
@@ -60,6 +61,7 @@ app.use(
   })
 );
 app.use(morgan("tiny"));
+app.use('/public', express.static(path.join(process.cwd(), 'public')));
 
 // Importa le rotte dal file routes.js
 app.use("/", routes);

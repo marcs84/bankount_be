@@ -1,5 +1,8 @@
 const Keystore = require("./config/Keystore");
 const request = require("request");
+const fs = require("fs");
+const path = require("path");
+const fetch = require("node-fetch");
 
 const generateKeystore = (password, masterNode) => {
   try {
@@ -2180,70 +2183,113 @@ const removeDeviceTokenByToken = (deviceToken) => {
   });
 };
 
-const syncTokenMetaDataInDB = async (tokens) => {
+const syncTokenMetaDataInDB = (tokens) => {
   function has4ByteUnicode(str) {
     return /[\u{10000}-\u{10FFFF}]/u.test(str || "");
   }
   function strip4ByteChars(str) {
     if (!str) return str;
-    // Remove all characters that are outside UTF-16 Basic Multilingual Plane
     return str.replace(/[\u{10000}-\u{10FFFF}]/gu, "");
   }
 
-  await new Promise((resolve, reject) => {
-    //delete existing tokens
-    connection.query(`TRUNCATE TABLE token_metadata`, (err, results) => {
-      if (err) {
-        return reject(new Error("Error deleting existing token metadata: " + err.message));
-      }
-      resolve();
-    });
-  });
+  return new Promise(async (resolve, reject) => {
 
-  return new Promise((resolve, reject) => {
-    let rows = [];
-    if (tokens.length === 0) {
+    if (!tokens || tokens.length === 0) {
       return resolve("No tokens to sync");
     }
-    //insert new tokens all at once
-    for (const t of tokens) {
-      // skip tokens with 4-byte unicode characters
-      if (has4ByteUnicode(t.name) || has4ByteUnicode(t.symbol)) {
-        t.symbol = strip4ByteChars(t.symbol);
-        t.name = strip4ByteChars(t.name);
-      }
 
-      rows.push([
-        t.blockchain || null,
-        t.symbol || null,
-        t.name || null,
-        t.isPopular ? 1 : 0,
-        t.chainId || null,
-        t.address || null,
-        t.decimals != null ? t.decimals : null,
-        t.image || t.logo || null,
-        t.blockchainImage || null,
-        t.usdPrice != null ? t.usdPrice : null,
-        JSON.stringify(t.supportedSwappers || []),
-      ]);
+    let rows = [];
+
+    // -----------------------------------
+    // 1️⃣ FIRST — Download images + prepare rows
+    // -----------------------------------
+    for (const t of tokens) {
+      try {
+        if (has4ByteUnicode(t.name) || has4ByteUnicode(t.symbol)) {
+          t.symbol = strip4ByteChars(t.symbol);
+          t.name = strip4ByteChars(t.name);
+        }
+
+        if (!t.name || !t.address) continue;
+
+        // --- image downloading ---
+        try {
+          const imgUrl = t.image ?? t.logo;
+
+          if (imgUrl) {
+            const parsedUrl = new URL(imgUrl);
+            const pathname = parsedUrl.pathname;
+
+            let ext = path.extname(pathname).toLowerCase();
+            if (!ext) ext = ".png";
+
+            const folderPath = path.join(process.cwd(), "public", "token");
+            const filePath = path.join(folderPath, `${t.address}${ext}`);
+
+            if (!fs.existsSync(folderPath)) {
+              fs.mkdirSync(folderPath, { recursive: true });
+            }
+
+            if (!fs.existsSync(filePath)) {
+              const response = await fetch(imgUrl);
+              if (!response.ok) throw new Error("Failed to fetch image");
+
+              const buffer = Buffer.from(await response.arrayBuffer());
+              fs.writeFileSync(filePath, buffer);
+            }
+          }
+        } catch (e) {
+          console.log("Image download failed:", e.message);
+        }
+
+        rows.push([
+          t.blockchain || null,
+          t.symbol || null,
+          t.name || null,
+          t.isPopular ? 1 : 0,
+          t.chainId || null,
+          t.address || null,
+          t.decimals ?? null,
+          t.image || t.logo || null,
+          t.blockchainImage || null,
+          t.usdPrice ?? null,
+          JSON.stringify(t.supportedSwappers || []),
+        ]);
+      } catch (errLoop) {
+        console.log("Token loop error:", errLoop);
+      }
     }
 
     if (rows.length === 0) return resolve("No valid tokens to insert");
 
-    connection.query(
-      `INSERT INTO token_metadata 
-   (blockchain, symbol, name, isPopular, chainId, address, decimals, image, blockchainImage, usdPrice, supportedSwappers) 
-   VALUES ?`,
-      [rows],
-      (err, results) => {
-        if (err) {
-          return reject(new Error("Error inserting token metadata: " + err.message));
-        }
-        resolve(results);
+    // -----------------------------------
+    // 2️⃣ SECOND — Now TRUNCATE DB
+    // -----------------------------------
+    connection.query(`TRUNCATE TABLE token_metadata`, (err) => {
+      if (err) {
+        return reject(new Error("Error deleting existing token metadata: " + err.message));
       }
-    );
+
+      // -----------------------------------
+      // 3️⃣ THIRD — Insert final rows
+      // -----------------------------------
+      connection.query(
+        `INSERT INTO token_metadata 
+        (blockchain, symbol, name, isPopular, chainId, address, decimals, image, blockchainImage, usdPrice, supportedSwappers) 
+        VALUES ?`,
+        [rows],
+        (err, results) => {
+          if (err) {
+            return reject(new Error("Error inserting token metadata: " + err.message));
+          }
+          resolve(results);
+        }
+      );
+    });
   });
 };
+
+
 
 const fetchTokenMetadata = ({ chains, search, limit, offset }) => {
   return new Promise((resolve, reject) => {
