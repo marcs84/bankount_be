@@ -1872,23 +1872,47 @@ const fetchRangoBlockchainData = async () => {
 
 const bookmarkToken = async (token_id, wallet_id, user_id, name, symbol, rank, rev, type, chain, address, asset_type, logo) => {
   return new Promise((resolve, reject) => {
-    connection.query(
-      "INSERT INTO bookmarked_tokens(token_id, wallet_id, user_id, name, symbol, `rank`, rev, `type`, chain, address, asset_type, logo) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [token_id, wallet_id, user_id, name, symbol, rank, rev, type, chain, address, asset_type, logo],
-      (error, results) => {
-        if (error) {
-          return reject(new Error(`Error while bookmark token : ${error.message}`));
-        }
-        if (results.insertId) {
-          connection.query(`SELECT * FROM bookmarked_tokens WHERE id = ?`, results.insertId, (err, result) => {
+    const sql = `
+      INSERT INTO bookmarked_tokens(token_id, wallet_id, user_id, name, symbol, \`rank\`, rev, \`type\`, chain, address, asset_type, logo)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM bookmarked_tokens
+        WHERE token_id = ? AND wallet_id = ? AND user_id = ? AND asset_type = ?
+      )
+    `;
+    const params = [
+      token_id, wallet_id, user_id, name, symbol, rank, rev, type, chain, address, asset_type, logo,
+      token_id, wallet_id, user_id, asset_type,
+    ];
+
+    connection.query(sql, params, (error, results) => {
+      if (error) {
+        return reject(new Error(`Error while bookmark token : ${error.message}`));
+      }
+
+      if (results && results.insertId) {
+        // Inserito ora: restituisci il record appena creato
+        connection.query(`SELECT * FROM bookmarked_tokens WHERE id = ?`, [results.insertId], (err, result) => {
+          if (err) {
+            return reject(new Error(`Error while fetching bookmarked token : ${err.message}`));
+          }
+          return resolve(result[0]);
+        });
+      } else {
+        // Esiste già: restituisci il record esistente
+        connection.query(
+          `SELECT * FROM bookmarked_tokens WHERE token_id = ? AND wallet_id = ? AND user_id = ? AND asset_type = ? LIMIT 1`,
+          [token_id, wallet_id, user_id, asset_type],
+          (err, result) => {
             if (err) {
-              return reject(new Error("Error while fetching bookmarked token : " + error.message));
+              return reject(new Error(`Error while fetching bookmarked token : ${err.message}`));
             }
             return resolve(result[0]);
-          });
-        }
+          }
+        );
       }
-    );
+    });
   });
 };
 
