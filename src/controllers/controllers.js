@@ -2165,25 +2165,37 @@ const fetchRangoMetadata = async (req, res) => {
 
 const initiateSwap = async (req, res) => {
   try {
-    const { from_blockchain, from_token_address, to_blockchain, to_token_address, amount, from_wallet_address, to_wallet_address, slippage } =
-      req.body;
+    const { from_blockchain, from_token_address, to_blockchain, to_token_address, amount, from_wallet_address, to_wallet_address, slippage } = req.body;
     let response;
     try {
       // Gestisci gli indirizzi vuoti convertendoli in null per i token nativi
       const processedFromTokenAddress = from_token_address && from_token_address.trim() !== "" ? from_token_address : null;
       const processedToTokenAddress = to_token_address && to_token_address.trim() !== "" ? to_token_address : null;
 
-      const rangoSwapParams = {
+      // Costruisci i parametri dello swap
+      const swapParams = {
         from: { blockchain: from_blockchain, address: processedFromTokenAddress },
         to: { blockchain: to_blockchain, address: processedToTokenAddress },
         amount: amount,
         fromAddress: from_wallet_address,
         toAddress: to_wallet_address,
-        disableEstimate: true,
         slippage: slippage,
+        disableEstimate: true
       };
 
-      response = await rango.swap(rangoSwapParams);
+      // Referral Rango: aggiungi referrerAddress/referrerFee se configurati in .env
+      const referrerAddressEnv = process.env.RANGO_REFERRER_ADDRESS;
+      const referrerFeeEnv = process.env.RANGO_REFERRER_FEE;
+
+      if (referrerAddressEnv) {
+        swapParams.referrerAddress = referrerAddressEnv;
+        const feeNumber = referrerFeeEnv ? Number(referrerFeeEnv) : undefined;
+        if (feeNumber != null && Number.isFinite(feeNumber)) {
+          swapParams.referrerFee = feeNumber;
+        }
+      }
+
+      response = await rango.swap(swapParams);
     } catch (error) {
       if (error?.response?.data?.error) {
         throw new Error(error.response.data.error);
@@ -2215,20 +2227,26 @@ const getSwapRoutes = async (req, res) => {
       const processedFromAddress = from_address && from_address.trim() !== "" ? from_address : null;
       const processedToAddress = to_address && to_address.trim() !== "" ? to_address : null;
 
-      const rangoParams = {
-        from: {
-          blockchain: from_blockchain,
-          address: processedFromAddress,
-        },
-        to: {
-          blockchain: to_blockchain,
-          address: processedToAddress,
-        },
+      // Costruisci i parametri della richiesta quote
+      const quoteParams = {
+        from: { blockchain: from_blockchain, address: processedFromAddress },
+        to: { blockchain: to_blockchain, address: processedToAddress },
         amount: amount,
         slippage: slippage,
       };
 
-      response = await rango.quote(rangoParams);
+      // Se configurato l'indirizzo referral, aggiungi la fee al quote
+      const referrerAddressEnv = process.env.RANGO_REFERRER_ADDRESS;
+      const referrerFeeEnv = process.env.RANGO_REFERRER_FEE;
+
+      if (referrerAddressEnv) {
+        const feeNumber = referrerFeeEnv ? Number(referrerFeeEnv) : undefined;
+        if (feeNumber != null && Number.isFinite(feeNumber)) {
+          quoteParams.referrerFee = feeNumber;
+        }
+      }
+
+      response = await rango.quote(quoteParams);
       response.route.outputAmountEur = (await utils.usdToEurConversion(response.route.outputAmountUsd)) || null;
     } catch (error) {
       if (error?.response?.data?.error) {
