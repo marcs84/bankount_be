@@ -2318,7 +2318,7 @@ const fetchTokenMetadata = ({ chains, search, limit, offset }) => {
         supportedSwappers
       FROM token_metadata
       ${where}
-      ORDER BY isPopular DESC
+      ORDER BY isPopular DESC, symbol ASC
       LIMIT ? OFFSET ?
     `;
     params.push(limit, offset);
