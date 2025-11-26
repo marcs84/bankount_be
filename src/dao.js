@@ -2193,7 +2193,6 @@ const syncTokenMetaDataInDB = (tokens) => {
   }
 
   return new Promise(async (resolve, reject) => {
-
     if (!tokens || tokens.length === 0) {
       return resolve("No tokens to sync");
     }
@@ -2210,8 +2209,6 @@ const syncTokenMetaDataInDB = (tokens) => {
           t.name = strip4ByteChars(t.name);
         }
 
-        if (!t.name || !t.address) continue;
-
         // --- image downloading ---
         try {
           const imgUrl = t.image ?? t.logo;
@@ -2224,7 +2221,10 @@ const syncTokenMetaDataInDB = (tokens) => {
             if (!ext) ext = ".png";
 
             const folderPath = path.join(process.cwd(), "public", "token");
-            const filePath = path.join(folderPath, `${t.address}${ext}`);
+
+            const fileIdentifier = t.address ? t.address.toLowerCase() : `native-${t.chainId}`;
+
+            const filePath = path.join(folderPath, `${fileIdentifier}${ext}`);
 
             if (!fs.existsSync(folderPath)) {
               fs.mkdirSync(folderPath, { recursive: true });
@@ -2289,8 +2289,6 @@ const syncTokenMetaDataInDB = (tokens) => {
   });
 };
 
-
-
 const fetchTokenMetadata = ({ chains, search, limit, offset }) => {
   return new Promise((resolve, reject) => {
     const params = [];
@@ -2299,12 +2297,9 @@ const fetchTokenMetadata = ({ chains, search, limit, offset }) => {
 
     if (search && search.trim() !== "") {
       where += `
-        AND (
-          name LIKE ? 
-          OR symbol LIKE ?
-        )
+        AND symbol LIKE ?
       `;
-      params.push(`%${search}%`, `%${search}%`);
+      params.push(`%${search}%`);
     }
 
     const sql = `
@@ -2323,7 +2318,7 @@ const fetchTokenMetadata = ({ chains, search, limit, offset }) => {
         supportedSwappers
       FROM token_metadata
       ${where}
-      ORDER BY symbol ASC
+      ORDER BY isPopular DESC
       LIMIT ? OFFSET ?
     `;
     params.push(limit, offset);
