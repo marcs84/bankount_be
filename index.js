@@ -87,7 +87,7 @@ async function bootstrapServer() {
   if (!RUN_SYNC) {
     // Runs every day at 23:59
     cron.schedule(
-      "59 23 * * *",
+      "0 0 * * *",
       async () => {
         console.log("Running daily token metadata sync...");
         await syncTokenMetaDataInDB();
