@@ -1188,70 +1188,99 @@ const deleteAddressByUserId = (id_utente) => {
 
 const verifyDevice = (identifier, passkey, device_token, selected_language) => {
   return new Promise((resolve, reject) => {
-    connection.beginTransaction((err) => {
-      if (err) return reject(new Error("Transaction start error: " + err.message));
-      const checkQuery = `SELECT * FROM device WHERE identifier = ? AND is_active=1`;
-      connection.query(checkQuery, [identifier], (error, results) => {
-        if (error) {
-          return reject(new Error("Failed to retrieve device: " + error.message));
+    connection.getConnection((err, conn) => {
+      if (err) return reject(new Error("Failed to acquire DB connection: " + err.message));
+
+      conn.beginTransaction((err) => {
+        if (err) {
+          conn.release();
+          return reject(new Error("Transaction start error: " + err.message));
         }
 
-        if (results.length) {
-          if (results[0].passkey !== passkey) {
-            connection.query(
-              `UPDATE device SET is_active = 0, selected_language = ? WHERE identifier = ?`,
-              [selected_language, identifier],
-              (error, results) => {
+        const checkQuery = `SELECT * FROM device WHERE identifier = ? AND is_active=1`;
+        conn.query(checkQuery, [identifier], (error, results) => {
+          if (error) {
+            return conn.rollback(() => {
+              conn.release();
+              reject(new Error("Failed to retrieve device: " + error.message));
+            });
+          }
+
+          if (results.length) {
+            if (results[0].passkey !== passkey) {
+              conn.query(`UPDATE device SET is_active = 0, selected_language = ? WHERE identifier = ?`, [selected_language, identifier], (error) => {
                 if (error) {
-                  return connection.rollback(() => {
+                  return conn.rollback(() => {
+                    conn.release();
                     reject(new Error("Failed to update device active status : " + error.message));
                   });
                 }
-                connection.query(
-                  `INSERT INTO device (identifier, passkey, device_token, selected_language) VALUES (?, ?, ? ,?)`,
+
+                conn.query(
+                  `INSERT INTO device (identifier, passkey, device_token, selected_language) VALUES (?, ?, ?, ?)`,
                   [identifier, passkey, device_token, selected_language],
                   (error, results) => {
-                    connection.commit((err) => {
-                      if (error || err) {
-                        return connection.rollback(() => {
-                          reject(new Error("Failed to insert device : " + error.message));
+                    if (error) {
+                      return conn.rollback(() => {
+                        conn.release();
+                        reject(new Error("Failed to insert device : " + error.message));
+                      });
+                    }
+
+                    conn.commit((err) => {
+                      if (err) {
+                        return conn.rollback(() => {
+                          conn.release();
+                          reject(new Error("Failed to commit transaction : " + err.message));
                         });
                       }
-                      return resolve(results.insertId); // Return existing record's ID
+
+                      conn.release();
+                      resolve(results.insertId);
                     });
                   }
                 );
-              }
-            );
-          } else {
-            const updateQuery = `UPDATE device SET device_token = ?, selected_language = ? WHERE id = ? AND is_active = 1`;
-            connection.query(updateQuery, [device_token, selected_language, results[0].id], (updateError) => {
-              if (updateError) {
-                return reject(new Error("Failed to update device token: " + updateError.message));
-              }
-              connection.commit((err) => {
-                if (err) {
-                  return connection.rollback(() => {
-                    reject(new Error("Transaction commit error: " + err.message));
+              });
+            } else {
+              const updateQuery = `UPDATE device SET device_token = ?, selected_language = ? WHERE id = ? AND is_active = 1`;
+
+              conn.query(updateQuery, [device_token, selected_language, results[0].id], (updateError) => {
+                if (updateError) {
+                  return conn.rollback(() => {
+                    conn.release();
+                    reject(new Error("Failed to update device token: " + updateError.message));
                   });
                 }
-                resolve(results[0].id); // Return existing record's ID
+
+                conn.commit((err) => {
+                  if (err) {
+                    return conn.rollback(() => {
+                      conn.release();
+                      reject(new Error("Transaction commit error: " + err.message));
+                    });
+                  }
+
+                  conn.release();
+                  resolve(results[0].id);
+                });
               });
+            }
+          } else {
+            const insertQuery = `INSERT INTO device (identifier, passkey, device_token) VALUES (?, ?, ?)`;
+
+            conn.query(insertQuery, [identifier, passkey, device_token], (insertError, result) => {
+              conn.release();
+
+              if (insertError) {
+                const err = new Error("Failed to register device");
+                err.code = "ER_DUP_ENTRY";
+                return reject(err);
+              }
+
+              resolve(result.insertId);
             });
           }
-        } else {
-          // Insert new record if identifier and passkey are not found
-          const insertQuery = `INSERT INTO device (identifier, passkey, device_token) VALUES (?, ?, ?)`;
-          connection.query(insertQuery, [identifier, passkey, device_token], (insertError, result) => {
-            if (insertError) {
-              console.log("insertError", insertError);
-              const err = new Error("Failed to register device");
-              err.code = "ER_DUP_ENTRY";
-              return reject(err);
-            }
-            resolve(result.insertId);
-          });
-        }
+        });
       });
     });
   });
@@ -1882,8 +1911,22 @@ const bookmarkToken = async (token_id, wallet_id, user_id, name, symbol, rank, r
       )
     `;
     const params = [
-      token_id, wallet_id, user_id, name, symbol, rank, rev, type, chain, address, asset_type, logo,
-      token_id, wallet_id, user_id, asset_type,
+      token_id,
+      wallet_id,
+      user_id,
+      name,
+      symbol,
+      rank,
+      rev,
+      type,
+      chain,
+      address,
+      asset_type,
+      logo,
+      token_id,
+      wallet_id,
+      user_id,
+      asset_type,
     ];
 
     connection.query(sql, params, (error, results) => {
@@ -2108,39 +2151,47 @@ const deleteWallets = (wallet_ids = []) => {
       return reject(new Error("wallet_ids must be a non-empty array."));
     }
 
-    connection.beginTransaction((err) => {
-      if (err) return reject(new Error("Transaction start error: " + err.message));
+    connection.getConnection((err, conn) => {
+      if (err) return reject(new Error("Failed to acquire DB connection: " + err.message));
 
-      const placeholders = wallet_ids.map(() => "?").join(",");
-
-      // Step 1: Delete addresses
-      connection.query(`DELETE FROM addresses WHERE wallet_id IN (${placeholders})`, wallet_ids, (err, addressResult) => {
+      conn.beginTransaction((err) => {
         if (err) {
-          return connection.rollback(() => {
-            reject(new Error("Error deleting addresses: " + err.message));
-          });
+          conn.release();
+          return reject(new Error("Transaction start error: " + err.message));
         }
 
-        // Step 2: Delete wallets
-        connection.query(`DELETE FROM wallet WHERE id IN (${placeholders})`, wallet_ids, (err, walletResult) => {
+        const placeholders = wallet_ids.map(() => "?").join(",");
+
+        conn.query(`DELETE FROM addresses WHERE wallet_id IN (${placeholders})`, wallet_ids, (err, addressResult) => {
           if (err) {
-            return connection.rollback(() => {
-              reject(new Error("Error deleting wallets: " + err.message));
+            return conn.rollback(() => {
+              conn.release();
+              reject(new Error("Error deleting addresses: " + err.message));
             });
           }
 
-          // Step 3: Commit
-          connection.commit((err) => {
+          conn.query(`DELETE FROM wallet WHERE id IN (${placeholders})`, wallet_ids, (err, walletResult) => {
             if (err) {
-              return connection.rollback(() => {
-                reject(new Error("Transaction commit error: " + err.message));
+              return conn.rollback(() => {
+                conn.release();
+                reject(new Error("Error deleting wallets: " + err.message));
               });
             }
 
-            resolve({
-              message: "Wallets and their addresses deleted successfully",
-              addressesDeleted: addressResult.affectedRows,
-              walletsDeleted: walletResult.affectedRows,
+            conn.commit((err) => {
+              if (err) {
+                return conn.rollback(() => {
+                  conn.release();
+                  reject(new Error("Transaction commit error: " + err.message));
+                });
+              }
+
+              conn.release();
+              resolve({
+                message: "Wallets and their addresses deleted successfully",
+                addressesDeleted: addressResult.affectedRows,
+                walletsDeleted: walletResult.affectedRows,
+              });
             });
           });
         });

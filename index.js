@@ -28,23 +28,10 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled rejection at:', promise, 'reason:', reason);
 });
 
-// ------ DB Connection ------
-const connection = utils.mysql.createConnection({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USERNAME,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_DATABASE,
-  connectTimeout: 60000,
-});
-
-connection.connect((error) => {
-  if (error) {
-    console.error("Errore di connessione al database: " + error.stack);
-    return;
-  }
-  console.log("Connesso al database con id connessione " + connection.threadId);
-  global.connection = connection; // Dichiarazione della variabile globale
-});
+// ------ DB Connection Pool ------
+const pool = require("./src/config/database");
+global.connection = pool;
+console.log("Database pool initialized and assigned to global.connection");
 
 // Top-level: rileva modalità manual sync
 const RUN_SYNC = process.argv.includes('--run-sync');
