@@ -1193,15 +1193,16 @@ const verifyDevice = (identifier, passkey, device_token, selected_language) => {
 
       conn.beginTransaction((err) => {
         if (err) {
-          conn.release();
+          conn.destroy();
           return reject(new Error("Transaction start error: " + err.message));
         }
 
         const checkQuery = `SELECT * FROM device WHERE identifier = ? AND is_active=1`;
+
         conn.query(checkQuery, [identifier], (error, results) => {
           if (error) {
             return conn.rollback(() => {
-              conn.release();
+              conn.destroy(); // 🔥 key fix
               reject(new Error("Failed to retrieve device: " + error.message));
             });
           }
@@ -1211,18 +1212,19 @@ const verifyDevice = (identifier, passkey, device_token, selected_language) => {
               conn.query(`UPDATE device SET is_active = 0, selected_language = ? WHERE identifier = ?`, [selected_language, identifier], (error) => {
                 if (error) {
                   return conn.rollback(() => {
-                    conn.release();
+                    conn.destroy();
                     reject(new Error("Failed to update device active status : " + error.message));
                   });
                 }
 
                 conn.query(
-                  `INSERT INTO device (identifier, passkey, device_token, selected_language) VALUES (?, ?, ?, ?)`,
+                  `INSERT INTO device (identifier, passkey, device_token, selected_language)
+                     VALUES (?, ?, ?, ?)`,
                   [identifier, passkey, device_token, selected_language],
                   (error, results) => {
                     if (error) {
                       return conn.rollback(() => {
-                        conn.release();
+                        conn.destroy();
                         reject(new Error("Failed to insert device : " + error.message));
                       });
                     }
@@ -1230,55 +1232,70 @@ const verifyDevice = (identifier, passkey, device_token, selected_language) => {
                     conn.commit((err) => {
                       if (err) {
                         return conn.rollback(() => {
-                          conn.release();
+                          conn.destroy();
                           reject(new Error("Failed to commit transaction : " + err.message));
                         });
                       }
 
-                      conn.release();
+                      conn.release(); // ✅ safe
                       resolve(results.insertId);
                     });
                   }
                 );
               });
             } else {
-              const updateQuery = `UPDATE device SET device_token = ?, selected_language = ? WHERE id = ? AND is_active = 1`;
+              conn.query(
+                `UPDATE device SET device_token = ?, selected_language = ?
+                 WHERE id = ? AND is_active = 1`,
+                [device_token, selected_language, results[0].id],
+                (updateError) => {
+                  if (updateError) {
+                    return conn.rollback(() => {
+                      conn.destroy();
+                      reject(new Error("Failed to update device token: " + updateError.message));
+                    });
+                  }
 
-              conn.query(updateQuery, [device_token, selected_language, results[0].id], (updateError) => {
-                if (updateError) {
-                  return conn.rollback(() => {
+                  conn.commit((err) => {
+                    if (err) {
+                      return conn.rollback(() => {
+                        conn.destroy();
+                        reject(new Error("Transaction commit error: " + err.message));
+                      });
+                    }
+
                     conn.release();
-                    reject(new Error("Failed to update device token: " + updateError.message));
+                    resolve(results[0].id);
                   });
+                }
+              );
+            }
+          } else {
+            conn.query(
+              `INSERT INTO device (identifier, passkey, device_token)
+               VALUES (?, ?, ?)`,
+              [identifier, passkey, device_token],
+              (insertError, result) => {
+                if (insertError) {
+                  conn.destroy();
+                  const err = new Error("Failed to register device");
+                  err.code = "ER_DUP_ENTRY";
+                  return reject(err);
                 }
 
                 conn.commit((err) => {
                   if (err) {
                     return conn.rollback(() => {
-                      conn.release();
-                      reject(new Error("Transaction commit error: " + err.message));
+                      conn.destroy();
+                      reject(err);
                     });
                   }
 
                   conn.release();
-                  resolve(results[0].id);
+                  resolve(result.insertId);
                 });
-              });
-            }
-          } else {
-            const insertQuery = `INSERT INTO device (identifier, passkey, device_token) VALUES (?, ?, ?)`;
-
-            conn.query(insertQuery, [identifier, passkey, device_token], (insertError, result) => {
-              conn.release();
-
-              if (insertError) {
-                const err = new Error("Failed to register device");
-                err.code = "ER_DUP_ENTRY";
-                return reject(err);
               }
-
-              resolve(result.insertId);
-            });
+            );
           }
         });
       });
@@ -2152,46 +2169,42 @@ const deleteWallets = (wallet_ids = []) => {
     }
 
     connection.getConnection((err, conn) => {
-      if (err) return reject(new Error("Failed to acquire DB connection: " + err.message));
+      if (err) return reject(err);
 
       conn.beginTransaction((err) => {
         if (err) {
-          conn.release();
-          return reject(new Error("Transaction start error: " + err.message));
+          conn.destroy();
+          return reject(err);
         }
 
         const placeholders = wallet_ids.map(() => "?").join(",");
 
-        conn.query(`DELETE FROM addresses WHERE wallet_id IN (${placeholders})`, wallet_ids, (err, addressResult) => {
+        conn.query(`DELETE FROM addresses WHERE wallet_id IN (${placeholders})`, wallet_ids, (err) => {
           if (err) {
             return conn.rollback(() => {
-              conn.release();
-              reject(new Error("Error deleting addresses: " + err.message));
+              conn.destroy();
+              reject(err);
             });
           }
 
-          conn.query(`DELETE FROM wallet WHERE id IN (${placeholders})`, wallet_ids, (err, walletResult) => {
+          conn.query(`DELETE FROM wallets WHERE id IN (${placeholders})`, wallet_ids, (err, result) => {
             if (err) {
               return conn.rollback(() => {
-                conn.release();
-                reject(new Error("Error deleting wallets: " + err.message));
+                conn.destroy();
+                reject(err);
               });
             }
 
             conn.commit((err) => {
               if (err) {
                 return conn.rollback(() => {
-                  conn.release();
-                  reject(new Error("Transaction commit error: " + err.message));
+                  conn.destroy();
+                  reject(err);
                 });
               }
 
               conn.release();
-              resolve({
-                message: "Wallets and their addresses deleted successfully",
-                addressesDeleted: addressResult.affectedRows,
-                walletsDeleted: walletResult.affectedRows,
-              });
+              resolve(result);
             });
           });
         });
