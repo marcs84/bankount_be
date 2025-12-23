@@ -6,12 +6,55 @@ const fs = require("fs");
 const path = require("path");
 const smartContract = require("../contracts/smartContractController");
 const controllers = require("../controllers/controllers");
+const sysLogger = require("../sysLogger");
 
 // create application/json parser
 var jsonParser = bodyParser.json();
 
 // create application/x-www-form-urlencoded parser
 var urlencodedParser = bodyParser.urlencoded({ extended: false });
+
+// Middleware per il logging delle richieste API
+router.use((req, res, next) => {
+  const start = Date.now();
+  const originalSend = res.send;
+  const originalJson = res.json;
+  let responseBody = null;
+
+  // Intercept res.send
+  res.send = function (body) {
+    responseBody = body;
+    return originalSend.apply(this, arguments);
+  };
+
+  // Intercept res.json
+  res.json = function (body) {
+    responseBody = body;
+    return originalJson.apply(this, arguments);
+  };
+
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+
+    const logDetails = {
+      method: req.method,
+      url: req.originalUrl,
+      query: req.query,
+      body: req.body,
+      responseStatus: res.statusCode,
+      responseBody: responseBody,
+      duration: `${duration}ms`,
+      ip: req.ip || req.socket.remoteAddress
+    };
+
+    const status = res.statusCode >= 400 ? 'ERROR' : 'INFO';
+    const action = `${req.method} ${req.originalUrl}`;
+
+    sysLogger.logToDb('API_REQUEST', action, logDetails, status);
+  });
+
+  next();
+});
 
 // Route di esempio per una richiesta GET alla radice del server
 // Example route for a GET request to the server root

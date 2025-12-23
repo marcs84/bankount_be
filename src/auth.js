@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const sysLogger = require('./sysLogger');
 
 // Funzione middleware per l'autenticazione dell'app
 function authenticateTokenApp(req, res, next) {
@@ -32,13 +33,20 @@ function authenticateToken(req, res, next) {
 
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
     if (err) {
-console.log("err", err)
+      sysLogger.logToDb(
+        "SYSTEM_ERROR",
+        "auth.authenticateToken.jwtVerifyFailed",
+        {
+          error: err && err.message ? err.message : String(err),
+          path: req.path,
+        },
+        "ERROR"
+      );
 
       return res.sendStatus(403); // Forbidden
     }
-    // Se il token è valido, salva l'utente nel req.user per utilizzarlo nelle rotte successive
     req.user = user;
-    next(); // Passa al middleware successivo
+    next();
   });
 }
 

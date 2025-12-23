@@ -5,9 +5,9 @@ const tranasactionType = require("./server/tranasactionType");
 const cryptoCores = require("../lib/cryptoCores");
 const { RangoClient } = require("rango-sdk-basic");
 const rango = new RangoClient(process.env.RANGO_API_KEY);
+const sysLogger = require("./sysLogger");
 const {
   hierarchyGeneration,
-  generateMasternode,
   addCryptoAccount,
   recoverPrivateKey,
   calculateSHA1,
@@ -15,32 +15,27 @@ const {
   isMnemonicCompatible,
 } = require("./config/generation");
 const { PublicKey } = require("@solana/web3.js");
-const { openWallet } = require("../lib/monero/monero-core");
 const erc20Tokens = require("./contractsCreation/erc20/ERC20Contracts");
 const bep20Tokens = require("./contractsCreation/bep20/BEP20Contracts");
 const slpTokens = require("./contractsCreation/slp/SLPtokens");
 const Keystore = require("./config/Keystore");
-const fs = require("fs");
 const { default: axios } = require("axios");
-const crypto = require("crypto");
 
 const redisClient = new Redis();
 
-const encryptSymmetric = (key, plaintext) => {
-  const iv = crypto.randomBytes(12).toString("base64");
-  const cipher = crypto.createCipheriv("aes-256-gcm", Buffer.from(key, "base64"), Buffer.from(iv, "base64"));
-  let ciphertext = cipher.update(plaintext, "utf8", "base64");
-  ciphertext += cipher.final("base64");
-  const tag = cipher.getAuthTag();
-
-  return { ciphertext, tag };
+const logServiceDbError = (action, error, meta = {}) => {
+  try {
+    sysLogger.logToDb(
+      "DB_QUERY_ERROR",
+      action,
+      {
+        error: error && error.message ? error.message : String(error),
+        ...meta,
+      },
+      "ERROR"
+    );
+  } catch (e) {}
 };
-
-const plaintext = "encrypt me";
-const key = crypto.randomBytes(32).toString("base64");
-
-const { ciphertext, iv, tag } = encryptSymmetric(key, plaintext);
-console.log("ciphertext", ciphertext);
 
 const userRestore = (id_utente, nome, cognome, email, password, tokenVerifica) => {
   return new Promise((resolve, reject) => {
@@ -50,6 +45,7 @@ const userRestore = (id_utente, nome, cognome, email, password, tokenVerifica) =
         resolve(result);
       })
       .catch((error) => {
+        logServiceDbError("service.userRestore", error, { id_utente, email });
         reject(error);
       });
   });
@@ -73,6 +69,7 @@ const getAddresses = (id) => {
         resolve(addresses);
       })
       .catch((error) => {
+        logServiceDbError("service.getAddresses", error, { id });
         reject(error);
       });
   });
@@ -86,6 +83,7 @@ const getTransactions = (id, network_type, limit, offset) => {
         resolve({ totalCount, transactions });
       })
       .catch((error) => {
+        logServiceDbError("service.getTransactions", error, { id, network_type, limit, offset });
         reject(error);
       });
   });
@@ -99,6 +97,7 @@ const getTransactionsByAddress = (address, limit, offset) => {
         resolve({ totalCount, transactions });
       })
       .catch((error) => {
+        logServiceDbError("service.getTransactionsByAddress", error, { address, limit, offset });
         reject(error);
       });
   });
@@ -119,7 +118,6 @@ const getBalance = (cointype, address, network, user_id, wallet_id) => {
           } else {
             balance = await cryptoCores.bitcoinCore.btcCore.getBalance(address, network);
           }
-          console.log("balance", balance);
           break;
         }
 
@@ -699,6 +697,7 @@ const getLatestTransactionsFromDB = (limit) => {
         resolve(result);
       })
       .catch((error) => {
+        logServiceDbError("service.getLatestTransactionsFromDB", error, { limit });
         reject(error);
       });
   });
@@ -719,7 +718,7 @@ const getAllTransactions = (addresses) => {
             const transactions = await dao.getTransactionsForAddress(address);
             allTransactions.push(...transactions);
           } catch (error) {
-            console.log(`No transactions found for address ${address}`);
+            logServiceDbError("service.getAllTransactions.forAddress", error, { address, currency });
           }
         }
       }
@@ -730,7 +729,6 @@ const getAllTransactions = (addresses) => {
         return 0;
       });
       resolve(allTransactions);
-      console.log(allTransactions);
     } catch (error) {
       reject(error);
     }
@@ -743,6 +741,7 @@ const getAllTransactionsForAddress = (address) => {
       const transactions = await dao.getTransactionsForAddress(address);
       resolve(transactions);
     } catch (error) {
+      logServiceDbError("service.getAllTransactionsForAddress", error, { address });
       reject(error);
     }
   });
@@ -777,9 +776,11 @@ const changePasswordForLoggedUser = async (old_password, new_password, id) => {
         let result = await dao.changePassword(encryptedNewPassword, id);
         resolve(result);
       } catch (err) {
+        logServiceDbError("service.changePasswordForLoggedUser", err, { id });
         throw utils.createCustomError(err.message, "Database update error: ");
       }
     } catch (error) {
+      logServiceDbError("service.changePasswordForLoggedUser", error, { id });
       reject(error);
     }
   });
@@ -809,9 +810,11 @@ const changePasswordForNoLoggedUser = async (token, new_password) => {
         let result = await dao.changePassword(encryptedNewPassword, user.id);
         resolve(result);
       } catch (err) {
+        logServiceDbError("service.changePasswordForNoLoggedUser", err, { userId: user.id });
         throw utils.createCustomError(err.message, "Database update error: ");
       }
     } catch (error) {
+      logServiceDbError("service.changePasswordForNoLoggedUser", error, { token });
       reject(error);
     }
   });
@@ -845,6 +848,7 @@ function _createUniqueUser(attempt = 0) {
       .catch((error) => reject(error));
   });
 }
+
 const generateMasternodeFromMmenomnicService = (mnemonic, network) => {
   return new Promise(async (resolve, reject) => {
     try {
@@ -868,12 +872,28 @@ const generateMasternodeFromMmenomnicService = (mnemonic, network) => {
                 resolve(userId);
               })
               .catch((error) => {
-                console.log(error);
+                sysLogger.logToDb(
+                  "SYSTEM_ERROR",
+                  "service.generateMasternodeFromMmenomnicService.createUserFailed",
+                  {
+                    error: error && error.message ? error.message : String(error),
+                    network,
+                  },
+                  "ERROR"
+                );
                 reject(error);
               });
           })
           .catch((error) => {
-            console.log(error);
+            sysLogger.logToDb(
+              "SYSTEM_ERROR",
+              "service.generateMasternodeFromMmenomnicService.createUserWrapperFailed",
+              {
+                error: error && error.message ? error.message : String(error),
+                network,
+              },
+              "ERROR"
+            );
             reject(error);
           });
       }
@@ -1152,7 +1172,16 @@ const getLatestCoinRates = async (currency) => {
       return data;
     }
   } catch (error) {
-    console.error("Error fetching coin rates from cache:", error);
+    sysLogger.logToDb(
+      "SYSTEM_ERROR",
+      "service.getLatestCoinRates.failed",
+      {
+        currency,
+        error: error && error.message ? error.message : String(error),
+      },
+      "ERROR"
+    );
+    
     setTimeout(async () => {
       const data = await redisClient.get("cached_coin_prices");
       return JSON.parse(data);
@@ -1190,7 +1219,15 @@ const storeAddressInQuicknode = async (address) => {
       return true;
     }
   } catch (error) {
-    console.log("Error whlie storing address in Quicknode Key-Value Store : ", error);
+    sysLogger.logToDb(
+      "SYSTEM_ERROR",
+      "service.storeAddressInQuicknode.failed",
+      {
+        address,
+        error: error && error.message ? error.message : String(error),
+      },
+      "ERROR"
+    );
     return false;
   }
 };
@@ -1273,9 +1310,23 @@ const syncTokenMetaDataInDB = async () => {
       throw new Error("No tokens found in Rango response");
     }
     await dao.syncTokenMetaDataInDB(response.tokens);
-    console.log("Token metadata synced successfully in DB");
+    sysLogger.logToDb(
+      "SYSTEM_EVENT",
+      "service.syncTokenMetaDataInDB.success",
+      {
+        tokenCount: response.tokens.length,
+      },
+      "INFO"
+    );
   } catch (error) {
-    console.log("Error while syncing token metadata in DB: ", error);
+    sysLogger.logToDb(
+      "SYSTEM_ERROR",
+      "service.syncTokenMetaDataInDB.failed",
+      {
+        error: error && error.message ? error.message : String(error),
+      },
+      "ERROR"
+    );
   }
 };
 

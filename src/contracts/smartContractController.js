@@ -56,7 +56,7 @@ const deploySmartContract = async (req, res) => {
       data: bytecode,
       arguments: [name, symbol, initialSupply],
     });
-    console.log("tx", tx)
+    
     const gas = await tx.estimateGas();
 
     const txObject = {
@@ -66,11 +66,9 @@ const deploySmartContract = async (req, res) => {
     };
 
     const receipt = await web3.eth.sendTransaction(txObject);
-    console.log('Contract deployed at:', receipt.contractAddress);
-
+    
     res.json({ success: true, contractAddress: receipt.contractAddress });
   } catch (error) {
-    console.error('Deployment failed:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 };

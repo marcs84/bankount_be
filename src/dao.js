@@ -1,8 +1,22 @@
 const Keystore = require("./config/Keystore");
-const request = require("request");
 const fs = require("fs");
 const path = require("path");
 const fetch = require("node-fetch");
+const sysLogger = require("./sysLogger");
+
+const logDbError = (action, error, meta = {}) => {
+  try {
+    sysLogger.logToDb(
+      "DB_QUERY_ERROR",
+      action,
+      {
+        error: error && error.message ? error.message : String(error),
+        ...meta,
+      },
+      "ERROR"
+    );
+  } catch (e) {}
+};
 
 const generateKeystore = (password, masterNode) => {
   try {
@@ -22,6 +36,7 @@ const createUser = (nome, cognome, email, password, tokenVerifica, keystore, sta
   return new Promise((resolve, reject) => {
     connection.query(queryRegistration, queryParams, (error, results) => {
       if (error) {
+        logDbError("dao.createUser", error, { query: queryRegistration, params: queryParams });
         const err = new Error("Failed to create user");
         err.code = "ER_DUP_ENTRY";
         reject(err);
@@ -88,6 +103,7 @@ const getMaxIndexAddress = (cointype, id_utente) => {
   return new Promise((resolve, reject) => {
     connection.query(queryLastIndex, [id_utente, cointype], (error, results) => {
       if (error) {
+        logDbError("dao.getMaxIndexAddress", error, { query: queryLastIndex, params: [id_utente, cointype] });
         reject("Failed to retrieve max index: " + error.message);
       } else if (results.length === 1) {
         const maxIndex = results[0].MaxIndex;
@@ -105,6 +121,7 @@ const getUserById = (id) => {
   return new Promise((resolve, reject) => {
     connection.query(query, [id], (error, results) => {
       if (error) {
+        logDbError("dao.getUserById", error, { query, params: [id] });
         reject("Error retrieving user by ID: " + error.message);
         return;
       }
@@ -330,14 +347,13 @@ const getTransactions = (id, network_type, limit, offset) => {
     // network_type = '%'+network_type+'%';
     connection.query(query, [id, network_type, limit, offset], (error, transactions) => {
       if (error) {
-        console.log("error", error);
+        logDbError("dao.getTransactions.mainQuery", error, { query, params: [id, network_type, limit, offset] });
         reject("Error querying the transactions: " + error.message);
         return;
       }
       connection.query(countQuery, [id, network_type], (countError, countResults) => {
         if (countError) {
-          console.log("countError", countError);
-
+          logDbError("dao.getTransactions.countQuery", countError, { query: countQuery, params: [id, network_type] });
           reject("Error querying the transaction count: " + countError.message);
           return;
         }
@@ -350,7 +366,6 @@ const getTransactions = (id, network_type, limit, offset) => {
 };
 
 const filterTransactions = (data) => {
-  console.log("data", data);
   const { limit, offset, wallet_id, start_date, end_date, search, chain, network_type, device_id } = data;
 
   try {
@@ -400,10 +415,7 @@ const filterTransactions = (data) => {
       params.push(network_type);
     }
 
-    query += `
-    ORDER BY t.id DESC
-        `;
-    console.log("query", query);
+    query += " ORDER BY t.id DESC ";
 
     // Add LIMIT and OFFSET if provided
     if (limit) {
@@ -419,28 +431,32 @@ const filterTransactions = (data) => {
     return new Promise((resolve, reject) => {
       connection.query(query, params, async (error, transactions) => {
         if (error) {
-          console.log("error", error);
+          logDbError("dao.filterTransactions.mainQuery", error, { query, params });
           reject("Error querying the transactions: " + error.message);
           return;
         }
+        
         //for wallet address in each transaction check if from address belongs to it or destination address, and accordingly assign the transaction_type
         const walletAddresses = await new Promise((resolve, reject) => {
-          connection.query(`SELECT * FROM addresses WHERE wallet_id = ?`, [wallet_id], (error, results) => {
+          const walletQuery = `SELECT * FROM addresses WHERE wallet_id = ?`;
+          connection.query(walletQuery, [wallet_id], (error, results) => {
             if (error) {
+              logDbError("dao.filterTransactions.walletAddresses", error, {
+                query: walletQuery,
+                params: [wallet_id],
+              });
               reject("Error querying wallet addresses: " + error.message);
               return;
             }
             resolve(results);
           });
         });
+
         const walletAddressesMap = walletAddresses.map((addressObj) => addressObj.address);
-        console.log("walletAddresses", walletAddressesMap);
         transactions = transactions.map((tx) => {
           if (walletAddressesMap.includes(tx.from_address)) {
-            console.log("Outgoing transaction detected:", tx);
             tx.transaction_type = "outgoing";
           } else if (walletAddressesMap.includes(tx.destination_address)) {
-            console.log("Incoming transaction detected:", tx);
             tx.transaction_type = "incoming";
           }
           return tx;
@@ -494,15 +510,18 @@ const getTransactionsByAddress = (address, limit, offset) => {
 
     connection.query(query, [address, limit, offset], (error, transactions) => {
       if (error) {
+        logDbError("dao.getTransactionsByAddress.mainQuery", error, { query, params: [address, limit, offset] });
         reject("Error querying the transactions: " + error.message);
         return;
       }
+      
       connection.query(countQuery, [address], (countError, countResults) => {
         if (countError) {
+          logDbError("dao.getTransactionsByAddress.countQuery", countError, { query: countQuery, params: [address] });
           reject("Error querying the transaction count: " + countError.message);
           return;
         }
-        // console.log("data", transactions, "count", countResults[0].totalCount)
+
         const totalCount = countResults[0].totalCount;
         resolve({ totalCount, transactions });
       });
@@ -513,14 +532,15 @@ const getTransactionsByAddress = (address, limit, offset) => {
 const getLatestTransactionsFromDB = (limit) => {
   return new Promise((resolve, reject) => {
     const query = `
-            SELECT *
-            FROM transactions 
-            ORDER BY data_insert DESC
-            LIMIT ?
-        `;
+      SELECT *
+      FROM transactions 
+      ORDER BY data_insert DESC
+      LIMIT ?
+    `;
 
     connection.query(query, [Number(limit)], (error, transactions) => {
       if (error) {
+        logDbError("dao.getLatestTransactionsFromDB", error, { query, params: [Number(limit)] });
         reject("Error querying the transactions: " + error.message);
         return;
       }
@@ -630,6 +650,7 @@ const insertTransaction = (
     const query = `SELECT * FROM transactions where tx = ?`;
     connection.query(query, [tx], (err, txResult) => {
       if (err) {
+        logDbError("dao.insertTransaction.selectExisting", err, { query, params: [tx] });
         reject("Error in transaction data " + err.message);
       } else if (txResult && txResult.length > 0) {
         resolve(txResult);
@@ -639,6 +660,7 @@ const insertTransaction = (
         const values = [chain, address_id, fromAddress, tx, destinationAddress, amount, data_insert, block_number, userId, network_type, wallet_id];
         connection.query(queryInsertTx, values, (error, results) => {
           if (error) {
+            logDbError("dao.insertTransaction.insertCoinOrToken", error, { query: queryInsertTx, values });
             reject("Error during transaction insertion: " + error.message);
           } else if (results && results.insertId) {
             resolve({
@@ -675,6 +697,7 @@ const insertTransaction = (
             ];
             connection.query(queryInsertTx, values, (error, results) => {
               if (error) {
+                logDbError("dao.insertTransaction.insertWithType", error, { query: queryInsertTx, values });
                 reject("Error during transaction insertion: " + error.message);
               } else if (results && results.insertId) {
                 resolve({
@@ -728,45 +751,64 @@ const insertTransactionNew = ({
   usd_price = null,
 }) => {
   return new Promise((resolve, reject) => {
-    connection.query(`SELECT * FROM transactions WHERE tx = ? AND wallet_id = ?`, [tx, wallet_id], (err, results) => {
+    const query = `SELECT * FROM transactions WHERE tx = ? AND wallet_id = ?`;
+    connection.query(query, [tx, wallet_id], (err, results) => {
       if (err) {
+        logDbError("dao.insertTransactionNew.selectExisting", err, {
+          query: query,
+          params: [tx, wallet_id],
+        });
         return reject(new Error("Error while inserting transaction data : " + err.message));
       }
+
       if (results.length) {
         // update the transaction data with new data
+        const query = `UPDATE transactions SET address_id = ?, id_utente = ?, wallet_id = ?, chain = ?, chain_id = ?, network_type = ?, block_number = ?, gas = ?, gas_price = ?, type = ?, block_hash = ?, input = ?, from_address = ?, destination_address = ?, amount = ?, tx_status = ?, token = ?, logo = ?, usd_price = ? WHERE id = ?`;
+        const values = [
+          address_id,
+          id_utente,
+          wallet_id,
+          chain,
+          chain_id,
+          network_type,
+          block_number,
+          gas,
+          gas_price,
+          type,
+          block_hash,
+          input,
+          from_address,
+          destination_address,
+          amount,
+          "success", //update will execute when there will be webhook call from quicknode
+          token,
+          logo,
+          usd_price,
+          results[0].id,
+        ];
+
         connection.query(
-          `UPDATE transactions SET address_id = ?, id_utente = ?, wallet_id = ?, chain = ?, chain_id = ?, network_type = ?, block_number = ?, gas = ?, gas_price = ?, type = ?, block_hash = ?, input = ?, from_address = ?, destination_address = ?, amount = ?, tx_status = ?, token = ?, logo = ?, usd_price = ? WHERE id = ?`,
-          [
-            address_id,
-            id_utente,
-            wallet_id,
-            chain,
-            chain_id,
-            network_type,
-            block_number,
-            gas,
-            gas_price,
-            type,
-            block_hash,
-            input,
-            from_address,
-            destination_address,
-            amount,
-            "success", //update will execute when there will be webhook call from quicknode
-            token,
-            logo,
-            usd_price,
-            results[0].id,
-          ],
+          query,
+          values,
           (error, result) => {
             if (error) {
+              logDbError("dao.insertTransactionNew.updateExisting", error, { query: query, values });
               return reject(new Error("Error while inserting transaction data : " + error.message));
             }
+
             if (result.affectedRows) {
-              connection.query(`SELECT * FROM transactions WHERE tx = ?`, [tx], (error, result) => {
+              const query = `SELECT * FROM transactions WHERE tx = ?`;
+              connection.query(query, [tx], (error, result) => {
+                
                 if (error || result.length === 0) {
-                  return reject(new Error("Error while fetching updated transaction data : " + error.message));
+                  const errToUse = error || new Error("No rows");
+                  logDbError("dao.insertTransactionNew.fetchUpdated", errToUse, {
+                    query: query,
+                    params: [tx],
+                  });
+                  return reject(new Error("Error while fetching updated transaction data : " + errToUse.message));
                 }
+
                 return resolve({
                   id: result[0].id,
                   chain: result[0].chain,
@@ -791,39 +833,49 @@ const insertTransactionNew = ({
           }
         );
       } else {
+        const query = `INSERT INTO transactions(address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount, data_insert, tx_status, token, logo, usd_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        const values = [
+          address_id,
+          id_utente,
+          wallet_id,
+          chain,
+          chain_id,
+          network_type,
+          block_number,
+          gas,
+          gas_price,
+          type,
+          block_hash,
+          input,
+          from_address,
+          destination_address,
+          tx,
+          amount,
+          new Date(),
+          isHistoryReceivedFromWebhook ? "success" : "pending", // tx_status will be 'success' if the transaction is received from webhook, otherwise 'pending',
+          token,
+          logo,
+          usd_price,
+        ];
         connection.query(
-          `INSERT INTO transactions(address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount, data_insert, tx_status, token, logo, usd_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            address_id,
-            id_utente,
-            wallet_id,
-            chain,
-            chain_id,
-            network_type,
-            block_number,
-            gas,
-            gas_price,
-            type,
-            block_hash,
-            input,
-            from_address,
-            destination_address,
-            tx,
-            amount,
-            new Date(),
-            isHistoryReceivedFromWebhook ? "success" : "pending", // tx_status will be 'success' if the transaction is received from webhook, otherwise 'pending',
-            token,
-            logo,
-            usd_price,
-          ],
+          query,
+          values,
           (error, result) => {
             if (error) {
+              logDbError("dao.insertTransactionNew.insertNew", error, { query: query, values });
               return reject(new Error("Error while inserting transaction : " + error.message));
             }
-            connection.query(`SELECT * FROM transactions WHERE id = ?`, [result.insertId], (error, result) => {
+
+            const query = `SELECT * FROM transactions WHERE id = ?`;
+            connection.query(query, [result.insertId], (error, result) => {
               if (error) {
+                logDbError("dao.insertTransactionNew.fetchInserted", error, {
+                  query: query,
+                  params: [result.insertId],
+                });
                 return reject(new Error("Error while fetching inserted data : " + error.message));
               }
+
               return resolve({
                 id: result[0].id,
                 chain: result[0].chain,
@@ -854,6 +906,7 @@ const transactionExists = (txHash) => {
   return new Promise((resolve, reject) => {
     connection.query(queryTransaction, [txHash], (error, results) => {
       if (error) {
+        logDbError("dao.transactionExists", error, { query: queryTransaction, params: [txHash] });
         reject("Failed to check transaction.");
       } else {
         const count = results[0].count;
@@ -865,13 +918,17 @@ const transactionExists = (txHash) => {
 
 const insertTransactionNotification = (user_id, wallet_id, notification_title, notification_body, chain) => {
   return new Promise((resolve, reject) => {
+    const query = `INSERT INTO transaction_notifications(user_id, wallet_id, notification_title, notification_body, chain) VALUES (?, ?, ?, ?, ?)`;
+    const values = [user_id, wallet_id, notification_title, notification_body, chain];
     connection.query(
-      `INSERT INTO transaction_notifications(user_id, wallet_id, notification_title, notification_body, chain) VALUES (?, ?, ?, ?, ?)`,
-      [user_id, wallet_id, notification_title, notification_body, chain],
+      query,
+      values,
       (error, results) => {
         if (error) {
+          logDbError("dao.insertTransactionNotification", error, { query: query, params: values });
           return reject(new Error("Error while inserting transaction notification : " + error.message));
         }
+
         return resolve(results);
       }
     );
@@ -884,6 +941,7 @@ const getAddressesByUserIdAndCoinType = (id_utente, cointype) => {
   return new Promise((resolve, reject) => {
     connection.query(queryAddresses, [id_utente, cointype], (error, results) => {
       if (error) {
+        logDbError("dao.getAddressesByUserIdAndCoinType", error, { query: queryAddresses, params: [id_utente, cointype] });
         reject("Failed to get addresses.");
       } else {
         resolve(results);
@@ -965,19 +1023,19 @@ const saveMasternode = (masternode, id_utente) => {
   });
 };
 
-const getMasternode = () => {
-  const queryInsertMasternode = "UPDATE utenti SET masternode = ? WHERE id = ?";
+// const getMasternode = () => {
+//   const queryInsertMasternode = "UPDATE utenti SET masternode = ? WHERE id = ?";
 
-  return new Promise((resolve, reject) => {
-    connection.query(queryInsertMasternode, [masternode, id_utente], (error, results) => {
-      if (error) {
-        reject("Failed to update masternode.");
-      } else {
-        resolve(results);
-      }
-    });
-  });
-};
+//   return new Promise((resolve, reject) => {
+//     connection.query(queryInsertMasternode, [masternode, id_utente], (error, results) => {
+//       if (error) {
+//         reject("Failed to update masternode.");
+//       } else {
+//         resolve(results);
+//       }
+//     });
+//   });
+// };
 
 const saveTokenDataForUser = (token_verifica, email) => {
   const queryInsertMasternode = "UPDATE utenti SET token_verifica = ? WHERE email = ?";
@@ -1332,7 +1390,6 @@ const insertUserAddress = async (userData) => {
       });
     })
   );
-  console.log("results", results);
   return results;
 };
 
@@ -1359,7 +1416,6 @@ const verifyDeviceDetails = (identifier) => {
   const queryParams = [identifier];
   return new Promise((resolve, reject) => {
     connection.query(query, queryParams, (error, results) => {
-      console.log("identifier", results);
       if (error) {
         reject("Failed to retrieve device: " + error.message);
       } else if (results.length === 1) {
@@ -1814,8 +1870,6 @@ const filterAddresses = (filters) => {
       queryParams.push(filters[filter]);
     });
   }
-  console.log("query", query);
-  console.log("queryParams", queryParams);
 
   return new Promise((resolve, reject) => {
     connection.query(query, queryParams, (error, results) => {
@@ -2118,7 +2172,6 @@ const fetchDappsList = async (page, limit, key) => {
       }
       const data = { dappsList: results };
       connection.query(`SELECT COUNT(*) as count FROM dapps_list WHERE title LIKE ?`, [`%${key}%`], (error, result) => {
-        console.log("result", result);
         const totalCount = result[0].count;
         data.totalPages = Math.ceil(totalCount / limit);
         data.totalCount = totalCount;
@@ -2146,7 +2199,6 @@ const fetchTransactionNotification = async (user_id, wallet_id, page, limit) => 
           `SELECT COUNT(*) as count FROM transaction_notifications WHERE user_id = ? AND wallet_id = ?`,
           [user_id, wallet_id],
           (error, result) => {
-            console.log("result", result);
             const totalCount = result[0].count;
             data.totalPages = Math.ceil(totalCount / limit);
             data.totalCount = totalCount;
@@ -2260,9 +2312,10 @@ const removeInvalidDeviceToken = (userId) => {
 
 const removeDeviceTokenByToken = (deviceToken) => {
   return new Promise((resolve, reject) => {
-    connection.query(`UPDATE device SET device_token = NULL WHERE device_token = ?`, [deviceToken], (err, results) => {
+    const query = `UPDATE device SET device_token = NULL WHERE device_token = ?`;
+    connection.query(query, [deviceToken], (err, results) => {
       if (err) {
-        console.error(`[DAO] ERROR in removeDeviceTokenByToken:`, err);
+        logDbError("dao.removeDeviceTokenByToken", err, { query, params: [deviceToken] });
         return reject(err);
       }
 
@@ -2327,7 +2380,15 @@ const syncTokenMetaDataInDB = (tokens) => {
             }
           }
         } catch (e) {
-          console.log("Image download failed:", e.message);
+          sysLogger.logToDb(
+            "SYSTEM_ERROR",
+            "dao.syncTokenMetaDataInDB.imageDownloadFailed",
+            {
+              imageUrl: imgUrl,
+              error: e && e.message ? e.message : String(e),
+            },
+            "ERROR"
+          );
         }
 
         rows.push([
@@ -2344,7 +2405,16 @@ const syncTokenMetaDataInDB = (tokens) => {
           JSON.stringify(t.supportedSwappers || []),
         ]);
       } catch (errLoop) {
-        console.log("Token loop error:", errLoop);
+        sysLogger.logToDb(
+          "SYSTEM_ERROR",
+          "dao.syncTokenMetaDataInDB.tokenLoopError",
+          {
+            tokenAddress: t && t.address ? t.address : null,
+            chainId: t && t.chainId ? t.chainId : null,
+            error: errLoop && errLoop.message ? errLoop.message : String(errLoop),
+          },
+          "ERROR"
+        );
       }
     }
 

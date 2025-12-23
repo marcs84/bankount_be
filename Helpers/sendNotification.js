@@ -1,5 +1,6 @@
 const admin = require('./firebase');
 const dao = require('../src/dao');
+const sysLogger = require('../src/sysLogger');
 
 async function sendNotification(deviceToken, { notificationTitle, notificationBody }, userId = null) {
   
@@ -33,7 +34,17 @@ async function sendNotification(deviceToken, { notificationTitle, notificationBo
 
   try {
     await admin.messaging().send(message);
-    console.log(`Notification sent to ${deviceToken}`);
+    sysLogger.logToDb(
+      "SYSTEM_EVENT",
+      "notification.sent",
+      {
+        deviceToken,
+        userId,
+        notificationTitle,
+        notificationBody,
+      },
+      "INFO"
+    );
     return { success: true };
   } catch (error) {
       // Gestione specifica per token non validi
@@ -47,7 +58,16 @@ async function sendNotification(deviceToken, { notificationTitle, notificationBo
             await dao.removeDeviceTokenByToken(deviceToken);
           }
         } catch (dbError) {
-          console.error(`[NOTIFICATION] DATABASE ERROR: Failed to remove invalid token for user ${userId}:`, dbError);
+          sysLogger.logToDb(
+            "SYSTEM_ERROR",
+            "notification.removeInvalidDeviceToken.failed",
+            {
+              userId,
+              deviceToken,
+              error: dbError && dbError.message ? dbError.message : String(dbError),
+            },
+            "ERROR"
+          );
         }
         
         return { success: false, tokenInvalid: true };
@@ -61,15 +81,18 @@ const sendNotificationToMultipleDevices = async (deviceTokens, { notificationTit
   if (!deviceTokens || deviceTokens.length === 0) {
     return [];
   }
+
   const results = [];
   for (let i = 0; i < deviceTokens.length; i++) {
     const deviceToken = deviceTokens[i];
     const result = await sendNotification(deviceToken, { notificationTitle, notificationBody });
     results.push({ deviceToken, ...result });
   }
+  
   const successCount = results.filter(r => r.success).length;
   const invalidTokenCount = results.filter(r => r.tokenInvalid).length;
   const errorCount = results.filter(r => !r.success && !r.tokenInvalid).length;
+  
   return results;
 };
 

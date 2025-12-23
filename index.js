@@ -13,6 +13,7 @@ const routes = require("./src/server/routes");
 const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./src/config/swagger");
 const { Redis } = require("ioredis");
+const sysLogger = require("./src/sysLogger");
 
 // const { startSolanaCron } = require("./cron/solana-cron");
 // const { startBinanceCron } = require("./cron/binance-cron");
@@ -21,17 +22,41 @@ const { syncTokenMetaDataInDB } = require("./src/service");
 
 // Global error handlers to aid debugging
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught exception:', err && err.stack ? err.stack : err);
+  const errorDetails = err && err.stack ? err.stack : String(err);
+  sysLogger.logToDb(
+    "SYSTEM_ERROR",
+    "process.uncaughtException",
+    {
+      error: errorDetails,
+    },
+    "ERROR"
+  );
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled rejection at:', promise, 'reason:', reason);
+  const reasonDetails = reason && reason.stack ? reason.stack : String(reason);
+  sysLogger.logToDb(
+    "SYSTEM_ERROR",
+    "process.unhandledRejection",
+    {
+      reason: reasonDetails,
+      promise: String(promise),
+    },
+    "ERROR"
+  );
 });
 
 // ------ DB Connection Pool ------
 const pool = require("./src/config/database");
 global.connection = pool;
-console.log("Database pool initialized and assigned to global.connection");
+sysLogger.logToDb(
+  "SYSTEM_EVENT",
+  "database.pool.initialized",
+  {
+    message: "Database pool initialized and assigned to global.connection",
+  },
+  "INFO"
+);
 
 // Top-level: rileva modalità manual sync
 const RUN_SYNC = process.argv.includes('--run-sync');
@@ -56,27 +81,20 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Incapsula l'avvio del server e delle integrazioni
 async function bootstrapServer() {
-  // Avvio Redis solo se non in manual sync
-  // if (!RUN_SYNC) {
-    // Configurazione della connessione a Redis
-    // const redisClient = new Redis();
-    // (async () => {
-    //   try {
-    //     await redisClient.connect();
-    //     console.log("Connection to Redis successful!");
-    //   } catch (error) {
-    //     console.error("Error while connecting to Redis:", error.message);
-    //   }
-    // })();
-  // }
-
   // Pianifica cron solo in modalità normale
   if (!RUN_SYNC) {
     // Runs every day at 23:59
     cron.schedule(
       "0 0 * * *",
       async () => {
-        console.log("Running daily token metadata sync...");
+        sysLogger.logToDb(
+          "SYSTEM_EVENT",
+          "cron.syncTokenMetaDataInDB.start",
+          {
+            message: "Running daily token metadata sync...",
+          },
+          "INFO"
+        );
         await syncTokenMetaDataInDB();
       }
     );
@@ -94,11 +112,27 @@ async function bootstrapServer() {
       var httpsServer = https.createServer(credentials, app);
 
       httpsServer.listen(port, () => {
-        console.log(`Server in ascolto sulla porta ${port} in HTTPS`);
+        sysLogger.logToDb(
+          "SYSTEM_EVENT",
+          "server.start.https",
+          {
+            port,
+            protocol: "https",
+          },
+          "INFO"
+        );
       });
     } else {
       app.listen(port, () => {
-        console.log(`Server in ascolto sulla porta ${port} in HTTP`);
+        sysLogger.logToDb(
+          "SYSTEM_EVENT",
+          "server.start.http",
+          {
+            port,
+            protocol: "http",
+          },
+          "INFO"
+        );
       });
     }
   }
@@ -107,14 +141,43 @@ async function bootstrapServer() {
 // Esecuzione manuale (isolata) e uscita
 if (RUN_SYNC) {
   (async () => {
-    console.log('Running manual token metadata sync (manual trigger)...');
-    console.log('Manual sync start.');
+    sysLogger.logToDb(
+      "SYSTEM_EVENT",
+      "manualSync.start",
+      {
+        message: "Running manual token metadata sync (manual trigger)...",
+      },
+      "INFO"
+    );
+    sysLogger.logToDb(
+      "SYSTEM_EVENT",
+      "manualSync.progress",
+      {
+        message: "Manual sync start.",
+      },
+      "INFO"
+    );
     try {
       await syncTokenMetaDataInDB();
-      console.log('Manual sync completed successfully.');
+      sysLogger.logToDb(
+        "SYSTEM_EVENT",
+        "manualSync.completed",
+        {
+          message: "Manual sync completed successfully.",
+        },
+        "INFO"
+      );
       process.exit(0);
     } catch (err) {
-      console.error('Manual sync failed:', err && err.stack ? err.stack : err);
+      const errorDetails = err && err.stack ? err.stack : String(err);
+      sysLogger.logToDb(
+        "SYSTEM_ERROR",
+        "manualSync.failed",
+        {
+          error: errorDetails,
+        },
+        "ERROR"
+      );
       process.exit(1);
     }
   })();

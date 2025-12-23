@@ -1,6 +1,7 @@
 const service = require("../service");
 const { ECDH_AES_Server } = require("../../src/utils");
 const dao = require("../dao");
+const sysLogger = require("../sysLogger");
 const crypto = require("crypto");
 const moment = require("moment");
 const { default: axios } = require("axios");
@@ -162,7 +163,17 @@ const getBalance = async (req, res) => {
       data: balance,
     });
   } catch (error) {
-    console.log("Error while fetching balance : ", error);
+    sysLogger.logToDb(
+      "SYSTEM_ERROR",
+      "controllers.getBalance.failed",
+      {
+        coin_type: data.coin_type,
+        address: data.address,
+        network: data.network,
+        error: error && error.message ? error.message : String(error),
+      },
+      "ERROR"
+    );
     res.status(500).json({
       result: false,
       message: "An error occurred while fetching the balance" + error.message,
@@ -276,7 +287,15 @@ const syncWallets = async (req, res) => {
       });
     }
     const existingWallets = (await dao.getWalletsByDeviceId(userId)) ?? [];
-    console.log("existingWallets", existingWallets);
+    sysLogger.logToDb(
+      "SYSTEM_EVENT",
+      "controllers.syncWallets.existingWallets",
+      {
+        user_id: userId,
+        existing_wallets_count: Array.isArray(existingWallets) ? existingWallets.length : null,
+      },
+      "INFO"
+    );
     const newWalletList = [];
     for (const wallet of walletList) {
       const matchingWallet = existingWallets.find((w) => w.id === wallet.id);
@@ -294,7 +313,15 @@ const syncWallets = async (req, res) => {
     }
     //insert new wallets
     if (newWalletList.length > 0) {
-      console.log("newWalletList", newWalletList);
+      sysLogger.logToDb(
+        "SYSTEM_EVENT",
+        "controllers.syncWallets.newWalletList",
+        {
+          user_id: userId,
+          new_wallets_count: newWalletList.length,
+        },
+        "INFO"
+      );
       for (const wallet of newWalletList) {
         //create new wallet
         await dao.createWallet(wallet.id, wallet.name, wallet.wallet_type, wallet.is_active, userId, userId);
@@ -326,7 +353,14 @@ const getUtilsForTransaction = async (req, res) => {
     //         message: "User not found"
     //     });
     // }
-    console.log("req.body", req.body);
+    sysLogger.logToDb(
+      "SYSTEM_EVENT",
+      "controllers.getUtilsForTransaction.requestBody",
+      {
+        body: req.body,
+      },
+      "INFO"
+    );
     let isAddressOwnedByUser = await dao.isAddressOwnedByUser(user_id, from_address, coin_type);
     if (!isAddressOwnedByUser) {
       return res.status(500).json({
@@ -342,7 +376,15 @@ const getUtilsForTransaction = async (req, res) => {
       data: response,
     });
   } catch (error) {
-    console.log("Error while getting utils for transaction : ", error);
+    sysLogger.logToDb(
+      "SYSTEM_ERROR",
+      "controllers.getUtilsForTransaction.failed",
+      {
+        body: req.body,
+        error: error && error.message ? error.message : String(error),
+      },
+      "ERROR"
+    );
     throw error;
   }
 };
@@ -412,7 +454,16 @@ const filterTransactions = async (req, res) => {
               const response = await axios.get(`https://api.frankfurter.app/latest?amount=${amountToConvert}&from=USD&to=EUR`);
               transaction.converted_amount = response.data.rates["EUR"];
             } catch (error) {
-              console.log(`Error converting currency for transaction: ${error.message}`);
+              sysLogger.logToDb(
+                "SYSTEM_EVENT",
+                "controllers.filterTransactions.currencyConversionFailed",
+                {
+                  transaction_id: transaction.tx || transaction.hash || null,
+                  selected_currency,
+                  error: error && error.message ? error.message : String(error),
+                },
+                "WARN"
+              );
               transaction.converted_amount = 0;
             }
           } else {
@@ -428,7 +479,14 @@ const filterTransactions = async (req, res) => {
       data: { totalCount, transactions },
     });
   } catch (error) {
-    console.log("Error whlie filtering transactions : ", error);
+    sysLogger.logToDb(
+      "SYSTEM_ERROR",
+      "controllers.filterTransactions.failed",
+      {
+        error: error && error.message ? error.message : String(error),
+      },
+      "ERROR"
+    );
     res.status(500).json({
       result: false,
       message: "An error occurred while retrieving list of transactions: " + error.message,
@@ -1009,12 +1067,19 @@ const verifyOTP = async (req, res) => {
 const deviceLogin = async (req, res) => {
   const dati = req.body;
   const { identifier, passkey, device_token, selected_language } = dati;
-  console.log("dati", dati);
   const token = auth.generateToken({
     identifier,
     device_token,
   });
-  console.log("token", token);
+  sysLogger.logToDb(
+    "SYSTEM_EVENT",
+    "controllers.deviceLogin.request",
+    {
+      identifier,
+      has_device_token: !!device_token,
+    },
+    "INFO"
+  );
   await service
     .devicelogin(dati.identifier, dati.passkey, dati.device_token, dati.selected_language)
     .then((responseId) => {
@@ -1721,7 +1786,16 @@ const fetchAssets = async (req, res) => {
       try {
         balance = await service.getBalance(addresses[index].coin_type, addresses[index].address, network, user_id, wallet_id);
       } catch (error) {
-        console.log("Error while fetching balance for address : " + addresses[index].address, error);
+        sysLogger.logToDb(
+          "SYSTEM_ERROR",
+          "controllers.fetchAssets.getBalanceFailed",
+          {
+            address: addresses[index].address,
+            coin_type: addresses[index].coin_type,
+            error: error && error.message ? error.message : String(error),
+          },
+          "ERROR"
+        );
         addresses.splice(index, 1);
         continue;
       }
@@ -1809,7 +1883,16 @@ const fetchAssets = async (req, res) => {
                 const response = await axios.get(`https://api.frankfurter.app/latest?amount=${token.balance.balance}&from=USD&to=EUR`);
                 token.balance.converted_balance = response.data.rates["EUR"];
               } catch (error) {
-                console.log(`Error converting currency for transaction: ${error.message}`);
+                sysLogger.logToDb(
+                  "SYSTEM_EVENT",
+                  "controllers.fetchAssets.tokenCurrencyConversionFailed",
+                  {
+                    token_symbol: token.symbol,
+                    blockchain,
+                    error: error && error.message ? error.message : String(error),
+                  },
+                  "WARN"
+                );
                 token.balance.converted_balance = 0;
               }
             } else {
