@@ -2434,9 +2434,9 @@ router.get("/api/token-balance", jsonParser, auth.authenticateToken, controllers
  * @swagger
  * /api/search-token:
  *   get:
- *     summary: Search tokens using Quicknode
- *     description: Searches for tokens using the Quicknode addon API based on the provided query parameter.
- *     operationId: searchTokensUsingQuicknode
+ *     summary: Search tokens using Coinpaprika
+ *     description: Searches for tokens using the Coinpaprika API based on the provided query parameter.
+ *     operationId: searchTokensUsingCoinpaprika
  *     tags:
  *       - Token
  *     security:
@@ -2492,7 +2492,7 @@ router.get("/api/token-balance", jsonParser, auth.authenticateToken, controllers
  *     500:
  *       $ref: '#/components/responses/ServerError'
  */
-router.get("/api/search-token", jsonParser, auth.authenticateToken, controllers.searchTokensUsingQuicknode);
+router.get("/api/search-token", jsonParser, auth.authenticateToken, controllers.searchTokensUsingCoinpaprika);
 
 router.post("/api/webhook-quicknode/transaction", jsonParser, controllers.quicknodeTransactionWebhook);
 

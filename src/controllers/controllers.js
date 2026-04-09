@@ -14,6 +14,15 @@ const speakeasy = require("speakeasy");
 const notification = require("../../Helpers/sendNotification");
 const { RangoClient } = require("rango-sdk-basic");
 const rango = new RangoClient(process.env.RANGO_API_KEY);
+const COINPAPRIKA_BASE_URL = process.env.COINPAPRIKA_BASE_URL || "https://api.coinpaprika.com/v1";
+const coinPaprikaAuthConfig = process.env.COINPAPRIKA_USERNAME && process.env.COINPAPRIKA_PASSWORD
+  ? {
+      auth: {
+        username: process.env.COINPAPRIKA_USERNAME,
+        password: process.env.COINPAPRIKA_PASSWORD,
+      },
+    }
+  : {};
 
 const emailVerification = async (req, res) => {
   try {
@@ -2430,27 +2439,12 @@ const checkTxStatus = async (req, res) => {
   }
 };
 
-const searchTokensUsingQuicknode = async (req, res) => {
+const searchTokensUsingCoinpaprika = async (req, res) => {
   try {
-    let url = `https://thrumming-white-reel.btc.quiknode.pro/c4ba0c80a1d10dfca5420e8a4bdf020a820d4608/addon/748/v1/search`;
     const { q } = req.query;
-    url += `?q=${q}&limit=250&c=currencies`;
-    const response = await axios.get(url);
+    const url = `${COINPAPRIKA_BASE_URL}/search?q=${encodeURIComponent(q)}&limit=250&c=currencies`;
+    const response = await axios.get(url, coinPaprikaAuthConfig);
 
-    // filter response to only contain token type currency
-    // const updatedResponse = { currencies: [] };
-    // for (let currency of response.data.currencies) {
-    //   if (currency.type === "token") {
-    //     updatedResponse.currencies.push(currency);
-    //   }
-    // }
-
-    // for (const currency of updatedResponse.currencies) {
-    //   const coinData = await axios.get(
-    //     `https://thrumming-white-reel.btc.quiknode.pro/c4ba0c80a1d10dfca5420e8a4bdf020a820d4608/addon/748/v1/coins/${currency.id}`
-    //   );
-    //   currency["logo"] = coinData.data.logo;
-    // }
     return res.status(200).json({
       result: true,
       message: "Tokens fetched successfully",
@@ -2616,7 +2610,8 @@ const bookmarkToken = async (req, res) => {
     const deviceId = deviceResponse[0].id;
     const { token_id, wallet_id, name, symbol, rank, rev, type, chain, address, asset_type } = req.body;
     const tokenDetails = await axios.get(
-      `https://thrumming-white-reel.btc.quiknode.pro/c4ba0c80a1d10dfca5420e8a4bdf020a820d4608/addon/748/v1/coins/${token_id}`
+      `${COINPAPRIKA_BASE_URL}/coins/${token_id}`,
+      coinPaprikaAuthConfig
     );
     const logo = tokenDetails.data.logo;
     const data = await dao.bookmarkToken(token_id, wallet_id, deviceId, name, symbol, rank, rev, type, chain, address, asset_type, logo);
@@ -2925,7 +2920,7 @@ module.exports = {
   getSwapRoutes,
   getTokenBalance,
   checkTxStatus,
-  searchTokensUsingQuicknode,
+  searchTokensUsingCoinpaprika,
   quicknodeTransactionWebhook,
   fetchChainURLs,
   getTokenDetails,
