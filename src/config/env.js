@@ -1,7 +1,6 @@
 const REQUIRED_VARS = [
   "DB_HOST",
   "DB_USERNAME",
-  "DB_PASSWORD",
   "DB_DATABASE",
   "JWT_SECRET",
   "SECRET_APP",

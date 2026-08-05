@@ -18,9 +18,13 @@ test("accepts an environment with every required variable set", () => {
 test("reports every missing variable at once", () => {
   const env = completeEnv();
   delete env.JWT_SECRET;
-  delete env.DB_PASSWORD;
+  delete env.DB_HOST;
 
-  assert.deepEqual(findMissing(env).sort(), ["DB_PASSWORD", "JWT_SECRET"]);
+  assert.deepEqual(findMissing(env).sort(), ["DB_HOST", "JWT_SECRET"]);
+});
+
+test("accepts a database configured without a password", () => {
+  assert.deepEqual(findMissing(completeEnv({ DB_PASSWORD: "" })), []);
 });
 
 test("treats blank and whitespace-only values as missing", () => {
