@@ -4,3 +4,13 @@
 node_modules
 lib/monero/wallets/
 logs/
+
+.env*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+firebase-config.json
+database/*.sql
+doc/*.sql

@@ -1,5 +1,9 @@
 require("dotenv").config();
 
+const { assertEnv } = require("./src/config/env");
+
+assertEnv();
+
 const utils = require("./src/utils");
 const cron = require("node-cron");
 const path = require("path");
