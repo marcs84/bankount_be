@@ -1,4 +1,3 @@
-const Keystore = require("./config/Keystore");
 const fs = require("fs");
 const path = require("path");
 const fetch = require("node-fetch");
@@ -16,16 +15,6 @@ const logDbError = (action, error, meta = {}) => {
       "ERROR"
     );
   } catch (e) {}
-};
-
-const generateKeystore = (password, masterNode) => {
-  try {
-    const xpriv = Keystore.getXpriv(masterNode);
-    const keystore = Keystore.encryptXpriv(xpriv, password);
-    return keystore;
-  } catch (error) {
-    return null;
-  }
 };
 
 const createUser = (nome, cognome, email, password, tokenVerifica, keystore, stato = 0) => {
@@ -2509,7 +2498,7 @@ const fetchTokenMetadata = ({ chains, search, limit, offset }) => {
 };
 
 module.exports = {
-  generateKeystore,
+
   createUser,
   updateUser,
   restoreUser,
