@@ -4,7 +4,6 @@ const auth = require("../auth");
 const router = express.Router();
 const fs = require("fs");
 const path = require("path");
-const smartContract = require("../contracts/smartContractController");
 const controllers = require("../controllers/controllers");
 const sysLogger = require("../sysLogger");
 
@@ -119,19 +118,6 @@ router.get("/", (req, res) => {
  */
 router.get("/api/verify", controllers.emailVerification);
 
-// Route to restore the user after retrieving from the mnemonic
-router.post("/api/restoreUser", urlencodedParser, auth.authenticateToken, controllers.restoreUser);
-
-//Route per importare un wallet tramite il mnemonic
-//Route to import a wallet via the mnemonic
-router.post("/api/generateMasternodeFromMmenomnic", urlencodedParser, auth.authenticateTokenApp, controllers.generateMasternodeFromMmenomnic);
-
-// Route per cancellare un utente
-router.post("/api/deleteUser", urlencodedParser, auth.authenticateToken, controllers.deleteUser);
-
-// Route to retrieve the user's addresses
-router.post("/api/getAddresses", urlencodedParser, auth.authenticateToken, controllers.getAddresses);
-
 // Route to fetch the balance for a given address
 /**
  * @swagger
@@ -199,32 +185,7 @@ router.post("/api/getAddresses", urlencodedParser, auth.authenticateToken, contr
  */
 router.post("/api/getBalance", urlencodedParser, auth.authenticateToken, controllers.getBalance);
 
-// Route to fetch the balance of all addresses in the wallet
-router.post("/api/getAllBalances", urlencodedParser, auth.authenticateToken, controllers.getAllBalances);
-
-// Route to send coins to other address
-router.post("/api/exchangeCoinBetweenSameBc", urlencodedParser, auth.authenticateToken, controllers.exchangeCoinBetweenSameBc);
-
 router.post("/api/coin-exchange-utils", jsonParser, auth.authenticateToken, controllers.getUtilsForTransaction);
-router.post("/api/transact-coins", jsonParser, auth.authenticateToken, controllers.doTransactionBetweenSameBC);
-
-// Route to add a new account for a specific blockchain
-router.post("/api/addCryptoToAccount", urlencodedParser, auth.authenticateToken, controllers.addCryptoToAccount);
-
-// Route to get a user's tokens
-router.post("/api/getTokens", jsonParser, auth.authenticateToken, controllers.getTokens);
-
-// Route to exchange tokens within the same blockchain
-router.post("/api/exchangeTokenBetweenSameBc", urlencodedParser, auth.authenticateToken, controllers.exchangeTokenBetweenSameBc);
-
-// Route to activate token accounts for Solana
-router.post("/api/sol/activateTokenAccounts", urlencodedParser, auth.authenticateToken, controllers.activateTokenAccounts);
-
-// Route to get the list of supported tokens for a specific blockchain (excluding BTC and XMR)
-router.post("/api/getListOfSupportedTokens", urlencodedParser, auth.authenticateToken, controllers.getListOfSupportedTokens);
-
-// Route per la restituzione della lista delle transazioni memorizzate
-router.post("/api/getTransactions", jsonParser, auth.authenticateToken, controllers.getTransactions);
 
 /**
  * @swagger
@@ -353,42 +314,6 @@ router.post("/api/getTransactions", jsonParser, auth.authenticateToken, controll
  *         $ref: '#/components/responses/ServerError'
  */
 router.get("/api/filter-transactions", urlencodedParser, auth.authenticateToken, controllers.filterTransactions);
-
-// Route per la restituzione della lista delle transazioni memorizzate per un dato indirizzo
-router.post("/api/getTransactionsByAddress", jsonParser, auth.authenticateToken, controllers.getTransactionsByAddress);
-
-/* Pericolosa */
-// Route to get all transactions for a user
-router.post("/api/getAllTransactions", urlencodedParser, auth.authenticateToken, controllers.getAllTransactions);
-
-// Route to get all transactions for a user
-router.post("/api/getLatestTransactionsFromDB", urlencodedParser, auth.authenticateToken, controllers.getLatestTransactionsFromDB);
-
-//Route to get all transaction for an address
-router.post("/api/getAllTransactionsForAddress", urlencodedParser, auth.authenticateToken, controllers.getAllTransactionsForAddress);
-
-// Route to change password for a logged-in user
-router.post("/api/changePassword", urlencodedParser, auth.authenticateToken, controllers.changePassword);
-
-// Route to change password for a logged-in user
-router.post("/api/changePasswordForNoLoggedUser", urlencodedParser, controllers.changePasswordForNoLoggedUser);
-
-// Route to change password for a no-logged-in user
-router.post("/api/sendChangePasswordEmail", urlencodedParser, auth.authenticateTokenApp, controllers.sendChangePasswordEmail);
-
-router.get("/api/verifyTokenChangePassword", urlencodedParser, controllers.verifyTokenChangePassword);
-
-// Route to generate TOTP
-router.post("/api/generateTotp", urlencodedParser, auth.authenticateToken, controllers.generateTotp);
-
-// Route to enable 2FA
-router.post("/api/enable2FA", urlencodedParser, auth.authenticateToken, controllers.enable2FA);
-
-// Route to disable 2FA
-router.post("/api/disable2FA", urlencodedParser, auth.authenticateToken, controllers.disable2FA);
-
-// Route to verify OTP
-router.post("/api/verifyOTP", urlencodedParser, auth.authenticateToken, controllers.verifyOTP);
 
 // Define the route for the assetlinks.json file
 router.get("/.well-known/assetlinks.json", (req, res) => {
@@ -688,195 +613,7 @@ router.post("/api/insertAddress", jsonParser, auth.authenticateToken, controller
  */
 router.post("/api/insertTransaction", jsonParser, auth.authenticateToken, controllers.insertTransaction);
 
-/**
- * @swagger
- * /api/findAddressBySearchField:
- *   post:
- *     summary: Search for addresses by coin type or address
- *     description: Retrieves a list of cryptocurrency addresses based on the provided coin type or address filter.
- *     tags: [Addresses]
- *     security:
- *       - BearerAuth: []  # <-- Requires JWT token authentication
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - coin_type
- *               - address
- *             properties:
- *               coin_type:
- *                 type: string
- *                 description: Cryptocurrency type to filter by (e.g., BTC, ETH)
- *                 example: "BTC"
- *               address:
- *                 type: string
- *                 description: Specific address to search for
- *                 example: "n1FiqwarjGPW9mpGHS3uSXcUHdRj6HYkYd"
- *     responses:
- *       200:
- *         description: Addresses retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 result:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: integer
- *                         example: 123
- *                       address:
- *                         type: string
- *                         example: "n1FiqwarjGPW9mpGHS3uSXcUHdRj6HYkYd"
- *                       coin_type:
- *                         type: string
- *                         example: "BTC"
- *       400:
- *         description: Invalid request payload
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 result:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Invalid payload format"
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'  # <-- Unauthorized (Missing/Invalid token)
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'  # <-- Forbidden (Not enough permissions)
- *       500:
- *         $ref: '#/components/responses/ServerError'  # <-- Server error response
- */
-router.post("/api/findAddressBySearchField", jsonParser, auth.authenticateToken, controllers.findAddressBySearchField);
-
 router.post("/api/webhook-tatum/transaction", jsonParser, controllers.tatumTransactionWebhook);
-
-// Route to exchange tokens within the same blockchain.
-/**
- * @swagger
- * /api/send-transaction:
- *   post:
- *     summary: Send a blockchain transaction
- *     description: Sends a cryptocurrency transaction from one address to another after verifying the sender's details.
- *     tags: [Transactions]
- *     security:
- *       - BearerAuth: []  # <-- Requires JWT authentication
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - userId
- *               - senderAddress
- *               - chain
- *               - fromaddress
- *               - toaddress
- *               - amount
- *               - network
- *               - signedTx
- *             properties:
- *               userId:
- *                 type: integer
- *                 description: User ID of the sender
- *                 example: 123
- *               senderAddress:
- *                 type: string
- *                 description: Blockchain address of the sender
- *                 example: "n1FiqwarjGPW9mpGHS3uSXcUHdRj6HYkYd"
- *               chain:
- *                 type: string
- *                 description: Blockchain network (e.g., BTC, ETH)
- *                 example: "ETH"
- *               fromaddress:
- *                 type: string
- *                 description: The sender's blockchain address
- *                 example: "0x123456789abcdef"
- *               toaddress:
- *                 type: string
- *                 description: The recipient's blockchain address
- *                 example: "0xabcdef123456789"
- *               amount:
- *                 type: number
- *                 description: The amount of cryptocurrency to send
- *                 example: 0.5
- *               network:
- *                 type: string
- *                 description: The network type (e.g., MAINNET, TESTNET)
- *                 example: "MAINNET"
- *               signedTx:
- *                 type: string
- *                 description: Signed transaction data
- *                 example: "0xf86b808504a817c80082520894abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890a08d8080"
- *     responses:
- *       200:
- *         description: Transaction sent successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 result:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: object
- *                   properties:
- *                     transactionHash:
- *                       type: string
- *                       description: Hash of the successfully broadcasted transaction
- *                       example: "0x307b577620fcd1d657ee3f05c6c58a4ac699e739fbe693ecb82c50a34f724d9c"
- *       400:
- *         description: Invalid userId or senderAddress
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 result:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Invalid userId or senderAddress."
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'  # <-- Unauthorized (Missing/Invalid token)
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'  # <-- Forbidden (Not enough permissions)
- *       500:
- *         description: Internal server error during transaction processing
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 result:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "An error occurred during token exchange: [error message]"
- *                 error:
- *                   type: string
- *                   example: "[error message]"
- */
-router.post("/api/send-transaction", jsonParser, auth.authenticateToken, controllers.sendTransaction);
-
-router.post("/api/smart-contract-deploy", jsonParser, smartContract.deploySmartContract);
 
 /**
  * @swagger
@@ -1773,45 +1510,6 @@ router.post("/api/lookup-urls", jsonParser, auth.authenticateToken, controllers.
 
 /**
  * @swagger
- * /api/public-key:
- *   get:
- *     summary: Retrieve server's ECDH public key
- *     description: Returns the ECDH public key of the server for secure communication.
- *     tags:
- *       - Encryption
- *     security:
- *       - BearerAuth: []
- *     responses:
- *       200:
- *         description: Public key fetched successfully.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 result:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Public key fetched successfully
- *                 data:
- *                   type: object
- *                   properties:
- *                     server_public_key:
- *                       type: string
- *                       example: "MFYwEAYHKoZIzj0CAQYFK4EEAAoDQgAEkq4N..."
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
- *       500:
- *         $ref: '#/components/responses/ServerError'
- */
-// router.get("/api/public-key", auth.authenticateToken, controllers.getPublicKey);
-
-/**
- * @swagger
  * /api/token-metadata:
  *   get:
  *     summary: Fetch ERC-20 token metadata
@@ -1876,105 +1574,6 @@ router.post("/api/lookup-urls", jsonParser, auth.authenticateToken, controllers.
  *         $ref: '#/components/responses/ServerError'
  */
 router.get("/api/token-metadata", jsonParser, auth.authenticateToken, controllers.getTokenMetaData);
-
-/**
- * @swagger
- * /api/onboard-user:
- *   put:
- *     summary: Onboard a user
- *     description: This API onboards a user based on the identifier extracted from the authenticated request.
- *     operationId: onboardUser
- *     tags:
- *       - User
- *     security:
- *       - BearerAuth: []  # <-- JWT authentication required
- *     responses:
- *       200:
- *         description: User onboarded successfully.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 result:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "User onboarded successfully"
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'  # <-- Unauthorized (Missing/Invalid token)
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'  # <-- Forbidden (Not enough permissions)
- *       500:
- *         $ref: '#/components/responses/ServerError'  # <-- Internal server error response
- */
-router.put("/api/onboard-user", jsonParser, auth.authenticateToken, controllers.onboardUser);
-
-/**
- * @swagger
- * /api/store-rango-bc-data:
- *   post:
- *     summary: Store Rango blockchain data
- *     description: Fetches blockchain data from Rango API, filters selected blockchains (SOLANA, BNB, ETH, BSC, BTC), and stores them into the database.
- *     operationId: storeRangoBlockchainData
- *     tags:
- *       - Rango Blockchain
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             example: {}
- *           description: No input data required. Just trigger the API to fetch and store data.
- *     responses:
- *       200:
- *         description: Rango blockchain data stored successfully.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 result:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Rango data stored in DB successfully"
- *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       name:
- *                         type: string
- *                         example: SOLANA
- *                       defaultDecimals:
- *                         type: integer
- *                         example: 9
- *                       type:
- *                         type: string
- *                         example: EVM
- *                       chainId:
- *                         type: integer
- *                         example: 101
- *                       logo:
- *                         type: string
- *                         example: "https://cdn.rango.exchange/blockchains/solana/logo.svg"
- *                       displayName:
- *                         type: string
- *                         example: Solana
- *                       shortName:
- *                         type: string
- *                         example: SOL
- *                       info:
- *                         type: string
- *                         example: "Additional blockchain information"
- *       500:
- *         $ref: '#/components/responses/ServerError'  # <-- Internal server error response
- */
-router.post("/api/store-rango-bc-data", jsonParser, controllers.storeRangoBlockchainData);
 
 /**
  * @swagger
@@ -2942,37 +2541,6 @@ router.put("/api/edit-custom-chain-url", jsonParser, auth.authenticateToken, con
  *         $ref: '#/components/responses/ServerError'  # Internal server error
  */
 router.delete("/api/delete-custom-chain-url/:id", jsonParser, auth.authenticateToken, controllers.deleteCustomChainUrl);
-
-/**
- * @swagger
- * /api/dapps-list:
- *   post:
- *     summary: Store DApps list into database
- *     description: Fetches DApps from an external source and stores them into the database.
- *     tags:
- *       - DApps
- *     responses:
- *       200:
- *         description: DApps list stored successfully.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 result:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Dapps list stored successfully into DB
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
- *       500:
- *         $ref: '#/components/responses/ServerError'
- */
-router.post("/api/dapps-list", jsonParser, controllers.storeDappsList);
 
 /**
  * @swagger
