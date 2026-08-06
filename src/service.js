@@ -100,35 +100,6 @@ const getBalance = (cointype, address, network, user_id, wallet_id) => {
 /* Pericolosa */
 /* TO-DO aggiungere pagginazione su database */
 
-// Funzione ricorsiva per creare utenti univoci
-function _createUniqueUser(attempt = 0) {
-  return new Promise((resolve, reject) => {
-    // Genera un numero casuale
-    let randomNumber = Math.floor(Math.random() * 10000);
-
-    // Aggiungi il numero casuale alla stringa "TempUser"
-    let username = "TempUser" + randomNumber;
-
-    // Verifica se l'username esiste già nel database
-    dao
-      .selectUserByEmail(username)
-      .then((userExists) => {
-        if (!userExists) {
-          resolve(username);
-        } else if (attempt < 10) {
-          // Se l'utente esiste già e non abbiamo superato il numero massimo di tentativi, riprova
-          _createUniqueUser(attempt + 1)
-            .then((username) => resolve(username))
-            .catch((error) => reject(error));
-        } else {
-          // Se abbiamo superato il numero massimo di tentativi, rifiuta la promessa
-          reject("Failed to create user.");
-        }
-      })
-      .catch((error) => reject(error));
-  });
-}
-
 const devicelogin = (identifier, passkey, device_token, selected_language) => {
   return new Promise((resolve, reject) => {
     dao

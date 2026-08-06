@@ -17,121 +17,6 @@ const logDbError = (action, error, meta = {}) => {
   } catch (e) {}
 };
 
-const createUser = (nome, cognome, email, password, tokenVerifica, keystore, stato = 0) => {
-  const queryRegistration = `INSERT INTO utenti (nome, cognome, email, password, masternode, token_verifica, stato, twofa)
-    VALUES (?, ?, ?, SHA1(?), ?, ?, ?, 0)`;
-  const queryParams = [nome, cognome, email, password, keystore, tokenVerifica, stato];
-
-  return new Promise((resolve, reject) => {
-    connection.query(queryRegistration, queryParams, (error, results) => {
-      if (error) {
-        logDbError("dao.createUser", error, { query: queryRegistration, params: queryParams });
-        const err = new Error("Failed to create user");
-        err.code = "ER_DUP_ENTRY";
-        reject(err);
-      } else if (results && results.insertId) {
-        resolve(results.insertId);
-      } else {
-        reject("Failed to retrieve the created record's ID.");
-      }
-    });
-  });
-};
-
-const updateUser = (userId, nome, cognome, email, password, tokenVerifica, keystore, stato = 0) => {
-  const queryUpdate = `UPDATE utenti 
-                         SET nome = ?, cognome = ?, email = ?, password = SHA1(?), masternode = ?, token_verifica = ?, stato = ?
-                         WHERE id = ?`;
-  const queryParams = [nome, cognome, email, password, keystore, tokenVerifica, stato, userId];
-
-  return new Promise((resolve, reject) => {
-    connection.query(queryUpdate, queryParams, (error, results) => {
-      if (error) {
-        reject("Failed to update user.");
-      } else {
-        resolve(userId);
-      }
-    });
-  });
-};
-
-const restoreUser = (id_utente, nome, cognome, email, password, tokenVerifica) => {
-  const query = `UPDATE utenti SET nome = ?, cognome = ?, email = ?, password = SHA1(?), token_verifica = ?, stato = 0 WHERE id = ?`;
-  return new Promise((resolve, reject) => {
-    connection.query(query, [nome, cognome, email, password, tokenVerifica, id_utente], (error, result) => {
-      if (error) {
-        reject("Failed to restore user");
-      } else {
-        resolve(true);
-      }
-    });
-  });
-};
-
-const createAddress = (cointype, path, address, id_utente, index, start_block) => {
-  const queryRegistration = "INSERT INTO addresses (cointype, path, address, id_utente,`index`, start_block) VALUES (?, ?, ?, ?, ?, ?)";
-  const queryParams = [cointype, path, address, id_utente, index, start_block];
-  return new Promise((resolve, reject) => {
-    connection.query(queryRegistration, queryParams, (error, results) => {
-      if (error) {
-        reject("Failed to create address: " + error.message);
-      } else if (results && results.insertId) {
-        resolve(results.insertId);
-      } else {
-        reject("Failed to retrieve the created record's ID.");
-      }
-    });
-  });
-};
-
-const getMaxIndexAddress = (cointype, id_utente) => {
-  const queryLastIndex = `SELECT MAX(\`index\`) AS MaxIndex
-    FROM addresses
-    WHERE id_utente = ? AND cointype = ?`;
-
-  return new Promise((resolve, reject) => {
-    connection.query(queryLastIndex, [id_utente, cointype], (error, results) => {
-      if (error) {
-        logDbError("dao.getMaxIndexAddress", error, { query: queryLastIndex, params: [id_utente, cointype] });
-        reject("Failed to retrieve max index: " + error.message);
-      } else if (results.length === 1) {
-        const maxIndex = results[0].MaxIndex;
-        resolve(maxIndex);
-      } else {
-        reject("Failed to find max index.");
-      }
-    });
-  });
-};
-
-const getUserById = (id) => {
-  const query = `SELECT * FROM utenti WHERE id = ?`;
-
-  return new Promise((resolve, reject) => {
-    connection.query(query, [id], (error, results) => {
-      if (error) {
-        logDbError("dao.getUserById", error, { query, params: [id] });
-        reject("Error retrieving user by ID: " + error.message);
-        return;
-      }
-
-      if (results.length === 1) {
-        const user = {
-          id: results[0].id,
-          email: results[0].email,
-          password: results[0].password,
-          masternode: results[0].masternode,
-          twofa: results[0].twofa,
-          totp: results[0].totp,
-        };
-        resolve(user);
-      } else {
-        reject("User not found for the given ID.");
-      }
-    });
-  });
-};
-
 const getUserByVerificationToken = (token) => {
   const query = `SELECT * FROM utenti WHERE token_verifica = ?`;
 
@@ -153,203 +38,6 @@ const getUserByVerificationToken = (token) => {
       } else {
         reject("User not found for the given verification token.");
       }
-    });
-  });
-};
-
-const changePassword = (new_password, id_utente) => {
-  const queryUpdatePassword = `UPDATE utenti SET password = ?, token_verifica = NULL WHERE id = ?`;
-
-  return new Promise((resolve, reject) => {
-    connection.query(queryUpdatePassword, [new_password, id_utente], (error, result) => {
-      if (error) {
-        reject("Error updating password: " + error.message);
-        return;
-      }
-
-      if (result && result.affectedRows > 0) {
-        resolve("Password updated successfully.");
-      } else {
-        reject("Failed to update password or no such user exists.");
-      }
-    });
-  });
-};
-
-const getBlocks = () => {
-  const query = `SELECT * FROM blocchi`;
-  return new Promise((resolve, reject) => {
-    connection.query(query, (error, results) => {
-      if (error) {
-        reject("Error querying the blocks: " + error.message);
-        return;
-      }
-      resolve(results);
-    });
-  });
-};
-
-const getLastSynchronizedBlock = (cryptoname) => {
-  // Verifica se cryptoname è valido per evitare l'iniezione SQL
-  const validNames = ["bitcoin", "ethereum", "binance", "solana", "monero"];
-  if (!validNames.includes(cryptoname)) {
-    return Promise.reject("Invalid cryptoname provided.");
-  }
-
-  //SELECT per prelevare l'ultimo blocco sincronizzato della blockchain, dalla tabella blocchi, dato il cryptoname
-  const query = `SELECT ${cryptoname} FROM blocchi LIMIT 1`;
-
-  return new Promise((resolve, reject) => {
-    connection.query(query, (error, result) => {
-      if (error) {
-        reject("Error querying the last synchronized block: " + error.message);
-        return;
-      }
-
-      if (result && result.length === 1) {
-        resolve(result[0][cryptoname]);
-      } else {
-        reject("No block found for the provided cryptoname.");
-      }
-    });
-  });
-};
-
-const insertStartingBlock = (sb_bitcoin, sb_ethereum, sb_binance, sb_solana, sb_monero) => {
-  const queryInsertStartingBlock = `
-        INSERT INTO blocchi (bitcoin, ethereum, binance, solana, monero)
-        VALUES (?, ?, ?, ?, ?);
-    `;
-
-  return new Promise((resolve, reject) => {
-    connection.query(queryInsertStartingBlock, [sb_bitcoin, sb_ethereum, sb_binance, sb_solana, sb_monero], (error, result) => {
-      if (error) {
-        reject("Error inserting the starting blocks: " + error.message);
-        return;
-      }
-      resolve(result);
-    });
-  });
-};
-
-const getAddresses = (id) => {
-  const query = `SELECT * FROM addresses WHERE id_utente = ?`;
-
-  return new Promise((resolve, reject) => {
-    connection.query(query, [id], (error, results) => {
-      if (error) {
-        reject("Error querying the addresses: " + error.message);
-        return;
-      }
-
-      const formattedAddresses = results.reduce((acc, result) => {
-        // let address = result.cointype === "XMR" ?
-        //               JSON.parse(result.address).primaryAddress :
-        //               result.address;
-        let address = result.address;
-
-        if (!acc[result.cointype]) {
-          acc[result.cointype] = {};
-        }
-        acc[result.cointype][result.index] = address;
-        return acc;
-      }, {});
-
-      resolve(formattedAddresses);
-    });
-  });
-};
-
-const getTokenData = (symbol, chain) => {
-  const queryGetTokenData = `
-    SELECT * from token WHERE symbol = ? AND chain = ?
-`;
-
-  return new Promise((resolve, reject) => {
-    connection.query(queryGetTokenData, [symbol, chain], (error, result) => {
-      if (error) {
-        reject("Error retrieving token data: " + error.message);
-        return;
-      }
-      resolve(result[0]);
-    });
-  });
-};
-
-const updateTokenVerifica = (tokenVerifica, email) => {
-  const queryInsertToken = `
-     UPDATE utenti
-     SET token_verifica = ?
-     WHERE email = ?`;
-
-  return new Promise((resolve, reject) => {
-    connection.query(queryInsertToken, [tokenVerifica, email], (error, result) => {
-      if (error) {
-        reject("Error inserting the token: " + error.message);
-        return;
-      }
-      resolve(result);
-    });
-  });
-};
-
-const getTransactions = (id, network_type, limit, offset) => {
-  return new Promise((resolve, reject) => {
-    const query = `SELECT DISTINCT
-                t.*,
-                a.address AS payload_address,
-                CASE 
-                    WHEN t.from_address = a.address THEN 'outgoing'
-                    WHEN t.destination_address = a.address THEN 'incoming'
-                END AS transaction_type
-            FROM 
-                transactions t
-            JOIN 
-                addresses a ON (t.from_address = a.address OR t.destination_address = a.address)
-            JOIN 
-                wallet w ON a.wallet_id = w.id
-            JOIN 
-                device d ON w.device_id = d.id
-            WHERE 
-                d.id = ?
-                AND t.network_type = ?
-                AND w.is_active = 1
-                AND d.is_active = 1
-            ORDER BY t.data_insert DESC
-            LIMIT ? OFFSET ?`;
-
-    const countQuery = `SELECT 
-                COUNT(DISTINCT t.id) AS total_transactions
-            FROM 
-                transactions t
-            JOIN 
-                addresses a ON (t.from_address = a.address OR t.destination_address = a.address)
-            JOIN 
-                wallet w ON a.wallet_id = w.id
-            JOIN 
-                device d ON w.device_id = d.id
-            WHERE 
-                d.id = ?
-                AND t.network_type LIKE ?
-                AND w.is_active = 1
-                AND d.is_active = 1`;
-    // network_type = '%'+network_type+'%';
-    connection.query(query, [id, network_type, limit, offset], (error, transactions) => {
-      if (error) {
-        logDbError("dao.getTransactions.mainQuery", error, { query, params: [id, network_type, limit, offset] });
-        reject("Error querying the transactions: " + error.message);
-        return;
-      }
-      connection.query(countQuery, [id, network_type], (countError, countResults) => {
-        if (countError) {
-          logDbError("dao.getTransactions.countQuery", countError, { query: countQuery, params: [id, network_type] });
-          reject("Error querying the transaction count: " + countError.message);
-          return;
-        }
-
-        const totalCount = countResults[0].total_transactions;
-        resolve({ totalCount, transactions });
-      });
     });
   });
 };
@@ -458,87 +146,6 @@ const filterTransactions = (data) => {
   }
 };
 
-const getTransactionsByAddress = (address, limit, offset) => {
-  return new Promise((resolve, reject) => {
-    // const query = `
-    //     SELECT t.*
-    //     FROM transactions t
-    //     LEFT JOIN addresses a ON t.address_id = a.id
-    //     LEFT JOIN utenti u ON a.id_utente = u.id
-    //     WHERE a.address LIKE ?
-    //     ORDER BY t.data_insert DESC
-    //     LIMIT ? OFFSET ?
-    // `;
-
-    // const countQuery = `
-    //     SELECT COUNT(*) AS totalCount
-    //     FROM transactions t
-    //     LEFT JOIN addresses a ON t.address_id = a.id
-    //     LEFT JOIN utenti u ON a.id_utente = u.id
-    //     WHERE a.address LIKE ?
-    // `;
-    const query = `
-            SELECT t.*
-            FROM transactions t
-            LEFT JOIN addresses a ON (t.destination_address = a.address || t.from_address = a.address)
-            LEFT JOIN device d ON a.id_utente = d.id
-            WHERE a.address LIKE ?
-            ORDER BY t.data_insert DESC
-            LIMIT ? OFFSET ?
-        `;
-
-    const countQuery = `
-            SELECT COUNT(*) AS totalCount
-            FROM transactions t
-            LEFT JOIN addresses a ON (t.destination_address = a.address || t.from_address = a.address)
-            LEFT JOIN device d ON a.id_utente = d.id
-            WHERE a.address LIKE ? 
-        `;
-
-    address = "%" + address + "%";
-
-    connection.query(query, [address, limit, offset], (error, transactions) => {
-      if (error) {
-        logDbError("dao.getTransactionsByAddress.mainQuery", error, { query, params: [address, limit, offset] });
-        reject("Error querying the transactions: " + error.message);
-        return;
-      }
-      
-      connection.query(countQuery, [address], (countError, countResults) => {
-        if (countError) {
-          logDbError("dao.getTransactionsByAddress.countQuery", countError, { query: countQuery, params: [address] });
-          reject("Error querying the transaction count: " + countError.message);
-          return;
-        }
-
-        const totalCount = countResults[0].totalCount;
-        resolve({ totalCount, transactions });
-      });
-    });
-  });
-};
-
-const getLatestTransactionsFromDB = (limit) => {
-  return new Promise((resolve, reject) => {
-    const query = `
-      SELECT *
-      FROM transactions 
-      ORDER BY data_insert DESC
-      LIMIT ?
-    `;
-
-    connection.query(query, [Number(limit)], (error, transactions) => {
-      if (error) {
-        logDbError("dao.getLatestTransactionsFromDB", error, { query, params: [Number(limit)] });
-        reject("Error querying the transactions: " + error.message);
-        return;
-      }
-
-      resolve(transactions);
-    });
-  });
-};
-
 const getAddressByAddress = (cointype, address) => {
   return new Promise((resolve, reject) => {
     const query = `SELECT * FROM addresses WHERE cointype = ? AND address LIKE ?`;
@@ -578,141 +185,6 @@ const getAllMatchingAddresses = (address, chain) => {
         return;
       }
       resolve(results);
-    });
-  });
-};
-
-const getPathByAddress = (coin_type, address) => {
-  return new Promise((resolve, reject) => {
-    const query = `SELECT * FROM addresses WHERE cointype = ? AND address = ?`;
-
-    connection.query(query, [coin_type, address], (error, results) => {
-      if (error) {
-        reject("Error querying the address: " + error.message);
-        return;
-      }
-
-      // Se esiste l'address
-      if (results && results.length === 1) {
-        // Restituisce il path
-        resolve(results[0].path);
-      } else {
-        // Address non trovato
-        reject("Address not found in the table.");
-      }
-    });
-  });
-};
-
-const insertAssociatedTokenAccount = (id, tokenname, decimals, tokenAccount) => {
-  return new Promise((resolve, reject) => {
-    const query = `INSERT INTO token (id, tokenname, decimals, tokenAccount) VALUES (?, ?, ?, ?)`;
-    const values = [id, tokenname, decimals, tokenAccount];
-
-    connection.query(query, values, (error, results) => {
-      if (error) {
-        reject("Error during token account insertion: " + error.message);
-      } else if (results && results.insertId) {
-        resolve(results.insertId);
-      } else {
-        reject("Unable to retrieve the ID of the created record.");
-      }
-    });
-  });
-};
-
-const insertTransaction = (
-  chain,
-  token,
-  address_id,
-  fromAddress,
-  tx,
-  destinationAddress,
-  amount,
-  data_insert,
-  block_number,
-  userId,
-  network_type,
-  wallet_id
-) => {
-  return new Promise((resolve, reject) => {
-    const query = `SELECT * FROM transactions where tx = ?`;
-    connection.query(query, [tx], (err, txResult) => {
-      if (err) {
-        logDbError("dao.insertTransaction.selectExisting", err, { query, params: [tx] });
-        reject("Error in transaction data " + err.message);
-      } else if (txResult && txResult.length > 0) {
-        resolve(txResult);
-      } else {
-        const queryInsertTx = `INSERT INTO transactions (chain, address_id, from_address, tx, destination_address, amount, data_insert, block_number, id_utente, network_type, wallet_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-        const values = [chain, address_id, fromAddress, tx, destinationAddress, amount, data_insert, block_number, userId, network_type, wallet_id];
-        connection.query(queryInsertTx, values, (error, results) => {
-          if (error) {
-            logDbError("dao.insertTransaction.insertCoinOrToken", error, { query: queryInsertTx, values });
-            reject("Error during transaction insertion: " + error.message);
-          } else if (results && results.insertId) {
-            resolve({
-              id: results.insertId,
-              chain: chain,
-              address_id: address_id,
-              from_address: fromAddress,
-              tx: tx,
-              destination_address: destinationAddress,
-              amount: amount.toString(),
-              data_insert: data_insert,
-              // block_number: block_number,
-              network_type: network_type,
-              is_synced: 1,
-              status: "outgoing",
-            });
-          } else {
-            const queryInsertTx = `INSERT INTO transactions (type, chain, token, address_id, from_address, tx, destination_address, amount, data_insert, block_number, id_utente, network_type, wallet_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-            const values = [
-              type,
-              chain,
-              token,
-              address_id,
-              fromAddress,
-              tx,
-              destinationAddress,
-              amount,
-              data_insert,
-              block_number,
-              userId,
-              network_type,
-              wallet_id,
-            ];
-            connection.query(queryInsertTx, values, (error, results) => {
-              if (error) {
-                logDbError("dao.insertTransaction.insertWithType", error, { query: queryInsertTx, values });
-                reject("Error during transaction insertion: " + error.message);
-              } else if (results && results.insertId) {
-                resolve({
-                  id: results.insertId,
-                  type: type,
-                  chain: chain,
-                  token: token,
-                  address_id: address_id,
-                  from_address: fromAddress,
-                  tx: tx,
-                  destination_address: destinationAddress,
-                  amount: amount.toString(),
-                  data_insert: data_insert,
-                  // block_number: block_number,
-                  network_type: network_type,
-                  wallet_id: wallet_id,
-                  is_synced: 1,
-                  status: "outgoing",
-                });
-              } else {
-                reject("Unable to retrieve the ID of the created record.");
-              }
-            });
-          }
-        });
-      }
     });
   });
 };
@@ -889,22 +361,6 @@ const insertTransactionNew = ({
   });
 };
 
-const transactionExists = (txHash) => {
-  const queryTransaction = "SELECT COUNT(*) AS count FROM transactions WHERE tx = ?";
-
-  return new Promise((resolve, reject) => {
-    connection.query(queryTransaction, [txHash], (error, results) => {
-      if (error) {
-        logDbError("dao.transactionExists", error, { query: queryTransaction, params: [txHash] });
-        reject("Failed to check transaction.");
-      } else {
-        const count = results[0].count;
-        resolve(count > 0);
-      }
-    });
-  });
-};
-
 const insertTransactionNotification = (user_id, wallet_id, notification_title, notification_body, chain) => {
   return new Promise((resolve, reject) => {
     const query = `INSERT INTO transaction_notifications(user_id, wallet_id, notification_title, notification_body, chain) VALUES (?, ?, ?, ?, ?)`;
@@ -939,79 +395,6 @@ const getAddressesByUserIdAndCoinType = (id_utente, cointype) => {
   });
 };
 
-const getAddressesByStartBlockAndCointype = (start_block, cointype) => {
-  const querySelectAddresses = "SELECT * FROM addresses WHERE start_block >= ? AND cointype = ? ORDER BY `index`";
-
-  return new Promise((resolve, reject) => {
-    connection.query(querySelectAddresses, [start_block, cointype], (error, results) => {
-      if (error) {
-        reject("Failed to get addresses by start block and coin type.");
-      } else {
-        resolve(results);
-      }
-    });
-  });
-};
-
-const getAddressesByCointype = (cointype) => {
-  const querySelectAddresses = "SELECT * FROM addresses WHERE cointype = ? ORDER BY `index`";
-
-  return new Promise((resolve, reject) => {
-    connection.query(querySelectAddresses, [cointype], (error, results) => {
-      if (error) {
-        reject("Failed to get addresses by start block and coin type.");
-      } else {
-        resolve(results);
-      }
-    });
-  });
-};
-
-const getUserIdByAddress = (address) => {
-  const query = "SELECT id FROM addresses WHERE address = ?";
-
-  return new Promise((resolve, reject) => {
-    connection.query(query, [address], (error, results) => {
-      if (error) {
-        reject("Failed to get user ID by address: " + error.message);
-      } else if (results.length === 1) {
-        const id = results[0].id;
-        resolve(id);
-      } else {
-        resolve(null);
-      }
-    });
-  });
-};
-
-const getTransactionsForAddress = (address) => {
-  const query = "SELECT * FROM transactions WHERE from_address = ? OR destination_address = ?";
-
-  return new Promise((resolve, reject) => {
-    connection.query(query, [address, address], (error, result) => {
-      if (error) {
-        reject(`Failed to get transactions for address ${address}`);
-      } else {
-        resolve(result);
-      }
-    });
-  });
-};
-
-const saveMasternode = (masternode, id_utente) => {
-  const queryInsertMasternode = "UPDATE utenti SET masternode = ? WHERE id = ?";
-
-  return new Promise((resolve, reject) => {
-    connection.query(queryInsertMasternode, [masternode, id_utente], (error, results) => {
-      if (error) {
-        reject("Failed to update masternode.");
-      } else {
-        resolve(results);
-      }
-    });
-  });
-};
-
 // const getMasternode = () => {
 //   const queryInsertMasternode = "UPDATE utenti SET masternode = ? WHERE id = ?";
 
@@ -1026,72 +409,6 @@ const saveMasternode = (masternode, id_utente) => {
 //   });
 // };
 
-const saveTokenDataForUser = (token_verifica, email) => {
-  const queryInsertMasternode = "UPDATE utenti SET token_verifica = ? WHERE email = ?";
-
-  return new Promise((resolve, reject) => {
-    connection.query(queryInsertMasternode, [token_verifica, email], (error, results) => {
-      if (error) {
-        reject("Failed to save token data.");
-      } else {
-        resolve(results);
-      }
-    });
-  });
-};
-
-const selectTokenByEmail = (email) => {
-  const querySelectTokenData = "SELECT token_verifica FROM utenti WHERE email = ?";
-  return new Promise((resolve, reject) => {
-    connection.query(querySelectTokenData, [email], (error, results) => {
-      if (error) {
-        reject("Failed to fetch token data.");
-      } else {
-        resolve(results[0].token_verifica);
-      }
-    });
-  });
-};
-
-const selectUserByEmail = (email) => {
-  const query = "SELECT * FROM utenti WHERE email = ?";
-  return new Promise((resolve, reject) => {
-    connection.query(query, [email], (error, results) => {
-      if (error) {
-        reject("Failed to fetch token data.");
-      } else {
-        resolve(results[0]);
-      }
-    });
-  });
-};
-
-const deleteUserByEmail = (email) => {
-  const query = "DELETE FROM utenti WHERE email = ?";
-  return new Promise((resolve, reject) => {
-    connection.query(query, [email], (error, results) => {
-      if (error) {
-        reject("Failed to delete user.");
-      } else {
-        resolve(true);
-      }
-    });
-  });
-};
-
-const deleteUserById = (id_utente) => {
-  const query = "DELETE FROM utenti WHERE id = ?";
-  return new Promise((resolve, reject) => {
-    connection.query(query, [id_utente], (error, results) => {
-      if (error) {
-        reject("Failed to delete user.");
-      } else {
-        resolve(true);
-      }
-    });
-  });
-};
-
 const activateUser = (id_utente) => {
   const querySelectTokenData = "UPDATE utenti SET stato = 1 WHERE id = ?";
 
@@ -1101,97 +418,6 @@ const activateUser = (id_utente) => {
         reject("Failed to update data.");
       } else {
         resolve(true);
-      }
-    });
-  });
-};
-
-const setRecoveryUser = (id_utente) => {
-  const querySelectTokenData = "UPDATE utenti SET stato = 99 WHERE id = ?";
-
-  return new Promise((resolve, reject) => {
-    connection.query(querySelectTokenData, [id_utente], (error, results) => {
-      if (error) {
-        reject("Failed to update data.");
-      } else {
-        resolve(true);
-      }
-    });
-  });
-};
-
-const toggleUser2FA = (id_utente, twofa) => {
-  const query = "UPDATE utenti SET twofa = ? WHERE id = ?";
-
-  return new Promise((resolve, reject) => {
-    connection.query(query, [twofa, id_utente], (error, results) => {
-      if (error) {
-        reject("Failed to update data.");
-      } else {
-        resolve(true);
-      }
-    });
-  });
-};
-
-const saveUserTotp = (id_utente, totp) => {
-  const query = "UPDATE utenti SET totp = ? WHERE id = ?";
-
-  return new Promise((resolve, reject) => {
-    connection.query(query, [totp, id_utente], (error, results) => {
-      if (error) {
-        reject("Failed to update data.");
-      } else {
-        resolve(true);
-      }
-    });
-  });
-};
-
-const deleteUser = (id_utente) => {
-  const querySelectTokenData = "UPDATE utenti SET " + " stato = 9, " + ' email = CONCAT("DELETE_BW_", email) ' + " WHERE id = ?";
-
-  return new Promise((resolve, reject) => {
-    connection.query(querySelectTokenData, [id_utente], (error, results) => {
-      if (error) {
-        reject("Failed to update data.");
-      } else {
-        resolve(true);
-      }
-    });
-  });
-};
-
-const selectUserByToken = (token) => {
-  const querySelectUserData = "SELECT * FROM utenti WHERE token_verifica = ?";
-  return new Promise((resolve, reject) => {
-    connection.query(querySelectUserData, [token], (error, results) => {
-      if (error) {
-        reject("Failed to fetch user data.");
-      } else {
-        resolve(results[0]);
-      }
-    });
-  });
-};
-
-const updateBlocks = (cryptoname, numero) => {
-  // Verifica se cryptoname è valido per evitare l'iniezione SQL
-  const validNames = ["bitcoin", "ethereum", "binance", "solana", "monero"];
-  if (!validNames.includes(cryptoname)) {
-    return Promise.reject("Invalid cryptoname provided.");
-  }
-  const query = `UPDATE blocchi SET ${cryptoname} = ? `;
-  return new Promise((resolve, reject) => {
-    connection.query(query, [numero], (error, result) => {
-      if (error) {
-        reject("Error querying the last synchronized block: " + error.message);
-        return;
-      }
-      if (result) {
-        resolve(true);
-      } else {
-        resolve(false);
       }
     });
   });
@@ -1215,19 +441,6 @@ const isAddressOwnedByUser = (id_utente, address, cointype) => {
         reject("Error during address ownership check: " + error.message);
       } else {
         resolve(results[0].address_belongs_to_user === 1);
-      }
-    });
-  });
-};
-
-const deleteAddressByUserId = (id_utente) => {
-  const querydeleteAddressByUserId = "DELETE FROM addresses WHERE id_utente = ?";
-  return new Promise((resolve, reject) => {
-    connection.query(querydeleteAddressByUserId, [id_utente], (error, results) => {
-      if (error) {
-        reject("Failed to delete address.");
-      } else {
-        resolve(true);
       }
     });
   });
@@ -1382,24 +595,6 @@ const insertUserAddress = async (userData) => {
   return results;
 };
 
-const checkUserAddress = async (address, userId) => {
-  return new Promise((resolve, reject) => {
-    // check address & user id is exist or not
-    const selectQuery = `SELECT * FROM addresses WHERE id_utente = ? AND address = ?`;
-    const matches = [userId, address];
-    connection.query(selectQuery, matches, (error, resultData) => {
-      if (error) {
-        reject(error);
-      }
-      if (resultData.length === 1) {
-        resolve(true);
-      } else {
-        resolve(false);
-      }
-    });
-  });
-};
-
 const verifyDeviceDetails = (identifier) => {
   const query = `SELECT * FROM device WHERE identifier = ? AND is_active=1`;
   const queryParams = [identifier];
@@ -1411,89 +606,6 @@ const verifyDeviceDetails = (identifier) => {
         resolve(results);
       } else {
         reject("Failed to retrieve device");
-      }
-    });
-  });
-};
-
-const fetchAddress = (uid) => {
-  const query = `SELECT * FROM addresses WHERE id_utente = ? AND addressStatus != 'Inactive'`;
-  const queryParams = [uid];
-  return new Promise((resolve, reject) => {
-    connection.query(query, queryParams, (error, results) => {
-      if (error) {
-        reject("Failed to retrieve address: " + error.message);
-      } else if (results) {
-        var obj = results;
-        obj = obj.map((item) => {
-          item.coin_type = item.cointype; // Add new key with snake case
-          delete item.cointype; // Remove the old key
-          return item;
-        });
-        resolve(obj);
-      } else {
-        reject("Failed to retrieve address");
-      }
-    });
-  });
-};
-
-const fetchAddressById = (id) => {
-  const query = `SELECT * FROM addresses WHERE id = ?`;
-  const queryParams = [id];
-  return new Promise((resolve, reject) => {
-    connection.query(query, queryParams, (error, results) => {
-      if (error) {
-        reject("Failed to retrieve address: " + error.message);
-      } else if (results) {
-        var obj = results;
-        obj = obj.map((item) => {
-          item.coin_type = item.cointype; // Add new key with snake case
-          delete item.cointype; // Remove the old key
-          return item;
-        });
-        resolve(obj);
-      } else {
-        reject("Failed to retrieve address");
-      }
-    });
-  });
-};
-
-const fetchAddressArray = (id) => {
-  const query = `SELECT address FROM addresses WHERE id_utente = ? AND addressStatus = ?`;
-  const queryParams = [id, "Active"];
-  return new Promise((resolve, reject) => {
-    connection.query(query, queryParams, (error, results) => {
-      if (error) {
-        return reject("Failed to retrieve address: " + error.message);
-      } else if (results) {
-        let arrayObj = [];
-        results.map((item) => {
-          arrayObj.push(item.address);
-        });
-        return resolve(arrayObj);
-      } else {
-        return reject("Failed to retrieve address");
-      }
-    });
-  });
-};
-
-const findAddressBySearchKey = (deviceId, coin_type, address) => {
-  return new Promise((resolve, reject) => {
-    const query = `SELECT * FROM addresses WHERE id_utente = ? AND cointype LIKE ? AND address LIKE ? ORDER BY id DESC`;
-    const id = deviceId;
-    const searchField1 = "%" + coin_type + "%";
-    const searchField2 = "%" + address + "%";
-    connection.query(query, [id, searchField1, searchField2], (countError, results) => {
-      if (countError) {
-        reject("Error querying the transaction count: " + countError.message);
-        return;
-      } else if (results) {
-        return resolve(results);
-      } else {
-        return reject("Search field not found");
       }
     });
   });
@@ -1530,22 +642,6 @@ const findAddressBySearchKey = (deviceId, coin_type, address) => {
 //     });
 //   });
 // };
-
-const getAddressByUserIdAndAddress = (userId, senderAddress) => {
-  const query = `SELECT * FROM addresses WHERE id_utente = ? AND address = ?`;
-  const queryParams = [userId, senderAddress];
-  return new Promise((resolve, reject) => {
-    connection.query(query, queryParams, (error, results) => {
-      if (error) {
-        return reject(new Error("Failed to retrieve address: " + error.message));
-      }
-      if (results.length === 0) {
-        return resolve(null); // No matching user or address found
-      }
-      return resolve(results[0]); // Return the first matching row
-    });
-  });
-};
 
 const getAddressByUserIdAndAddressAndChain = (userId, address, chain) => {
   const query = `SELECT * FROM addresses WHERE id_utente = ? AND address = ? AND cointype = ?`;
@@ -1919,35 +1015,6 @@ const updateAddressName = async (user_id, wallet_id, address_id, address_name) =
   });
 };
 
-const onboardUser = async (user_id) => {
-  return new Promise((resolve, reject) => {
-    connection.query(`UPDATE device SET onboarding_status = 1 WHERE id = ?`, [user_id], (error, results) => {
-      if (error) {
-        return reject(new Error("Failed to onboard user : " + error.message));
-      }
-      if (!results.affectedRows) {
-        return reject(new Error("Failed to onboard user"));
-      }
-      resolve(true);
-    });
-  });
-};
-
-const storeRangoBlockChains = async (name, default_decimals, type, chain_id, logo, display_name, short_name, info) => {
-  return new Promise((resolve, reject) => {
-    connection.query(
-      `INSERT INTO rango_blockchains(name, default_decimals, type, chain_id, logo, display_name, short_name, info) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [name, default_decimals, type, chain_id, logo, display_name, short_name, JSON.stringify(info)],
-      (error, results) => {
-        if (error) {
-          return reject(new Error("Failed to store rango blockchains : " + error.message));
-        }
-        return resolve(results.insertId);
-      }
-    );
-  });
-};
-
 const fetchRangoBlockchainData = async () => {
   return new Promise((resolve, reject) => {
     connection.query(`SELECT * FROM rango_blockchains`, [], (error, results) => {
@@ -2135,24 +1202,6 @@ const deleteCustomChainUrl = async (id) => {
   });
 };
 
-const storeDappsList = async (dapps) => {
-  const values = dapps.map((dapp) => [dapp.title, dapp.icon_url, dapp.url, dapp.description, dapp.back_url, dapp.tag_info]);
-
-  return new Promise((resolve, reject) => {
-    connection.query(
-      `INSERT INTO dapps_list (title, icon_url, url, description, back_url, tag_info) VALUES ?
-`,
-      [values],
-      (error, results) => {
-        if (error) {
-          return reject(new Error("Error while storing dapps list : " + error.message));
-        }
-        return resolve(results);
-      }
-    );
-  });
-};
-
 const fetchDappsList = async (page, limit, key) => {
   return new Promise((resolve, reject) => {
     connection.query(`SELECT * FROM dapps_list WHERE title LIKE ? LIMIT ? OFFSET ?`, [`%${key}%`, limit, (page - 1) * limit], (err, results) => {
@@ -2250,17 +1299,6 @@ const deleteWallets = (wallet_ids = []) => {
           });
         });
       });
-    });
-  });
-};
-
-const getDeviceById = (deviceId) => {
-  return new Promise((resolve, reject) => {
-    connection.query(`SELECT * FROM device WHERE id = ?`, [deviceId], (err, results) => {
-      if (err) {
-        return reject(new Error("Error fetching device " + err));
-      }
-      return results.length ? results[0] : null;
     });
   });
 };
@@ -2499,62 +1537,28 @@ const fetchTokenMetadata = ({ chains, search, limit, offset }) => {
 
 module.exports = {
 
-  createUser,
-  updateUser,
-  restoreUser,
-  getUserById,
   getUserByVerificationToken,
-  saveTokenDataForUser,
-  transactionExists,
-  getAddresses,
-  selectUserByEmail,
+
   getAddressByAddress,
   getAllMatchingAddresses,
-  createAddress,
-  selectTokenByEmail,
-  getMaxIndexAddress,
-  getPathByAddress,
-  insertAssociatedTokenAccount,
-  insertTransaction,
+
   insertTransactionNew,
   insertTransactionNotification,
   getAddressesByUserIdAndCoinType,
-  getTransactions,
+
   filterTransactions,
-  getTransactionsByAddress,
-  insertStartingBlock,
-  getLastSynchronizedBlock,
-  getBlocks,
-  changePassword,
-  saveMasternode,
-  getAddressesByStartBlockAndCointype,
-  getUserIdByAddress,
-  getTransactionsForAddress,
-  deleteUserByEmail,
-  deleteUserById,
+
   activateUser,
-  setRecoveryUser,
-  toggleUser2FA,
-  saveUserTotp,
-  deleteUser,
-  updateBlocks,
-  getTokenData,
-  getAddressesByCointype,
-  getLatestTransactionsFromDB,
-  updateTokenVerifica,
-  selectUserByToken,
+
   isAddressOwnedByUser,
-  deleteAddressByUserId,
+
   verifyDevice,
   insertUserAddress,
-  checkUserAddress,
+
   verifyDeviceDetails,
-  fetchAddress,
-  fetchAddressById,
-  findAddressBySearchKey,
-  fetchAddressArray,
+
   // insertTatumAddress,
-  getAddressByUserIdAndAddress,
+
   getDeviceTokenByFromAddress,
   updateAddressStatus,
   getAddressByUserIdAndAddressAndChain,
@@ -2569,8 +1573,7 @@ module.exports = {
   filterAddresses,
   findMultipleAddressesByIds,
   updateAddressName,
-  onboardUser,
-  storeRangoBlockChains,
+
   fetchRangoBlockchainData,
   bookmarkToken,
   removeBookmarkedToken,
@@ -2580,11 +1583,11 @@ module.exports = {
   checkExistingCustomChainUrl,
   updateCustomChainUrl,
   deleteCustomChainUrl,
-  storeDappsList,
+
   fetchDappsList,
   fetchTransactionNotification,
   deleteWallets,
-  getDeviceById,
+
   updateDeviceLanguage,
   udpateDeviceToken,
   removeInvalidDeviceToken,
