@@ -12,7 +12,9 @@ const fs = require("fs");
 const https = require("https");
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
 const morgan = require("morgan");
+const { apiLimiter } = require("./src/server/rateLimit");
 const routes = require("./src/server/routes");
 const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./src/config/swagger");
@@ -69,6 +71,12 @@ const RUN_SYNC = process.argv.includes('--run-sync');
 const app = express();
 const port = process.env.PORT || 3000;
 
+if (process.env.TRUST_PROXY) {
+  app.set("trust proxy", process.env.TRUST_PROXY);
+}
+
+app.disable("x-powered-by");
+app.use(helmet());
 app.use(
   cors({
     origin: "*",
@@ -76,6 +84,7 @@ app.use(
     allowedHeaders: "*",
   })
 );
+app.use(apiLimiter);
 app.use(morgan("tiny"));
 app.use('/public', express.static(path.join(process.cwd(), 'public')));
 

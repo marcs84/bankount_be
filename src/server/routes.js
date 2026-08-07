@@ -6,6 +6,8 @@ const fs = require("fs");
 const path = require("path");
 const controllers = require("../controllers/controllers");
 const sysLogger = require("../sysLogger");
+const { redact } = require("./redact");
+const { loginLimiter } = require("./rateLimit");
 
 // create application/json parser
 var jsonParser = bodyParser.json();
@@ -38,10 +40,10 @@ router.use((req, res, next) => {
     const logDetails = {
       method: req.method,
       url: req.originalUrl,
-      query: req.query,
-      body: req.body,
+      query: redact(req.query),
+      body: redact(req.body),
       responseStatus: res.statusCode,
-      responseBody: responseBody,
+      responseBody: redact(responseBody),
       duration: `${duration}ms`,
       ip: req.ip || req.socket.remoteAddress
     };
@@ -383,7 +385,7 @@ router.get("/.well-known/assetlinks.json", (req, res) => {
  *       500:
  *         $ref: '#/components/responses/ServerError'
  */
-router.post("/api/deviceLogin", jsonParser, controllers.deviceLogin);
+router.post("/api/deviceLogin", jsonParser, loginLimiter, controllers.deviceLogin);
 
 /**
  * @swagger

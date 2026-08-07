@@ -1,6 +1,9 @@
 const jwt = require('jsonwebtoken');
 const sysLogger = require('./sysLogger');
 
+const JWT_ALGORITHM = 'HS256';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
+
 // Funzione middleware per l'autenticazione dell'app
 function authenticateTokenApp(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -31,7 +34,7 @@ function authenticateToken(req, res, next) {
   }
   // Verifica e decodifica il token
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+  jwt.verify(token, process.env.JWT_SECRET, { algorithms: [JWT_ALGORITHM] }, (err, user) => {
     if (err) {
       sysLogger.logToDb(
         "SYSTEM_ERROR",
@@ -43,7 +46,7 @@ function authenticateToken(req, res, next) {
         "ERROR"
       );
 
-      return res.sendStatus(403); // Forbidden
+      return res.sendStatus(401); // Credenziali assenti o non più valide
     }
     req.user = user;
     next();
@@ -52,13 +55,19 @@ function authenticateToken(req, res, next) {
 
 // Funzione per generare un token JWT
 function generateToken(user) {
-  const token = jwt.sign(user, process.env.JWT_SECRET);
+  const token = jwt.sign(user, process.env.JWT_SECRET, {
+    algorithm: JWT_ALGORITHM,
+    expiresIn: JWT_EXPIRES_IN,
+  });
   return token;
 }
 
 // Funzione per generare un token JWT con scadenza per la password
 function generateLimitedToken(email){
-  const token = jwt.sign({email: email}, process.env.JWT_SECRET, {expiresIn: '30m'});
+  const token = jwt.sign({email: email}, process.env.JWT_SECRET, {
+    algorithm: JWT_ALGORITHM,
+    expiresIn: '30m',
+  });
   return token
 }
 
@@ -66,5 +75,7 @@ module.exports = {
   authenticateTokenApp,
   authenticateToken,
   generateToken,
-  generateLimitedToken
+  generateLimitedToken,
+  JWT_ALGORITHM,
+  JWT_EXPIRES_IN
 }

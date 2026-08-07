@@ -387,10 +387,15 @@ const filterTransactions = async (req, res) => {
 const deviceLogin = async (req, res) => {
   const dati = req.body;
   const { identifier, passkey, device_token, selected_language } = dati;
-  const token = auth.generateToken({
-    identifier,
-    device_token,
-  });
+
+  if (!identifier || !passkey) {
+    return res.status(400).json({
+      result: false,
+      message: "Missing credentials",
+      code_route: serverErrors.ERROR_DEVICE_LOGIN,
+    });
+  }
+
   sysLogger.logToDb(
     "SYSTEM_EVENT",
     "controllers.deviceLogin.request",
@@ -400,26 +405,46 @@ const deviceLogin = async (req, res) => {
     },
     "INFO"
   );
-  await service
-    .devicelogin(dati.identifier, dati.passkey, dati.device_token, dati.selected_language)
-    .then((responseId) => {
-      res.json({
-        result: true,
-        data: {
-          token: token,
-          id: responseId,
-        },
-      });
-    })
-    .catch((error) => {
-      res.status(500).json({
-        result: false,
-        message: error.message ? error.message : error,
-        error: error.message,
-        code_route: serverErrors.ERROR_DEVICE_LOGIN,
-        code: error.code,
-      });
+
+  try {
+    const responseId = await service.devicelogin(identifier, passkey, device_token, selected_language);
+
+    const token = auth.generateToken({
+      identifier,
+      device_token,
     });
+
+    res.json({
+      result: true,
+      data: {
+        token: token,
+        id: responseId,
+      },
+    });
+  } catch (error) {
+    if (error && error.code === "ER_INVALID_CREDENTIALS") {
+      sysLogger.logToDb(
+        "SYSTEM_EVENT",
+        "controllers.deviceLogin.rejected",
+        { identifier, ip: req.ip || req.socket.remoteAddress },
+        "WARN"
+      );
+
+      return res.status(401).json({
+        result: false,
+        message: "Invalid credentials",
+        code_route: serverErrors.ERROR_DEVICE_LOGIN,
+      });
+    }
+
+    res.status(500).json({
+      result: false,
+      message: error.message ? error.message : error,
+      error: error.message,
+      code_route: serverErrors.ERROR_DEVICE_LOGIN,
+      code: error.code,
+    });
+  }
 };
 
 const insertAddress = async (req, res) => {

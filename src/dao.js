@@ -1,10 +1,21 @@
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const fetch = require("node-fetch");
 const sysLogger = require("./sysLogger");
 
 const TOKEN_METADATA_BATCH_SIZE = 500;
 const TOKEN_IMAGE_TIMEOUT_MS = 5000;
+
+const passkeyMatches = (stored, provided) => {
+  if (typeof stored !== "string" || typeof provided !== "string") return false;
+
+  const a = Buffer.from(stored, "utf8");
+  const b = Buffer.from(provided, "utf8");
+  if (a.length !== b.length) return false;
+
+  return crypto.timingSafeEqual(a, b);
+};
 
 const logDbError = (action, error, meta = {}) => {
   try {
@@ -471,40 +482,12 @@ const verifyDevice = (identifier, passkey, device_token, selected_language) => {
           }
 
           if (results.length) {
-            if (results[0].passkey !== passkey) {
-              conn.query(`UPDATE device SET is_active = 0, selected_language = ? WHERE identifier = ?`, [selected_language, identifier], (error) => {
-                if (error) {
-                  return conn.rollback(() => {
-                    conn.destroy();
-                    reject(new Error("Failed to update device active status : " + error.message));
-                  });
-                }
-
-                conn.query(
-                  `INSERT INTO device (identifier, passkey, device_token, selected_language)
-                     VALUES (?, ?, ?, ?)`,
-                  [identifier, passkey, device_token, selected_language],
-                  (error, results) => {
-                    if (error) {
-                      return conn.rollback(() => {
-                        conn.destroy();
-                        reject(new Error("Failed to insert device : " + error.message));
-                      });
-                    }
-
-                    conn.commit((err) => {
-                      if (err) {
-                        return conn.rollback(() => {
-                          conn.destroy();
-                          reject(new Error("Failed to commit transaction : " + err.message));
-                        });
-                      }
-
-                      conn.release(); // ✅ safe
-                      resolve(results.insertId);
-                    });
-                  }
-                );
+            if (!passkeyMatches(results[0].passkey, passkey)) {
+              return conn.rollback(() => {
+                conn.release();
+                const authError = new Error("Invalid credentials");
+                authError.code = "ER_INVALID_CREDENTIALS";
+                reject(authError);
               });
             } else {
               conn.query(
