@@ -4,6 +4,7 @@ const fetch = require("node-fetch");
 const sysLogger = require("./sysLogger");
 
 const TOKEN_METADATA_BATCH_SIZE = 500;
+const TOKEN_IMAGE_TIMEOUT_MS = 5000;
 
 const logDbError = (action, error, meta = {}) => {
   try {
@@ -1353,6 +1354,55 @@ const removeDeviceTokenByToken = (deviceToken) => {
   });
 };
 
+const cacheTokenImages = async (tokens) => {
+  const folderPath = path.join(process.cwd(), "public", "token");
+  if (!fs.existsSync(folderPath)) {
+    fs.mkdirSync(folderPath, { recursive: true });
+  }
+
+  const unreachableHosts = new Set();
+  let stored = 0;
+  let failed = 0;
+
+  for (const t of tokens) {
+    const imgUrl = t.image ?? t.logo;
+    if (!imgUrl) continue;
+
+    try {
+      const parsedUrl = new URL(imgUrl);
+      if (unreachableHosts.has(parsedUrl.host)) {
+        failed++;
+        continue;
+      }
+
+      let ext = path.extname(parsedUrl.pathname).toLowerCase();
+      if (!ext) ext = ".png";
+
+      const fileIdentifier = t.address ? t.address.toLowerCase() : `native-${t.chainId}`;
+      const filePath = path.join(folderPath, `${fileIdentifier}${ext}`);
+      if (fs.existsSync(filePath)) continue;
+
+      const response = await fetch(imgUrl, { signal: AbortSignal.timeout(TOKEN_IMAGE_TIMEOUT_MS) });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      fs.writeFileSync(filePath, Buffer.from(await response.arrayBuffer()));
+      stored++;
+    } catch (e) {
+      failed++;
+      try {
+        unreachableHosts.add(new URL(imgUrl).host);
+      } catch (parseErr) {}
+    }
+  }
+
+  sysLogger.logToDb(
+    "SYSTEM_EVENT",
+    "dao.cacheTokenImages.completed",
+    { stored, failed, unreachableHosts: unreachableHosts.size },
+    failed > 0 ? "WARN" : "INFO"
+  );
+};
+
 const syncTokenMetaDataInDB = (tokens) => {
   function has4ByteUnicode(str) {
     return /[\u{10000}-\u{10FFFF}]/u.test(str || "");
@@ -1370,54 +1420,13 @@ const syncTokenMetaDataInDB = (tokens) => {
     let rows = [];
 
     // -----------------------------------
-    // 1️⃣ FIRST — Download images + prepare rows
+    // 1️⃣ FIRST — Prepare rows
     // -----------------------------------
     for (const t of tokens) {
       try {
         if (has4ByteUnicode(t.name) || has4ByteUnicode(t.symbol)) {
           t.symbol = strip4ByteChars(t.symbol);
           t.name = strip4ByteChars(t.name);
-        }
-
-        // --- image downloading ---
-        const imgUrl = t.image ?? t.logo;
-        try {
-
-          if (imgUrl) {
-            const parsedUrl = new URL(imgUrl);
-            const pathname = parsedUrl.pathname;
-
-            let ext = path.extname(pathname).toLowerCase();
-            if (!ext) ext = ".png";
-
-            const folderPath = path.join(process.cwd(), "public", "token");
-
-            const fileIdentifier = t.address ? t.address.toLowerCase() : `native-${t.chainId}`;
-
-            const filePath = path.join(folderPath, `${fileIdentifier}${ext}`);
-
-            if (!fs.existsSync(folderPath)) {
-              fs.mkdirSync(folderPath, { recursive: true });
-            }
-
-            if (!fs.existsSync(filePath)) {
-              const response = await fetch(imgUrl);
-              if (!response.ok) throw new Error("Failed to fetch image");
-
-              const buffer = Buffer.from(await response.arrayBuffer());
-              fs.writeFileSync(filePath, buffer);
-            }
-          }
-        } catch (e) {
-          sysLogger.logToDb(
-            "SYSTEM_ERROR",
-            "dao.syncTokenMetaDataInDB.imageDownloadFailed",
-            {
-              imageUrl: imgUrl,
-              error: e && e.message ? e.message : String(e),
-            },
-            "ERROR"
-          );
         }
 
         rows.push([
@@ -1476,6 +1485,11 @@ const syncTokenMetaDataInDB = (tokens) => {
         `RENAME TABLE token_metadata TO token_metadata_previous, token_metadata_staging TO token_metadata`
       );
       await run(`DROP TABLE token_metadata_previous`);
+
+      // -----------------------------------
+      // 4️⃣ FOURTH — Cache the token images, best effort
+      // -----------------------------------
+      await cacheTokenImages(tokens);
 
       resolve({ affectedRows: rows.length });
     } catch (err) {
