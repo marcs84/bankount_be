@@ -3,6 +3,8 @@ const path = require("path");
 const fetch = require("node-fetch");
 const sysLogger = require("./sysLogger");
 
+const TOKEN_METADATA_BATCH_SIZE = 500;
+
 const logDbError = (action, error, meta = {}) => {
   try {
     sysLogger.logToDb(
@@ -1378,8 +1380,8 @@ const syncTokenMetaDataInDB = (tokens) => {
         }
 
         // --- image downloading ---
+        const imgUrl = t.image ?? t.logo;
         try {
-          const imgUrl = t.image ?? t.logo;
 
           if (imgUrl) {
             const parsedUrl = new URL(imgUrl);
@@ -1447,30 +1449,48 @@ const syncTokenMetaDataInDB = (tokens) => {
 
     if (rows.length === 0) return resolve("No valid tokens to insert");
 
+    const run = (sql, params) =>
+      new Promise((res, rej) => connection.query(sql, params, (err, result) => (err ? rej(err) : res(result))));
+
     // -----------------------------------
-    // 2️⃣ SECOND — Now TRUNCATE DB
+    // 2️⃣ SECOND — Fill a staging table in batches
     // -----------------------------------
-    connection.query(`TRUNCATE TABLE token_metadata`, (err) => {
-      if (err) {
-        return reject(new Error("Error deleting existing token metadata: " + err.message));
+    try {
+      await run(`DROP TABLE IF EXISTS token_metadata_staging`);
+      await run(`CREATE TABLE token_metadata_staging LIKE token_metadata`);
+
+      for (let i = 0; i < rows.length; i += TOKEN_METADATA_BATCH_SIZE) {
+        await run(
+          `INSERT INTO token_metadata_staging
+          (blockchain, symbol, name, isPopular, chainId, address, decimals, image, blockchainImage, usdPrice, supportedSwappers)
+          VALUES ?`,
+          [rows.slice(i, i + TOKEN_METADATA_BATCH_SIZE)]
+        );
       }
 
       // -----------------------------------
-      // 3️⃣ THIRD — Insert final rows
+      // 3️⃣ THIRD — Swap it in atomically
       // -----------------------------------
-      connection.query(
-        `INSERT INTO token_metadata 
-        (blockchain, symbol, name, isPopular, chainId, address, decimals, image, blockchainImage, usdPrice, supportedSwappers) 
-        VALUES ?`,
-        [rows],
-        (err, results) => {
-          if (err) {
-            return reject(new Error("Error inserting token metadata: " + err.message));
-          }
-          resolve(results);
-        }
+      await run(`DROP TABLE IF EXISTS token_metadata_previous`);
+      await run(
+        `RENAME TABLE token_metadata TO token_metadata_previous, token_metadata_staging TO token_metadata`
       );
-    });
+      await run(`DROP TABLE token_metadata_previous`);
+
+      resolve({ affectedRows: rows.length });
+    } catch (err) {
+      try {
+        await run(`DROP TABLE IF EXISTS token_metadata_staging`);
+      } catch (cleanupErr) {
+        sysLogger.logToDb(
+          "SYSTEM_ERROR",
+          "dao.syncTokenMetaDataInDB.stagingCleanupFailed",
+          { error: cleanupErr && cleanupErr.message ? cleanupErr.message : String(cleanupErr) },
+          "ERROR"
+        );
+      }
+      reject(new Error("Error inserting token metadata: " + err.message));
+    }
   });
 };
 
