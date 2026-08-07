@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test",
+    "test": "node --test --test-force-exit",
     "dev": "nodemon index.js",
     "start": "node index.js",
     "sync-metadata": "node index.js --run-sync"

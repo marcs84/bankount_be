@@ -359,7 +359,7 @@ const fetchLookupUrls = async (user_id, wallet_id, coin_type, data) => {
         data["explorer_testnet_url"] = existingExplorerUrl("Solana Testnet") ?? process.env.QUICKNODE_SOL_TEST_EXPLORER_URL;
         data["explorer_mainnet_url"] = existingExplorerUrl("Solana Mainnet") ?? process.env.QUICKNODE_SOL_MAIN_EXPLORER_URL;
         data["testnet"] = process.env.SOL_TEST_URL ?? null;
-        data["mainnet"] = utils.solanaWeb3.clusterApiUrl("mainnet-beta") ?? null;
+        data["mainnet"] = process.env.SOL_MAIN_URL ?? null;
         break;
       }
     }
