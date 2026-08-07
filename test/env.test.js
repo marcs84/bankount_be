@@ -28,8 +28,8 @@ test("accepts a database configured without a password", () => {
 });
 
 test("treats blank and whitespace-only values as missing", () => {
-  assert.deepEqual(findMissing(completeEnv({ SECRET_APP: "" })), ["SECRET_APP"]);
-  assert.deepEqual(findMissing(completeEnv({ SECRET_APP: "   " })), ["SECRET_APP"]);
+  assert.deepEqual(findMissing(completeEnv({ JWT_SECRET: "" })), ["JWT_SECRET"]);
+  assert.deepEqual(findMissing(completeEnv({ JWT_SECRET: "   " })), ["JWT_SECRET"]);
 });
 
 test("throws listing the missing variables", () => {

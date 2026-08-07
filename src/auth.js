@@ -4,24 +4,6 @@ const sysLogger = require('./sysLogger');
 const JWT_ALGORITHM = 'HS256';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 
-// Funzione middleware per l'autenticazione dell'app
-function authenticateTokenApp(req, res, next) {
-  const authHeader = req.headers.authorization;
-
-  if (authHeader) {
-    const token = authHeader.split(' ')[1]; // Estrae il token dal formato "Bearer <token>"
-
-    // Verifica il token (implementa la tua logica di verifica qui)
-    if (token === process.env.SECRET_APP) {
-      next(); // Il token è valido, passa al prossimo middleware o alla gestione della rotta
-    } else {
-      res.sendStatus(401); // Token non valido, accesso non autorizzato
-    }
-  } else {
-    res.sendStatus(401); // Token non fornito, accesso non autorizzato
-  }
-}
-
 // Funzione middleware per l'autenticazione
 function authenticateToken(req, res, next) {
   // Ottieni il token Bearer dall'header della richiesta
@@ -72,7 +54,6 @@ function generateLimitedToken(email){
 }
 
 module.exports = {
-  authenticateTokenApp,
   authenticateToken,
   generateToken,
   generateLimitedToken,
