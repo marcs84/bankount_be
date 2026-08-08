@@ -60,21 +60,25 @@ const filterTransactions = (data) => {
   const { limit, offset, wallet_id, start_date, end_date, search, chain, network_type, device_id } = data;
 
   try {
-    // Query corretta usando wallet come ponte
+    // Una transazione appartiene al dispositivo se uno dei due indirizzi
+    // coinvolti e' fra i suoi: il legame passa dagli indirizzi, non dalla
+    // colonna wallet_id della transazione, cosi' due dispositivi che
+    // condividono la stessa seed vedono lo stesso movimento senza doverlo
+    // duplicare.
     let query = `
-            SELECT DISTINCT
-                t.id, 
+            SELECT
                 t.*
-            FROM 
+            FROM
                 transactions t
-            JOIN 
-                wallet w ON t.wallet_id = w.id
-            JOIN 
-                device d ON w.device_id = d.id
-            WHERE 
-                d.id = ?
-                AND w.is_active = 1
-                AND d.is_active = 1
+            WHERE EXISTS (
+                SELECT 1
+                FROM addresses a
+                JOIN wallet w ON w.id = a.wallet_id
+                WHERE a.id_utente = ?
+                  AND w.is_active = 1
+                  AND (a.address = t.from_address OR a.address = t.destination_address)
+                  {{WALLET_SCOPE}}
+            )
             `;
 
     // Initialize the parameters array with the `device_id` first
@@ -82,8 +86,10 @@ const filterTransactions = (data) => {
 
     // Dynamically add conditions for each filter if provided
     if (wallet_id) {
-      query += " AND t.wallet_id = ?";
+      query = query.replace("{{WALLET_SCOPE}}", "AND a.wallet_id = ?");
       params.push(wallet_id);
+    } else {
+      query = query.replace("{{WALLET_SCOPE}}", "");
     }
 
     if (start_date && end_date) {
@@ -162,7 +168,11 @@ const filterTransactions = (data) => {
 
 const getAddressByAddress = (cointype, address) => {
   return new Promise((resolve, reject) => {
-    const query = `SELECT * FROM addresses WHERE cointype = ? AND address LIKE ?`;
+    // Lo stesso indirizzo puo' comparire per piu' dispositivi che condividono
+    // la seed: l'ordinamento rende stabile quale riga fornisce i metadati,
+    // che con la lettura basata sugli indirizzi non determinano piu' chi vede
+    // la transazione.
+    const query = `SELECT * FROM addresses WHERE cointype = ? AND address LIKE ? ORDER BY id ASC`;
     connection.query(query, [cointype, `%${address}%`], (error, results) => {
       if (error) {
         reject("Error querying the address: " + error.message);
@@ -226,12 +236,16 @@ const insertTransactionNew = ({
   usd_price = null,
 }) => {
   return new Promise((resolve, reject) => {
-    const query = `SELECT * FROM transactions WHERE tx = ? AND wallet_id = ?`;
-    connection.query(query, [tx, wallet_id], (err, results) => {
+    // Un movimento e' identificato dalla transazione e dai due indirizzi, non
+    // dal wallet che lo osserva: dispositivi diversi che condividono un
+    // indirizzo aggiornano la stessa riga invece di crearne una propria.
+    const query = `SELECT * FROM transactions WHERE tx = ? AND from_address = ? AND destination_address = ? AND network_type = ?`;
+    const selectParams = [tx, from_address, destination_address, network_type];
+    connection.query(query, selectParams, (err, results) => {
       if (err) {
         logDbError("dao.insertTransactionNew.selectExisting", err, {
           query: query,
-          params: [tx, wallet_id],
+          params: selectParams,
         });
         return reject(new Error("Error while inserting transaction data : " + err.message));
       }
