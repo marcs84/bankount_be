@@ -65,9 +65,7 @@ const filterTransactions = (data) => {
     // colonna wallet_id della transazione, cosi' due dispositivi che
     // condividono la stessa seed vedono lo stesso movimento senza doverlo
     // duplicare.
-    let query = `
-            SELECT
-                t.*
+    let body = `
             FROM
                 transactions t
             WHERE EXISTS (
@@ -86,33 +84,38 @@ const filterTransactions = (data) => {
 
     // Dynamically add conditions for each filter if provided
     if (wallet_id) {
-      query = query.replace("{{WALLET_SCOPE}}", "AND a.wallet_id = ?");
+      body = body.replace("{{WALLET_SCOPE}}", "AND a.wallet_id = ?");
       params.push(wallet_id);
     } else {
-      query = query.replace("{{WALLET_SCOPE}}", "");
+      body = body.replace("{{WALLET_SCOPE}}", "");
     }
 
     if (start_date && end_date) {
-      query += " AND t.data_insert BETWEEN ? AND ?";
+      body += " AND t.data_insert BETWEEN ? AND ?";
       params.push(start_date, end_date);
     }
 
     if (search) {
-      query += " AND (t.from_address LIKE CONCAT('%', ?, '%') OR t.destination_address LIKE CONCAT('%', ?, '%'))";
+      body += " AND (t.from_address LIKE CONCAT('%', ?, '%') OR t.destination_address LIKE CONCAT('%', ?, '%'))";
       params.push(search, search);
     }
 
     if (chain && chain != "ALL") {
-      query += " AND t.chain = ?";
+      body += " AND t.chain = ?";
       params.push(chain);
     }
 
     if (network_type) {
-      query += " AND t.network_type = ?";
+      body += " AND t.network_type = ?";
       params.push(network_type);
     }
 
-    query += " ORDER BY t.id DESC ";
+    // Il totale va calcolato prima di impaginare, altrimenti riporta la
+    // dimensione della pagina e chi consuma l'API non sa quante pagine restano.
+    const countQuery = `SELECT COUNT(*) AS total ${body}`;
+    const countParams = [...params];
+
+    let query = `SELECT t.* ${body} ORDER BY t.id DESC `;
 
     // Add LIMIT and OFFSET if provided
     if (limit) {
@@ -149,6 +152,20 @@ const filterTransactions = (data) => {
           });
         });
 
+        const totalCount = await new Promise((resolveCount, rejectCount) => {
+          connection.query(countQuery, countParams, (countError, countRows) => {
+            if (countError) {
+              logDbError("dao.filterTransactions.countQuery", countError, {
+                query: countQuery,
+                params: countParams,
+              });
+              rejectCount("Error counting the transactions: " + countError.message);
+              return;
+            }
+            resolveCount(countRows && countRows.length ? countRows[0].total : 0);
+          });
+        });
+
         const walletAddressesMap = walletAddresses.map((addressObj) => addressObj.address);
         transactions = transactions.map((tx) => {
           if (walletAddressesMap.includes(tx.from_address)) {
@@ -158,7 +175,7 @@ const filterTransactions = (data) => {
           }
           return tx;
         });
-        resolve({ transactions, totalCount: transactions.length });
+        resolve({ transactions, totalCount });
       });
     });
   } catch (error) {
