@@ -179,19 +179,6 @@ const checkAddressDetails = (chain, address) => {
 //   });
 // };
 
-// const registerTatumAddress = (chain, address) => {
-//   return new Promise((resolve, reject) => {
-//     dao
-//       .insertTatumAddress(chain, address)
-//       .then(async (data) => {
-//         resolve(data);
-//       })
-//       .catch((error) => {
-//         reject(error);
-//       });
-//   });
-// };
-
 const getDeviceTokenByFromAddress = (address) => {
   return new Promise((resolve, reject) => {
     dao
@@ -472,8 +459,6 @@ module.exports = {
 
   // insertTransactionDetails,
   checkAddressDetails,
-
-  // registerTatumAddress,
 
   getDeviceTokenByFromAddress,
   getLatestCoinRates,

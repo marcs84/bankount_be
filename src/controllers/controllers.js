@@ -119,7 +119,6 @@ const syncAddresses = async (req, res) => {
         const newCoinType = checkChain == "BNB" ? "BSC" : checkChain;
         // https://api.quicknode.com/kv/rest/v1/lists
 
-        // const tatumResponse = await service.registerTatumAddress(newCoinType, checkAddress);
         const quicknodeResponse = await service.storeAddressInQuicknode(checkAddress);
 
         const tatumStatus = quicknodeResponse ? "SYNCED" : "NOT-SYNCED";
@@ -459,10 +458,8 @@ const insertAddress = async (req, res) => {
 
   for (const address of addresses) {
     const newCoinType = address.coin_type == "BNB" ? "BSC" : address.coin_type;
-    // const tatumResponse = await service.registerTatumAddress(newCoinType, address.address);
     const quicknodeResponse = await service.storeAddressInQuicknode(address.address);
     address.tatumStatus = quicknodeResponse ? "SYNCED" : "NOT-SYNCED";
-    // address.tatumStatus = tatumResponse.body.id ? "SYNCED" : "NOT-SYNCED";
   }
 
   await service
@@ -830,71 +827,6 @@ ID transazione: ${receipt.hash}.
   }
 };
 
-const tatumTransactionWebhook = async (req, res) => {
-  try {
-    console.log("req.body", req.body);
-    let reqData = req.body;
-    const addressDetails = await service.checkAddressDetails(reqData.asset, reqData.counterAddress);
-    const objLength = Object.keys(addressDetails).length;
-    const addresId = objLength > 0 ? addressDetails.id : null;
-    const userID = objLength > 0 ? addressDetails.idUtente : 0;
-    reqData.tx = reqData.txId;
-    reqData.address_id = addresId;
-    reqData.idUtente = userID;
-    reqData.chain = reqData.asset;
-    reqData.token = reqData.asset;
-    reqData.from_address = reqData.counterAddress;
-    reqData.destination_address = reqData.address;
-    reqData.block_number = reqData.blockNumber;
-    reqData.type = reqData.type == "native" ? "COIN" : "TOKEN";
-    reqData.network_type = "TESTNET";
-
-    if (reqData.subscriptionType == "ADDRESS_EVENT") {
-      const responseData = await service.insertTransactionDetails(reqData);
-      // console.log("responseData", responseData);
-      const fromAddress = await service.getDeviceTokenByFromAddress(responseData.from_address);
-      const designationAddress = await service.getDeviceTokenByFromAddress(responseData.destination_address);
-
-      if (fromAddress) {
-        notification.sendNotification(fromAddress, {
-          notificationTitle: "Transaction Sent",
-          notificationBody: `The transaction successfully sent ${responseData.amount} ${responseData.chain} to address ${responseData.destination_address}.
-                                               Transaction ID: ${responseData.tx}`,
-        });
-      }
-
-      if (designationAddress) {
-        notification.sendNotification(designationAddress, {
-          notificationTitle: "Transaction Received",
-          notificationBody: `The transaction successfully received ${responseData.amount} ${responseData.chain} from address ${responseData.from_address}.
-                                               Transaction ID: ${responseData.tx}.`,
-        });
-      }
-
-      res.json({
-        result: true,
-        message: "Transaction stored successfully",
-        data: responseData,
-      });
-    } else {
-      notification.sendNotification(fromAddress, {
-        notificationTitle: "Transaction Failed",
-        notificationBody: "Your transaction could not be completed.",
-      });
-      res.status(500).json({
-        result: false,
-        message: "Transaction not stored successfully",
-      });
-    }
-  } catch (error) {
-    res.status(500).json({
-      result: false,
-      message: "An error occurred while retrieving list of transactions by address: ",
-      error: "An error occurred while retrieving list of transactions by address: ",
-    });
-  }
-};
-
 const createNewWallet = async (req, res) => {
   try {
     const { id, name, wallet_type, is_active, user_id } = req.body;
@@ -1258,7 +1190,7 @@ const fetchLookupUrls = async (req, res) => {
 
     if (key_type) {
       let key = "";
-      const possibleTypes = ["wallet_connect", "coin_gecko", "moralis", "tatum"];
+      const possibleTypes = ["wallet_connect", "coin_gecko", "moralis"];
       const isValidType = possibleTypes.includes(key_type);
       if (!isValidType) {
         return res.status(400).json({
@@ -1277,9 +1209,6 @@ const fetchLookupUrls = async (req, res) => {
           break;
         case "moralis":
           key = process.env.MORALIS_API_KEY;
-          break;
-        case "tatum":
-          key = process.env.TATUM_KEY;
           break;
         default:
           throw new Error("Invalid type");
@@ -2031,8 +1960,6 @@ module.exports = {
   deviceLogin,
   insertAddress,
   insertTransaction,
-
-  tatumTransactionWebhook,
 
   createNewWallet,
   updateWallet,

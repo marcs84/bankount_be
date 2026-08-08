@@ -16,22 +16,11 @@ var jsonParser = bodyParser.json();
 // il corpo grezzo serve a verificare la firma dei webhook
 var webhookParser = bodyParser.json({ verify: captureRawBody });
 
-const verifyTatum = webhookVerifier({
-  name: "tatum",
-  secretVar: "TATUM_WEBHOOK_SECRET",
-  headerVar: "TATUM_WEBHOOK_SIGNATURE_HEADER",
-  algorithmVar: "TATUM_WEBHOOK_ALGORITHM",
-  tokenHeaderVar: "TATUM_WEBHOOK_TOKEN_HEADER",
-  schemeVar: "TATUM_WEBHOOK_SCHEME",
-  toleranceVar: "TATUM_WEBHOOK_TOLERANCE_MS",
-});
-
 const verifyQuicknode = webhookVerifier({
   name: "quicknode",
   secretVar: "QUICKNODE_WEBHOOK_SECRET",
   headerVar: "QUICKNODE_WEBHOOK_SIGNATURE_HEADER",
   algorithmVar: "QUICKNODE_WEBHOOK_ALGORITHM",
-  tokenHeaderVar: "QUICKNODE_WEBHOOK_TOKEN_HEADER",
   schemeVar: "QUICKNODE_WEBHOOK_SCHEME",
   toleranceVar: "QUICKNODE_WEBHOOK_TOLERANCE_MS",
 });
@@ -416,7 +405,7 @@ router.post("/api/deviceLogin", jsonParser, loginLimiter, controllers.deviceLogi
  * /api/insertAddress:
  *   post:
  *     summary: Insert multiple cryptocurrency addresses
- *     description: Stores multiple cryptocurrency addresses and syncs them with the Tatum API.
+ *     description: Stores multiple cryptocurrency addresses and syncs them with the node provider.
  *     tags:
  *       - Addresses
  *     security:
@@ -639,7 +628,6 @@ router.post("/api/insertAddress", jsonParser, auth.authenticateToken, controller
  */
 router.post("/api/insertTransaction", jsonParser, auth.authenticateToken, controllers.insertTransaction);
 
-router.post("/api/webhook-tatum/transaction", webhookParser, verifyTatum, controllers.tatumTransactionWebhook);
 
 /**
  * @swagger
@@ -1459,7 +1447,7 @@ router.put("/api/addresses/update", jsonParser, auth.authenticateToken, controll
  * /api/lookup-urls:
  *   post:
  *     summary: Fetch lookup URLs and encrypted API keys
- *     description: Fetches various service URLs and API keys (e.g., WalletConnect, CoinGecko, Moralis, Tatum) based on coin type or key type, and returns them in encrypted form using ECDH.
+ *     description: Fetches various service URLs and API keys (e.g., WalletConnect, CoinGecko, Moralis) based on coin type or key type, and returns them in encrypted form using ECDH.
  *     tags:
  *       - Encryption
  *     security:
@@ -1479,7 +1467,7 @@ router.put("/api/addresses/update", jsonParser, auth.authenticateToken, controll
  *                 example: "BSC"
  *               key_type:
  *                 type: string
- *                 enum: [wallet_connect, coin_gecko, moralis, tatum]
+ *                 enum: [wallet_connect, coin_gecko, moralis]
  *                 example: "wallet_connect"
  *               client_public_key:
  *                 type: string

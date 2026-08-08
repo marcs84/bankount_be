@@ -628,38 +628,6 @@ const verifyDeviceDetails = (identifier) => {
   });
 };
 
-// const insertTatumAddress = (chain, address) => {
-//   return new Promise((resolve, reject) => {
-//     const options = {
-//       method: "POST",
-//       url: "https://api.tatum.io/v4/subscription",
-//       headers: {
-//         accept: "application/json",
-//         "content-type": "application/json",
-//         "x-api-key": process.env.TATUM_KEY,
-//       },
-//       body: {
-//         type: "ADDRESS_EVENT",
-//         attr: {
-//           chain: chain,
-//           address: address,
-//           url: process.env.TATUM_URL,
-//         },
-//         //   mempool: true
-//       },
-//       json: true,
-//     };
-//     request(options, function (error, response, body) {
-//       if (error) {
-//         return reject("Error querying the transaction count: " + error.message);
-//       }
-//       if (response) {
-//         return resolve(response);
-//       }
-//     });
-//   });
-// };
-
 const getAddressByUserIdAndAddressAndChain = (userId, address, chain) => {
   const query = `SELECT * FROM addresses WHERE id_utente = ? AND address = ? AND cointype = ?`;
   const queryParams = [userId, address, chain];
@@ -1604,8 +1572,6 @@ module.exports = {
   insertUserAddress,
 
   verifyDeviceDetails,
-
-  // insertTatumAddress,
 
   getDeviceTokenByFromAddress,
   updateAddressStatus,

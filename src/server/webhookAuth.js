@@ -30,12 +30,6 @@ function verifySignature({ secret, signedPayload, signature, algorithm = DEFAULT
   );
 }
 
-function verifyToken({ secret, token }) {
-  if (!secret || !token) return false;
-
-  return timingSafeEquals(String(token).trim(), String(secret).trim());
-}
-
 // Quicknode Streams firma la concatenazione di nonce, timestamp e corpo, non il
 // solo corpo: verificare l'HMAC del payload da solo non validerebbe mai le loro
 // richieste. Il corpo e' quello decompresso, che e' cio' che body-parser
@@ -61,7 +55,7 @@ function timestampWithinTolerance(timestamp, toleranceMs) {
   return Math.abs(Date.now() - millis) <= toleranceMs;
 }
 
-function webhookVerifier({ name, secretVar, headerVar, algorithmVar, tokenHeaderVar, schemeVar, toleranceVar }) {
+function webhookVerifier({ name, secretVar, headerVar, algorithmVar, schemeVar, toleranceVar }) {
   const closed = (res, action, detail) => {
     sysLogger.logToDb("SYSTEM_ERROR", `webhook.${name}.${action}`, detail, "ERROR");
     return res.status(503).json({ result: false, message: "Webhook not configured" });
@@ -82,40 +76,28 @@ function webhookVerifier({ name, secretVar, headerVar, algorithmVar, tokenHeader
     if (!secret) return closed(res, "secretMissing", { hint: `configurare ${secretVar}` });
 
     const signatureHeader = (process.env[headerVar] || "").toLowerCase();
-    const tokenHeader = (process.env[tokenHeaderVar] || "").toLowerCase();
+    if (!signatureHeader) return closed(res, "headerMissing", { hint: `configurare ${headerVar}` });
 
-    if (signatureHeader) {
-      const schemeName = process.env[schemeVar] || "raw";
-      const buildPayload = SCHEMES[schemeName];
-      if (!buildPayload) return closed(res, "schemeUnknown", { scheme: schemeName });
+    const schemeName = process.env[schemeVar] || "raw";
+    const buildPayload = SCHEMES[schemeName];
+    if (!buildPayload) return closed(res, "schemeUnknown", { scheme: schemeName });
 
-      const toleranceMs = Number(process.env[toleranceVar]) || DEFAULT_TOLERANCE_MS;
-      if (!timestampWithinTolerance(req.headers["x-qn-timestamp"], toleranceMs)) {
-        return rejected(req, res, "timestamp outside tolerance");
-      }
-
-      const signedPayload = buildPayload({ rawBody: req.rawBody, headers: req.headers });
-      if (!signedPayload) return rejected(req, res, "signature components missing");
-
-      const algorithm = process.env[algorithmVar] || DEFAULT_ALGORITHM;
-      const signature = req.headers[signatureHeader];
-
-      if (!verifySignature({ secret, signedPayload, signature, algorithm })) {
-        return rejected(req, res, signature ? "signature mismatch" : "signature missing");
-      }
-      return next();
+    const toleranceMs = Number(process.env[toleranceVar]) || DEFAULT_TOLERANCE_MS;
+    if (!timestampWithinTolerance(req.headers["x-qn-timestamp"], toleranceMs)) {
+      return rejected(req, res, "timestamp outside tolerance");
     }
 
-    if (tokenHeader) {
-      const token = req.headers[tokenHeader];
+    const signedPayload = buildPayload({ rawBody: req.rawBody, headers: req.headers });
+    if (!signedPayload) return rejected(req, res, "signature components missing");
 
-      if (!verifyToken({ secret, token })) {
-        return rejected(req, res, token ? "token mismatch" : "token missing");
-      }
-      return next();
+    const algorithm = process.env[algorithmVar] || DEFAULT_ALGORITHM;
+    const signature = req.headers[signatureHeader];
+
+    if (!verifySignature({ secret, signedPayload, signature, algorithm })) {
+      return rejected(req, res, signature ? "signature mismatch" : "signature missing");
     }
 
-    return closed(res, "headerMissing", { hint: `configurare ${headerVar} oppure ${tokenHeaderVar}` });
+    next();
   };
 }
 
@@ -123,4 +105,4 @@ const captureRawBody = (req, res, buf) => {
   req.rawBody = buf;
 };
 
-module.exports = { verifySignature, verifyToken, webhookVerifier, captureRawBody, SCHEMES };
+module.exports = { verifySignature, webhookVerifier, captureRawBody, SCHEMES };
