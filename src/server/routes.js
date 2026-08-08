@@ -8,9 +8,27 @@ const controllers = require("../controllers/controllers");
 const sysLogger = require("../sysLogger");
 const { redact } = require("./redact");
 const { loginLimiter } = require("./rateLimit");
+const { webhookVerifier, captureRawBody } = require("./webhookAuth");
 
 // create application/json parser
 var jsonParser = bodyParser.json();
+
+// il corpo grezzo serve a verificare la firma dei webhook
+var webhookParser = bodyParser.json({ verify: captureRawBody });
+
+const verifyTatum = webhookVerifier({
+  name: "tatum",
+  secretVar: "TATUM_WEBHOOK_SECRET",
+  headerVar: "TATUM_WEBHOOK_SIGNATURE_HEADER",
+  algorithmVar: "TATUM_WEBHOOK_ALGORITHM",
+});
+
+const verifyQuicknode = webhookVerifier({
+  name: "quicknode",
+  secretVar: "QUICKNODE_WEBHOOK_SECRET",
+  headerVar: "QUICKNODE_WEBHOOK_SIGNATURE_HEADER",
+  algorithmVar: "QUICKNODE_WEBHOOK_ALGORITHM",
+});
 
 // create application/x-www-form-urlencoded parser
 var urlencodedParser = bodyParser.urlencoded({ extended: false });
@@ -615,7 +633,7 @@ router.post("/api/insertAddress", jsonParser, auth.authenticateToken, controller
  */
 router.post("/api/insertTransaction", jsonParser, auth.authenticateToken, controllers.insertTransaction);
 
-router.post("/api/webhook-tatum/transaction", jsonParser, controllers.tatumTransactionWebhook);
+router.post("/api/webhook-tatum/transaction", webhookParser, verifyTatum, controllers.tatumTransactionWebhook);
 
 /**
  * @swagger
@@ -2095,7 +2113,7 @@ router.get("/api/token-balance", jsonParser, auth.authenticateToken, controllers
  */
 router.get("/api/search-token", jsonParser, auth.authenticateToken, controllers.searchTokensUsingCoinpaprika);
 
-router.post("/api/webhook-quicknode/transaction", jsonParser, controllers.quicknodeTransactionWebhook);
+router.post("/api/webhook-quicknode/transaction", webhookParser, verifyQuicknode, controllers.quicknodeTransactionWebhook);
 
 /**
  * @swagger
