@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const crypto = require("crypto");
 
-const { verifySignature, webhookVerifier, captureRawBody } = require("../src/server/webhookAuth");
+const { verifySignature, verifyToken, webhookVerifier, captureRawBody } = require("../src/server/webhookAuth");
 
 const SECRET = "shared-secret-for-tests";
 const BODY = Buffer.from(JSON.stringify({ txId: "0xabc", amount: "1.5" }));
@@ -36,7 +36,7 @@ function run(verifier, req) {
 
 const savedEnv = { ...process.env };
 test.afterEach(() => {
-  for (const k of ["WH_SECRET", "WH_HEADER", "WH_ALG"]) delete process.env[k];
+  for (const k of ["WH_SECRET", "WH_HEADER", "WH_ALG", "WH_TOKEN_HEADER"]) delete process.env[k];
   Object.assign(process.env, savedEnv);
 });
 
@@ -79,7 +79,7 @@ test("supports a different digest algorithm", () => {
 
 test("closes the route when no secret is configured", () => {
   process.env.WH_HEADER = "x-signature";
-  const verifier = webhookVerifier({ name: "test", secretVar: "WH_SECRET", headerVar: "WH_HEADER", algorithmVar: "WH_ALG" });
+  const verifier = webhookVerifier({ name: "test", secretVar: "WH_SECRET", headerVar: "WH_HEADER", algorithmVar: "WH_ALG", tokenHeaderVar: "WH_TOKEN_HEADER" });
 
   const { res, passed } = run(verifier, { rawBody: BODY, headers: { "x-signature": sign(SECRET, BODY) } });
 
@@ -90,7 +90,7 @@ test("closes the route when no secret is configured", () => {
 test("rejects an unsigned request with 401", () => {
   process.env.WH_SECRET = SECRET;
   process.env.WH_HEADER = "x-signature";
-  const verifier = webhookVerifier({ name: "test", secretVar: "WH_SECRET", headerVar: "WH_HEADER", algorithmVar: "WH_ALG" });
+  const verifier = webhookVerifier({ name: "test", secretVar: "WH_SECRET", headerVar: "WH_HEADER", algorithmVar: "WH_ALG", tokenHeaderVar: "WH_TOKEN_HEADER" });
 
   const { res, passed } = run(verifier, { rawBody: BODY, headers: {} });
 
@@ -101,7 +101,7 @@ test("rejects an unsigned request with 401", () => {
 test("rejects a forged payload with 401", () => {
   process.env.WH_SECRET = SECRET;
   process.env.WH_HEADER = "x-signature";
-  const verifier = webhookVerifier({ name: "test", secretVar: "WH_SECRET", headerVar: "WH_HEADER", algorithmVar: "WH_ALG" });
+  const verifier = webhookVerifier({ name: "test", secretVar: "WH_SECRET", headerVar: "WH_HEADER", algorithmVar: "WH_ALG", tokenHeaderVar: "WH_TOKEN_HEADER" });
 
   const forged = Buffer.from(JSON.stringify({ txId: "0xabc", amount: "1000000" }));
   const { res, passed } = run(verifier, { rawBody: forged, headers: { "x-signature": sign(SECRET, BODY) } });
@@ -113,7 +113,7 @@ test("rejects a forged payload with 401", () => {
 test("lets a correctly signed request through", () => {
   process.env.WH_SECRET = SECRET;
   process.env.WH_HEADER = "x-signature";
-  const verifier = webhookVerifier({ name: "test", secretVar: "WH_SECRET", headerVar: "WH_HEADER", algorithmVar: "WH_ALG" });
+  const verifier = webhookVerifier({ name: "test", secretVar: "WH_SECRET", headerVar: "WH_HEADER", algorithmVar: "WH_ALG", tokenHeaderVar: "WH_TOKEN_HEADER" });
 
   const { res, passed } = run(verifier, { rawBody: BODY, headers: { "x-signature": sign(SECRET, BODY) } });
 
@@ -126,4 +126,52 @@ test("captures the raw body for later verification", () => {
   captureRawBody(req, {}, BODY);
 
   assert.equal(req.rawBody, BODY);
+});
+
+test("compares a static token when the provider does not sign the body", () => {
+  assert.equal(verifyToken({ secret: SECRET, token: SECRET }), true);
+  assert.equal(verifyToken({ secret: SECRET, token: `  ${SECRET}  ` }), true);
+  assert.equal(verifyToken({ secret: SECRET, token: "altro" }), false);
+  assert.equal(verifyToken({ secret: SECRET, token: "" }), false);
+  assert.equal(verifyToken({ secret: "", token: SECRET }), false);
+});
+
+test("lets through a request carrying the expected token", () => {
+  process.env.WH_SECRET = SECRET;
+  process.env.WH_TOKEN_HEADER = "x-security-token";
+  const verifier = webhookVerifier({ name: "test", secretVar: "WH_SECRET", headerVar: "WH_HEADER", algorithmVar: "WH_ALG", tokenHeaderVar: "WH_TOKEN_HEADER" });
+
+  const { res, passed } = run(verifier, { headers: { "x-security-token": SECRET } });
+
+  assert.equal(passed, true);
+  assert.equal(res.statusCode, null);
+});
+
+test("rejects a wrong or missing token with 401", () => {
+  process.env.WH_SECRET = SECRET;
+  process.env.WH_TOKEN_HEADER = "x-security-token";
+  const verifier = webhookVerifier({ name: "test", secretVar: "WH_SECRET", headerVar: "WH_HEADER", algorithmVar: "WH_ALG", tokenHeaderVar: "WH_TOKEN_HEADER" });
+
+  assert.equal(run(verifier, { headers: { "x-security-token": "sbagliato" } }).res.statusCode, 401);
+  assert.equal(run(verifier, { headers: {} }).res.statusCode, 401);
+});
+
+test("prefers the signature when both headers are configured", () => {
+  process.env.WH_SECRET = SECRET;
+  process.env.WH_HEADER = "x-signature";
+  process.env.WH_TOKEN_HEADER = "x-security-token";
+  const verifier = webhookVerifier({ name: "test", secretVar: "WH_SECRET", headerVar: "WH_HEADER", algorithmVar: "WH_ALG", tokenHeaderVar: "WH_TOKEN_HEADER" });
+
+  const onlyToken = run(verifier, { rawBody: BODY, headers: { "x-security-token": SECRET } });
+  assert.equal(onlyToken.res.statusCode, 401, "il token da solo non basta se e' attesa la firma");
+
+  const signed = run(verifier, { rawBody: BODY, headers: { "x-signature": sign(SECRET, BODY) } });
+  assert.equal(signed.passed, true);
+});
+
+test("closes the route when neither header is configured", () => {
+  process.env.WH_SECRET = SECRET;
+  const verifier = webhookVerifier({ name: "test", secretVar: "WH_SECRET", headerVar: "WH_HEADER", algorithmVar: "WH_ALG", tokenHeaderVar: "WH_TOKEN_HEADER" });
+
+  assert.equal(run(verifier, { rawBody: BODY, headers: {} }).res.statusCode, 503);
 });

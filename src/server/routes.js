@@ -21,6 +21,7 @@ const verifyTatum = webhookVerifier({
   secretVar: "TATUM_WEBHOOK_SECRET",
   headerVar: "TATUM_WEBHOOK_SIGNATURE_HEADER",
   algorithmVar: "TATUM_WEBHOOK_ALGORITHM",
+  tokenHeaderVar: "TATUM_WEBHOOK_TOKEN_HEADER",
 });
 
 const verifyQuicknode = webhookVerifier({
@@ -28,6 +29,7 @@ const verifyQuicknode = webhookVerifier({
   secretVar: "QUICKNODE_WEBHOOK_SECRET",
   headerVar: "QUICKNODE_WEBHOOK_SIGNATURE_HEADER",
   algorithmVar: "QUICKNODE_WEBHOOK_ALGORITHM",
+  tokenHeaderVar: "QUICKNODE_WEBHOOK_TOKEN_HEADER",
 });
 
 // create application/x-www-form-urlencoded parser
