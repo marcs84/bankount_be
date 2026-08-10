@@ -458,7 +458,14 @@ const insertAddress = async (req, res) => {
   }
 
   for (const address of addresses) {
-    const newCoinType = address.coin_type == "BNB" ? "BSC" : address.coin_type;
+    // L'indirizzo nasce sempre sotto il dispositivo che lo registra: user_id
+    // arrivava dalla richiesta e permetteva di popolare il wallet di un altro.
+    address.user_id = req.device.id;
+
+    if (address.wallet_id && !(await dao.isWalletOwnedByDevice(address.wallet_id, req.device.id))) {
+      return notFound(res, "Wallet not found");
+    }
+
     const quicknodeResponse = await service.storeAddressInQuicknode(address.address);
     address.tatumStatus = quicknodeResponse ? "SYNCED" : "NOT-SYNCED";
   }
@@ -806,9 +813,11 @@ ID transazione: ${receipt.hash}.
 
 const createNewWallet = async (req, res) => {
   try {
-    const { id, name, wallet_type, is_active, user_id } = req.body;
-    const deviceDetails = await dao.verifyDeviceDetails(req.user.identifier);
-    const response = await dao.createWallet(id, name, wallet_type, is_active, deviceDetails[0].id, user_id);
+    const { id, name, wallet_type, is_active } = req.body;
+    // device_id e user_id descrivono lo stesso dispositivo: prenderne uno dal
+    // token e l'altro dalla richiesta lasciava scrivere in wallet.user_id un
+    // valore arbitrario, usato poi per unire wallet e indirizzi.
+    const response = await dao.createWallet(id, name, wallet_type, is_active, req.device.id, req.device.id);
     const data = await dao.getWalletById(id);
     return res.status(200).json({
       result: true,
@@ -830,6 +839,9 @@ const updateWallet = async (req, res) => {
     const { wallet_id, updates } = req.body;
     if (!wallet_id) {
       throw new Error("wallet_id is required");
+    }
+    if (!(await dao.isWalletOwnedByDevice(wallet_id, req.device.id))) {
+      return notFound(res, "Wallet not found");
     }
     await dao.updateWallet(wallet_id, updates);
     const updatedWallet = await dao.getWalletById(wallet_id);
@@ -1121,15 +1133,11 @@ const fetchAssets = async (req, res) => {
 
 const updateAddress = async (req, res) => {
   try {
-    const { user_id, wallet_id, address_id, address_name } = req.body;
-    // if(!(address_id && address_name)){
-    //     return res.status(400).json({
-    //         result: false,
-    //         message: 'Invalid parameters',
-    //         error: 'Invalid parameters'
-    //     })
-    // }
-    const data = await dao.updateAddressName(user_id, wallet_id, address_id, address_name);
+    const { wallet_id, address_id, address_name } = req.body;
+    const data = await dao.updateAddressName(req.device.id, wallet_id, address_id, address_name);
+    if (!data) {
+      return notFound(res, "Address not found");
+    }
     return res.status(200).json({
       result: true,
       message: "Address name updated successfully",
@@ -1695,10 +1703,11 @@ const getTokenDetails = async (req, res) => {
 
 const bookmarkToken = async (req, res) => {
   try {
-    const identifier = req.user.identifier;
-    const deviceResponse = await service.findDeviceDetails(identifier);
-    const deviceId = deviceResponse[0].id;
+    const deviceId = req.device.id;
     const { token_id, wallet_id, name, symbol, rank, rev, type, chain, address, asset_type } = req.body;
+    if (!(await dao.isWalletOwnedByDevice(wallet_id, deviceId))) {
+      return notFound(res, "Wallet not found");
+    }
     const tokenDetails = await axios.get(
       `${COINPAPRIKA_BASE_URL}/coins/${token_id}`,
       coinPaprikaAuthConfig
@@ -1724,9 +1733,10 @@ const bookmarkToken = async (req, res) => {
 const storeCustomChainUrl = async (req, res) => {
   try {
     const { wallet_id, blockchain_name, node_url, explorer_url, crypto_currency_ticker, chain_id } = req.body;
-    const identifier = req.user.identifier;
-    const deviceResponse = await service.findDeviceDetails(identifier);
-    const user_id = deviceResponse[0].id;
+    const user_id = req.device.id;
+    if (!(await dao.isWalletOwnedByDevice(wallet_id, user_id))) {
+      return notFound(res, "Wallet not found");
+    }
     const existingCustomUrl = await dao.checkExistingCustomChainUrl(user_id, wallet_id, blockchain_name);
     // console.log('existingCustomUrl', existingCustomUrl)
     if (existingCustomUrl) {
@@ -1780,7 +1790,10 @@ const updateCustomChainUrl = async (req, res) => {
 const removeBookmarkedToken = async (req, res) => {
   try {
     const { tokenId } = req.params;
-    const response = await dao.removeBookmarkedToken(tokenId);
+    const removed = await dao.removeBookmarkedToken(tokenId, req.device.id);
+    if (!removed) {
+      return notFound(res, "Bookmarked token not found");
+    }
     return res.status(200).json({
       result: true,
       message: "Token removed from bookmarked list successfully",

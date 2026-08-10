@@ -866,6 +866,21 @@ const getWalletById = async (walletId) => {
   });
 };
 
+// Il wallet indicato nella richiesta va confermato prima di scriverci dentro:
+// l'identificativo lo sceglie il chiamante.
+const isWalletOwnedByDevice = (wallet_id, device_id) => {
+  return new Promise((resolve, reject) => {
+    const query = `SELECT 1 FROM wallet WHERE id = ? AND device_id = ? LIMIT 1`;
+    connection.query(query, [wallet_id, device_id], (error, results) => {
+      if (error) {
+        logDbError("dao.isWalletOwnedByDevice", error, { query, params: [wallet_id, device_id] });
+        return reject(new Error("Error while verifying wallet ownership : " + error.message));
+      }
+      resolve(results.length > 0);
+    });
+  });
+};
+
 const getWalletsByDeviceId = async (deviceId) => {
   const query = `SELECT wallet.* FROM wallet JOIN device ON wallet.device_id = device.id WHERE device_id = ? AND device.is_active=1 ORDER BY wallet.created_at DESC`;
   const queryParams = [deviceId];
@@ -952,24 +967,23 @@ const updateAddressName = async (user_id, wallet_id, address_id, address_name) =
   const query = `UPDATE addresses SET address_name = ? WHERE id_utente = ? AND wallet_id = ? AND id = ?`;
   const matches = [address_name, user_id, wallet_id, address_id];
   return new Promise((resolve, reject) => {
-    connection.query(query, matches, (error, result) => {
+    connection.query(query, matches, (error) => {
       if (error) {
         return reject(new Error("Failed to edit address name : " + error.message));
       }
-      if (result.affectedRows === 1) {
-        connection.query(
-          "SELECT id, cointype AS coin_type, address,address_name, id_utente AS user_id, `index`, start_block, tatumStatus AS tatum_status, addressStatus AS address_status, wallet_id  FROM addresses WHERE id = ?",
-          [address_id],
-          (error, results) => {
-            if (error) {
-              return reject(new Error("Failed to edit address name : " + error.message));
-            }
-            return resolve(results[0]);
+      // La rilettura ripete il vincolo sul proprietario: se non restituisce
+      // nulla l'indirizzo non e' del chiamante. Contare le righe modificate
+      // non basterebbe, perche' rinominare con lo stesso nome non ne cambia.
+      connection.query(
+        "SELECT id, cointype AS coin_type, address,address_name, id_utente AS user_id, `index`, start_block, tatumStatus AS tatum_status, addressStatus AS address_status, wallet_id  FROM addresses WHERE id = ? AND id_utente = ? AND wallet_id = ?",
+        [address_id, user_id, wallet_id],
+        (error, results) => {
+          if (error) {
+            return reject(new Error("Failed to edit address name : " + error.message));
           }
-        );
-      } else {
-        return reject(new Error("Something went wrong while updating address name"));
-      }
+          return resolve(results[0] ?? null);
+        }
+      );
     });
   });
 };
@@ -1045,13 +1059,13 @@ const bookmarkToken = async (token_id, wallet_id, user_id, name, symbol, rank, r
   });
 };
 
-const removeBookmarkedToken = async (id) => {
+const removeBookmarkedToken = async (id, user_id) => {
   return new Promise((resolve, reject) => {
-    connection.query(`DELETE FROM bookmarked_tokens WHERE id = ?`, [id], (error, results) => {
+    connection.query(`DELETE FROM bookmarked_tokens WHERE id = ? AND user_id = ?`, [id, user_id], (error, results) => {
       if (error) {
         return reject(new Error("Error while removing bookmarked token : " + error.message));
       }
-      return resolve(results);
+      return resolve(results.affectedRows);
     });
   });
 };
@@ -1587,6 +1601,7 @@ module.exports = {
   updateWalletDuringSync,
   getWalletById,
   getWalletsByDeviceId,
+  isWalletOwnedByDevice,
   getWalletsByUserId,
   filterAddresses,
   findMultipleAddressesByIds,

@@ -515,7 +515,7 @@ router.post("/api/deviceLogin", jsonParser, loginLimiter, controllers.deviceLogi
  *       500:
  *         $ref: '#/components/responses/ServerError'
  */
-router.post("/api/insertAddress", jsonParser, auth.authenticateToken, controllers.insertAddress);
+router.post("/api/insertAddress", jsonParser, auth.authenticateToken, resolveDevice, controllers.insertAddress);
 
 /**
  * @swagger
@@ -910,7 +910,7 @@ router.put("/api/sync-wallets", jsonParser, auth.authenticateToken, controllers.
  *       500:
  *         $ref: '#/components/responses/ServerError'  # <-- Server error response
  */
-router.post("/api/wallet/new", jsonParser, auth.authenticateToken, controllers.createNewWallet);
+router.post("/api/wallet/new", jsonParser, auth.authenticateToken, resolveDevice, controllers.createNewWallet);
 
 /**
  * @swagger
@@ -985,7 +985,7 @@ router.post("/api/wallet/new", jsonParser, auth.authenticateToken, controllers.c
  *       500:
  *         $ref: '#/components/responses/ServerError'  # <-- Server error response
  */
-router.put("/api/wallet/update", jsonParser, auth.authenticateToken, controllers.updateWallet);
+router.put("/api/wallet/update", jsonParser, auth.authenticateToken, resolveDevice, controllers.updateWallet);
 
 /**
  * @swagger
@@ -1441,7 +1441,7 @@ router.get("/api/assets", jsonParser, auth.authenticateToken, controllers.fetchA
  *       500:
  *         $ref: '#/components/responses/ServerError'  # <-- Internal server error response
  */
-router.put("/api/addresses/update", jsonParser, auth.authenticateToken, controllers.updateAddress);
+router.put("/api/addresses/update", jsonParser, auth.authenticateToken, resolveDevice, controllers.updateAddress);
 
 /**
  * @swagger
@@ -2344,7 +2344,7 @@ router.get("/api/token-details", jsonParser, auth.authenticateToken, controllers
  *                   type: string
  *                   example: "Database insert failed"
  */
-router.post("/api/bookmark-token", jsonParser, auth.authenticateToken, controllers.bookmarkToken);
+router.post("/api/bookmark-token", jsonParser, auth.authenticateToken, resolveDevice, controllers.bookmarkToken);
 
 /**
  * @swagger
@@ -2383,7 +2383,7 @@ router.post("/api/bookmark-token", jsonParser, auth.authenticateToken, controlle
  *       500:
  *         $ref: '#/components/responses/ServerError'  # Internal server error
  */
-router.delete("/api/remove-bookmarked-token/:tokenId", jsonParser, auth.authenticateToken, controllers.removeBookmarkedToken);
+router.delete("/api/remove-bookmarked-token/:tokenId", jsonParser, auth.authenticateToken, resolveDevice, controllers.removeBookmarkedToken);
 
 /**
  * @swagger
@@ -2457,7 +2457,7 @@ router.delete("/api/remove-bookmarked-token/:tokenId", jsonParser, auth.authenti
  *       500:
  *         $ref: '#/components/responses/ServerError'
  */
-router.post("/api/custom-chain-url", jsonParser, auth.authenticateToken, controllers.storeCustomChainUrl);
+router.post("/api/custom-chain-url", jsonParser, auth.authenticateToken, resolveDevice, controllers.storeCustomChainUrl);
 
 /**
  * @swagger

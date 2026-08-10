@@ -141,6 +141,76 @@ test("touches nothing when no requested wallet belongs to the device", async () 
   );
 });
 
+function addressConnection(righeDopo = []) {
+  const executed = [];
+  return {
+    executed,
+    query(sql, params, cb) {
+      if (typeof params === "function") {
+        cb = params;
+        params = undefined;
+      }
+      const flat = sql.replace(/\s+/g, " ").trim();
+      executed.push({ sql: flat, params });
+
+      if (/^UPDATE addresses/i.test(flat)) return cb(null, { affectedRows: 0 });
+      if (/FROM addresses WHERE id = \?/i.test(flat)) return cb(null, righeDopo);
+      if (/^SELECT 1 FROM wallet/i.test(flat)) return cb(null, righeDopo);
+      if (/^DELETE FROM bookmarked_tokens/i.test(flat)) return cb(null, { affectedRows: righeDopo.length });
+      return cb(null, []);
+    },
+  };
+}
+
+test("confirms wallet ownership before writing into it", async () => {
+  const conn = addressConnection([{ 1: 1 }]);
+  global.connection = conn;
+
+  assert.equal(await dao.isWalletOwnedByDevice("w-1", 42), true);
+  const check = conn.executed[0];
+  assert.ok(/WHERE id = \? AND device_id = \? LIMIT 1$/.test(check.sql));
+  assert.deepEqual(check.params, ["w-1", 42]);
+});
+
+test("denies ownership of a wallet of another device", async () => {
+  global.connection = addressConnection([]);
+
+  assert.equal(await dao.isWalletOwnedByDevice("w-1", 999), false);
+});
+
+test("scopes an address rename to owner and wallet", async () => {
+  const conn = addressConnection([{ id: 7, address_name: "Casa" }]);
+  global.connection = conn;
+
+  const riga = await dao.updateAddressName(42, "w-1", 7, "Casa");
+
+  const update = conn.executed.find((e) => /^UPDATE addresses/i.test(e.sql));
+  assert.ok(/WHERE id_utente = \? AND wallet_id = \? AND id = \?$/.test(update.sql));
+  assert.deepEqual(update.params, ["Casa", 42, "w-1", 7]);
+
+  const reread = conn.executed.find((e) => /FROM addresses WHERE id = \?/i.test(e.sql));
+  assert.ok(/AND id_utente = \? AND wallet_id = \?$/.test(reread.sql), "la rilettura ripete il vincolo sul proprietario");
+  assert.deepEqual(riga, { id: 7, address_name: "Casa" }, "rinominare con lo stesso nome non deve fallire");
+});
+
+test("reports no address when it belongs to another device", async () => {
+  global.connection = addressConnection([]);
+
+  assert.equal(await dao.updateAddressName(999, "w-1", 7, "Casa"), null);
+});
+
+test("scopes a bookmark removal to the device that owns it", async () => {
+  const conn = addressConnection([{ id: 3 }]);
+  global.connection = conn;
+
+  const rimossi = await dao.removeBookmarkedToken(3, 42);
+
+  const del = conn.executed.find((e) => /^DELETE FROM bookmarked_tokens/i.test(e.sql));
+  assert.ok(/WHERE id = \? AND user_id = \?$/.test(del.sql));
+  assert.deepEqual(del.params, [3, 42]);
+  assert.equal(rimossi, 1);
+});
+
 test("removes the addresses of a wallet from the table that exists", async () => {
   const conn = walletConnection(["w-mio"]);
   global.connection = conn;
