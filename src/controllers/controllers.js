@@ -93,7 +93,7 @@ const getBalance = async (req, res) => {
 
 const syncAddresses = async (req, res) => {
   const data = req.body;
-  const userId = data.userId;
+  const userId = req.device.id;
   const addressList = data.addressList;
 
   try {
@@ -1868,12 +1868,15 @@ const deleteWallets = async (req, res) => {
   try {
     const walletIds = req.query.wallet_ids?.split(",").map((id) => id);
 
-    const response = await dao.deleteWallets(walletIds);
+    const deleted = await dao.deleteWallets(walletIds, req.device.id);
+    if (!deleted) {
+      return notFound(res, "Wallet not found");
+    }
 
     return res.status(200).json({
       result: true,
       message: "Wallet deleted successfully",
-      data: response,
+      data: { deleted },
     });
   } catch (error) {
     console.log("Error while deleting wallets : ", error);

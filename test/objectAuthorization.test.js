@@ -89,3 +89,65 @@ test("reports nothing removed when the url belongs to someone else", async () =>
 
   assert.equal(await dao.deleteCustomChainUrl(5, 999), 0);
 });
+
+function walletConnection(posseduti = []) {
+  const executed = [];
+  const conn = {
+    beginTransaction: (cb) => cb(null),
+    commit: (cb) => cb(null),
+    rollback: (cb) => cb(),
+    release: () => {},
+    destroy: () => {},
+    query(sql, params, cb) {
+      executed.push({ sql: sql.replace(/\s+/g, " ").trim(), params });
+      if (/^DELETE FROM wallet /i.test(sql)) return cb(null, { affectedRows: params.length });
+      return cb(null, {});
+    },
+  };
+  return {
+    executed,
+    getConnection: (cb) => cb(null, conn),
+    query(sql, params, cb) {
+      executed.push({ sql: sql.replace(/\s+/g, " ").trim(), params });
+      if (/^SELECT id FROM wallet/i.test(sql)) return cb(null, posseduti.map((id) => ({ id })));
+      return cb(null, []);
+    },
+  };
+}
+
+test("deletes only the wallets that belong to the device", async () => {
+  const conn = walletConnection(["w-mio"]);
+  global.connection = conn;
+
+  const eliminati = await dao.deleteWallets(["w-mio", "w-altrui"], 42);
+
+  const check = conn.executed.find((e) => /^SELECT id FROM wallet/i.test(e.sql));
+  assert.ok(/AND device_id = \?$/.test(check.sql), "il possesso va verificato prima di cancellare");
+  assert.deepEqual(check.params, ["w-mio", "w-altrui", 42]);
+
+  const del = conn.executed.find((e) => /^DELETE FROM wallet /i.test(e.sql));
+  assert.deepEqual(del.params, ["w-mio"], "il wallet altrui non deve essere toccato");
+  assert.equal(eliminati, 1);
+});
+
+test("touches nothing when no requested wallet belongs to the device", async () => {
+  const conn = walletConnection([]);
+  global.connection = conn;
+
+  assert.equal(await dao.deleteWallets(["w-altrui"], 42), 0);
+  assert.ok(
+    !conn.executed.some((e) => /^DELETE/i.test(e.sql)),
+    "nessuna cancellazione, nemmeno degli indirizzi"
+  );
+});
+
+test("removes the addresses of a wallet from the table that exists", async () => {
+  const conn = walletConnection(["w-mio"]);
+  global.connection = conn;
+
+  await dao.deleteWallets(["w-mio"], 42);
+
+  const del = conn.executed.find((e) => /^DELETE FROM wallet /i.test(e.sql));
+  assert.ok(del, "la tabella si chiama wallet, non wallets");
+  assert.ok(conn.executed.some((e) => /^DELETE FROM addresses/i.test(e.sql)));
+});

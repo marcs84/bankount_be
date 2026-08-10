@@ -744,7 +744,7 @@ router.post("/api/insertTransaction", jsonParser, auth.authenticateToken, contro
  *       500:
  *         $ref: '#/components/responses/ServerError'  # <-- Server error response
  */
-router.put("/api/sync-address", jsonParser, auth.authenticateToken, controllers.syncAddresses);
+router.put("/api/sync-address", jsonParser, auth.authenticateToken, resolveDevice, controllers.syncAddresses);
 
 /**
  * @swagger
@@ -1116,7 +1116,7 @@ router.get("/api/wallet", jsonParser, auth.authenticateToken, controllers.fetchW
  *       500:
  *         $ref: '#/components/responses/ServerError'
  */
-router.delete("/api/delete-wallets", jsonParser, auth.authenticateToken, controllers.deleteWallets);
+router.delete("/api/delete-wallets", jsonParser, auth.authenticateToken, resolveDevice, controllers.deleteWallets);
 
 /**
  * @swagger

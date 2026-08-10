@@ -1220,40 +1220,43 @@ const fetchTransactionNotification = async (user_id, wallet_id, page, limit) => 
   });
 };
 
-const deleteWallets = (wallet_ids = []) => {
+// Si cancellano solo i wallet del dispositivo che lo chiede: gli identificativi
+// arrivano dal client e non provano il possesso. Quelli non suoi vengono
+// ignorati, non segnalati.
+const deleteWallets = (wallet_ids = [], device_id) => {
   return new Promise((resolve, reject) => {
     if (!Array.isArray(wallet_ids) || wallet_ids.length === 0) {
       return reject(new Error("wallet_ids must be a non-empty array."));
     }
 
-    connection.getConnection((err, conn) => {
-      if (err) return reject(err);
+    const placeholders = wallet_ids.map(() => "?").join(",");
 
-      conn.beginTransaction((err) => {
-        if (err) {
-          conn.destroy();
-          return reject(err);
+    connection.query(
+      `SELECT id FROM wallet WHERE id IN (${placeholders}) AND device_id = ?`,
+      [...wallet_ids, device_id],
+      (error, owned) => {
+        if (error) {
+          logDbError("dao.deleteWallets.selectOwned", error, { params: [...wallet_ids, device_id] });
+          return reject(new Error("Error while deleting wallets : " + error.message));
         }
 
-        const placeholders = wallet_ids.map(() => "?").join(",");
+        const ids = (owned || []).map((row) => row.id);
+        if (!ids.length) {
+          return resolve(0);
+        }
 
-        conn.query(`DELETE FROM addresses WHERE wallet_id IN (${placeholders})`, wallet_ids, (err) => {
-          if (err) {
-            return conn.rollback(() => {
-              conn.destroy();
-              reject(err);
-            });
-          }
+        const ownedPlaceholders = ids.map(() => "?").join(",");
 
-          conn.query(`DELETE FROM wallets WHERE id IN (${placeholders})`, wallet_ids, (err, result) => {
+        connection.getConnection((err, conn) => {
+          if (err) return reject(err);
+
+          conn.beginTransaction((err) => {
             if (err) {
-              return conn.rollback(() => {
-                conn.destroy();
-                reject(err);
-              });
+              conn.destroy();
+              return reject(err);
             }
 
-            conn.commit((err) => {
+            conn.query(`DELETE FROM addresses WHERE wallet_id IN (${ownedPlaceholders})`, ids, (err) => {
               if (err) {
                 return conn.rollback(() => {
                   conn.destroy();
@@ -1261,13 +1264,31 @@ const deleteWallets = (wallet_ids = []) => {
                 });
               }
 
-              conn.release();
-              resolve(result);
+              conn.query(`DELETE FROM wallet WHERE id IN (${ownedPlaceholders})`, ids, (err, result) => {
+                if (err) {
+                  return conn.rollback(() => {
+                    conn.destroy();
+                    reject(err);
+                  });
+                }
+
+                conn.commit((err) => {
+                  if (err) {
+                    return conn.rollback(() => {
+                      conn.destroy();
+                      reject(err);
+                    });
+                  }
+
+                  conn.release();
+                  resolve(result.affectedRows);
+                });
+              });
             });
           });
         });
-      });
-    });
+      }
+    );
   });
 };
 
