@@ -143,3 +143,27 @@ test("marks a transaction incoming when the wallet owns the recipient", async ()
 
   assert.equal(transactions[0].transaction_type, "incoming");
 });
+
+test("marks a transaction between two addresses of the wallet as internal", async () => {
+  const conn = capturingConnection({
+    transactions: [{ id: 1, from_address: "0xmine", destination_address: "0xalsomine" }],
+    walletAddresses: [{ address: "0xmine" }, { address: "0xalsomine" }],
+  });
+  global.connection = conn;
+
+  const { transactions } = await dao.filterTransactions({ device_id: 7, wallet_id: "w-1" });
+
+  assert.equal(transactions[0].transaction_type, "self-transfer", "i fondi non lasciano il wallet, non e' un invio");
+});
+
+test("keeps the direction when the two addresses belong to different wallets", async () => {
+  const conn = capturingConnection({
+    transactions: [{ id: 1, from_address: "0xmine", destination_address: "0xotherwallet" }],
+    walletAddresses: [{ address: "0xmine" }],
+  });
+  global.connection = conn;
+
+  const { transactions } = await dao.filterTransactions({ device_id: 7, wallet_id: "w-1" });
+
+  assert.equal(transactions[0].transaction_type, "outgoing", "lo scope sul wallet distingue i due casi");
+});

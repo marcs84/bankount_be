@@ -168,11 +168,11 @@ const filterTransactions = (data) => {
 
         const walletAddressesMap = walletAddresses.map((addressObj) => addressObj.address);
         transactions = transactions.map((tx) => {
-          if (walletAddressesMap.includes(tx.from_address)) {
-            tx.transaction_type = "outgoing";
-          } else if (walletAddressesMap.includes(tx.destination_address)) {
-            tx.transaction_type = "incoming";
-          }
+          const inviata = walletAddressesMap.includes(tx.from_address);
+          const ricevuta = walletAddressesMap.includes(tx.destination_address);
+          // Quando entrambi gli indirizzi appartengono al wallet i fondi non lo
+          // lasciano: il movimento e' un trasferimento interno, non un invio.
+          tx.transaction_type = inviata && ricevuta ? "self-transfer" : inviata ? "outgoing" : ricevuta ? "incoming" : null;
           return tx;
         });
         resolve({ transactions, totalCount });
