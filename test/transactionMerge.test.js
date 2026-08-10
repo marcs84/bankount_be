@@ -76,9 +76,6 @@ const movement = {
 const fromApp = () => ({
   ...movement,
   isHistoryReceivedFromWebhook: false,
-  address_id: null,
-  id_utente: null,
-  wallet_id: null,
   chain_id: null,
   block_number: null,
   gas: null,
@@ -91,9 +88,6 @@ const fromApp = () => ({
 const fromWebhook = () => ({
   ...movement,
   isHistoryReceivedFromWebhook: true,
-  address_id: 622,
-  id_utente: 133,
-  wallet_id: "efd13b82-5dc3-446c-b00b-2b5e0257b127",
   chain_id: 11155111,
   block_number: 11456801,
   gas: 21000,
@@ -121,7 +115,7 @@ test("keeps the on-chain data when the app writes after the webhook", async () =
   assert.equal(row.chain_id, 11155111);
   assert.equal(row.block_hash, "0xblock");
   assert.equal(row.type, "Legacy (Type 0)");
-  assert.equal(row.wallet_id, "efd13b82-5dc3-446c-b00b-2b5e0257b127");
+  assert.equal(row.gas, 21000);
   assert.equal(row.tx_status, "success");
 });
 
@@ -138,7 +132,7 @@ test("completes the pending row when the webhook writes after the app", async ()
   const row = db.rows[0];
   assert.equal(row.tx_status, "success");
   assert.equal(row.block_number, 11456801);
-  assert.equal(row.id_utente, 133);
+  assert.equal(row.block_hash, "0xblock");
 });
 
 test("does not confirm a transaction the app writes twice", async () => {

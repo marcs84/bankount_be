@@ -235,7 +235,6 @@ const buildTransactionResponse = (row) => ({
   chain: row.chain,
   token: row.token,
   logo: row.logo,
-  address_id: row.address_id,
   from_address: row.from_address,
   destination_address: row.destination_address,
   tx: row.tx,
@@ -243,15 +242,11 @@ const buildTransactionResponse = (row) => ({
   data_insert: row.data_insert,
   block_number: row.block_number,
   network_type: row.network_type,
-  wallet_id: row.wallet_id,
   tx_status: row.tx_status,
 });
 
 const insertTransactionNew = ({
   isHistoryReceivedFromWebhook,
-  address_id,
-  id_utente,
-  wallet_id,
   chain,
   chain_id,
   network_type,
@@ -291,11 +286,8 @@ const insertTransactionNew = ({
         // Ogni colonna conserva il valore gia' presente quando chi scrive non ha
         // il dato, cosi' l'ordine di arrivo non cambia il risultato. Solo il
         // webhook puo' promuovere lo stato a confermato.
-        const query = `UPDATE transactions SET address_id = COALESCE(?, address_id), id_utente = COALESCE(?, id_utente), wallet_id = COALESCE(?, wallet_id), chain = COALESCE(?, chain), chain_id = COALESCE(?, chain_id), block_number = COALESCE(?, block_number), gas = COALESCE(?, gas), gas_price = COALESCE(?, gas_price), type = COALESCE(?, type), block_hash = COALESCE(?, block_hash), input = COALESCE(?, input), amount = COALESCE(?, amount), tx_status = COALESCE(?, tx_status), token = COALESCE(?, token), logo = COALESCE(?, logo), usd_price = COALESCE(?, usd_price) WHERE id = ?`;
+        const query = `UPDATE transactions SET chain = COALESCE(?, chain), chain_id = COALESCE(?, chain_id), block_number = COALESCE(?, block_number), gas = COALESCE(?, gas), gas_price = COALESCE(?, gas_price), type = COALESCE(?, type), block_hash = COALESCE(?, block_hash), input = COALESCE(?, input), amount = COALESCE(?, amount), tx_status = COALESCE(?, tx_status), token = COALESCE(?, token), logo = COALESCE(?, logo), usd_price = COALESCE(?, usd_price) WHERE id = ?`;
         const values = [
-          address_id ?? null,
-          id_utente ?? null,
-          wallet_id ?? null,
           chain ?? null,
           chain_id ?? null,
           block_number ?? null,
@@ -337,11 +329,8 @@ const insertTransactionNew = ({
           }
         );
       } else {
-        const query = `INSERT INTO transactions(address_id, id_utente, wallet_id, chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount, data_insert, tx_status, token, logo, usd_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        const query = `INSERT INTO transactions(chain, chain_id, network_type, block_number, gas, gas_price, type, block_hash, input, from_address, destination_address, tx, amount, data_insert, tx_status, token, logo, usd_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
         const values = [
-          address_id,
-          id_utente,
-          wallet_id,
           chain,
           chain_id,
           network_type,

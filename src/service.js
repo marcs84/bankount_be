@@ -139,19 +139,6 @@ const findDeviceDetails = (id) => {
   });
 };
 
-const checkAddressDetails = (chain, address) => {
-  return new Promise((resolve, reject) => {
-    dao
-      .getAddressByAddress(chain, address)
-      .then((addressDetail) => {
-        resolve(addressDetail);
-      })
-      .catch((error) => {
-        reject(error);
-      });
-  });
-};
-
 // const insertTransactionDetails = (data) => {
 //   return new Promise((resolve, reject) => {
 //     let date = new Date();
@@ -458,8 +445,6 @@ module.exports = {
   findDeviceDetails,
 
   // insertTransactionDetails,
-  checkAddressDetails,
-
   getDeviceTokenByFromAddress,
   getLatestCoinRates,
   convertCoinsToAmount,

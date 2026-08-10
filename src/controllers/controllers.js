@@ -487,12 +487,8 @@ const insertAddress = async (req, res) => {
 const insertTransaction = async (req, res) => {
   try {
     const data = req.body;
-    const addressDetails = await service.checkAddressDetails(data.chain, data.from_address);
     const response = await dao.insertTransactionNew({
       isHistoryReceivedFromWebhook: false,
-      address_id: addressDetails.id,
-      id_utente: addressDetails.idUtente,
-      wallet_id: addressDetails.wallet_id,
       chain: data.chain,
       chain_id: data.chain_id || null,
       network_type: data.network_type,
@@ -543,12 +539,8 @@ const quicknodeTransactionWebhook = async (req, res) => {
         // l'indirizzo: la riga si scrive una volta, le notifiche restano per
         // dispositivo.
         if (doesFromAddressExist || doesToAddressExist) {
-          const owner = fromAddresses[0] || destinationAddresses[0];
           await dao.insertTransactionNew({
             isHistoryReceivedFromWebhook: true,
-            address_id: owner.id ?? null,
-            id_utente: owner.id_utente ?? null,
-            wallet_id: owner.wallet_id ?? null,
             chain: transaction.chain,
             chain_id: transaction.chainId ?? null,
             network_type: transaction.network ?? null,
@@ -674,12 +666,8 @@ const quicknodeTransactionWebhook = async (req, res) => {
         }
 
         if (doesFromAddressExist || doesToAddressExist) {
-          const owner = fromAddresses[0] || destinationAddresses[0];
           await dao.insertTransactionNew({
             isHistoryReceivedFromWebhook: true,
-            address_id: owner.id ?? null,
-            id_utente: owner.id_utente ?? null,
-            wallet_id: owner.wallet_id ?? null,
             chain: receipt.chain,
             chain_id: receipt.chainId ?? null,
             network_type: receipt.network ?? null,
