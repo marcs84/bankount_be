@@ -8,6 +8,7 @@ const controllers = require("../controllers/controllers");
 const sysLogger = require("../sysLogger");
 const { redact } = require("./redact");
 const { loginLimiter } = require("./rateLimit");
+const { resolveDevice } = require("./deviceContext");
 const { webhookVerifier, captureRawBody } = require("./webhookAuth");
 
 // create application/json parser
@@ -2513,7 +2514,7 @@ router.post("/api/custom-chain-url", jsonParser, auth.authenticateToken, control
  *       500:
  *         $ref: '#/components/responses/ServerError'  # Internal server error
  */
-router.put("/api/edit-custom-chain-url", jsonParser, auth.authenticateToken, controllers.updateCustomChainUrl);
+router.put("/api/edit-custom-chain-url", jsonParser, auth.authenticateToken, resolveDevice, controllers.updateCustomChainUrl);
 
 /**
  * @swagger
@@ -2554,7 +2555,7 @@ router.put("/api/edit-custom-chain-url", jsonParser, auth.authenticateToken, con
  *       500:
  *         $ref: '#/components/responses/ServerError'  # Internal server error
  */
-router.delete("/api/delete-custom-chain-url/:id", jsonParser, auth.authenticateToken, controllers.deleteCustomChainUrl);
+router.delete("/api/delete-custom-chain-url/:id", jsonParser, auth.authenticateToken, resolveDevice, controllers.deleteCustomChainUrl);
 
 /**
  * @swagger

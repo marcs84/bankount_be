@@ -2,6 +2,7 @@ const service = require("../service");
 const { ECDH_AES_Server } = require("../../src/utils");
 const dao = require("../dao");
 const sysLogger = require("../sysLogger");
+const { notFound } = require("../server/deviceContext");
 const crypto = require("crypto");
 const moment = require("moment");
 const { default: axios } = require("axios");
@@ -1729,7 +1730,7 @@ const storeCustomChainUrl = async (req, res) => {
     const existingCustomUrl = await dao.checkExistingCustomChainUrl(user_id, wallet_id, blockchain_name);
     // console.log('existingCustomUrl', existingCustomUrl)
     if (existingCustomUrl) {
-      const data = await dao.updateCustomChainUrl(existingCustomUrl.id, node_url, explorer_url);
+      const data = await dao.updateCustomChainUrl(existingCustomUrl.id, user_id, node_url, explorer_url);
       return res.status(200).json({
         result: true,
         message: "Custom chain url updated successfully",
@@ -1756,7 +1757,10 @@ const storeCustomChainUrl = async (req, res) => {
 const updateCustomChainUrl = async (req, res) => {
   try {
     const { id, node_url, explorer_url } = req.body;
-    const data = await dao.updateCustomChainUrl(id, node_url, explorer_url);
+    const data = await dao.updateCustomChainUrl(id, req.device.id, node_url, explorer_url);
+    if (!data) {
+      return notFound(res, "Custom chain url not found");
+    }
 
     return res.status(200).json({
       result: true,
@@ -1794,7 +1798,10 @@ const removeBookmarkedToken = async (req, res) => {
 const deleteCustomChainUrl = async (req, res) => {
   try {
     const { id } = req.params;
-    await dao.deleteCustomChainUrl(id);
+    const removed = await dao.deleteCustomChainUrl(id, req.device.id);
+    if (!removed) {
+      return notFound(res, "Custom chain url not found");
+    }
 
     return res.status(200).json({
       result: true,

@@ -1121,42 +1121,51 @@ const storeCustomChainUrls = async (user_id, wallet_id, blockchain_name, node_ur
   });
 };
 
-const updateCustomChainUrl = async (id, node_url, explorer_url) => {
+// La riga si aggiorna solo se appartiene al dispositivo che lo chiede: senza il
+// vincolo su user_id un identificativo indovinato basta a dirottare il nodo di
+// un altro wallet.
+const updateCustomChainUrl = async (id, user_id, node_url, explorer_url) => {
   return new Promise((resolve, reject) => {
-    let values = [];
+    const assignments = [];
+    const values = [];
 
-    let url = `UPDATE custom_urls SET `;
-    if (node_url && explorer_url) {
-      url += "node_url = ?, explorer_url = ?";
-      values.push(node_url, explorer_url);
-    } else if (node_url && !explorer_url) {
-      url += "node_url = ?";
+    if (node_url) {
+      assignments.push("node_url = ?");
       values.push(node_url);
-    } else if (!node_url && explorer_url) {
-      url += "explorer_url = ? ";
+    }
+    if (explorer_url) {
+      assignments.push("explorer_url = ?");
       values.push(explorer_url);
     }
-    url += `WHERE id = ?`;
-    values.push(id);
-    connection.query(url, values, (error, results) => {
+    if (!assignments.length) {
+      return reject(new Error("No custom chain url field to update"));
+    }
+
+    const query = `UPDATE custom_urls SET ${assignments.join(", ")} WHERE id = ? AND user_id = ?`;
+    values.push(id, user_id);
+
+    connection.query(query, values, (error, results) => {
       if (error) {
         return reject(new Error("Error while updating custom chain url : " + error.message));
       }
-      connection.query(`SELECT * FROM custom_urls WHERE id = ?`, [id], (err, result) => {
+      if (!results.affectedRows) {
+        return resolve(null);
+      }
+      connection.query(`SELECT * FROM custom_urls WHERE id = ? AND user_id = ?`, [id, user_id], (err, result) => {
         if (err) {
-          return reject(new Error("Error whlie updating custom chain urls : " + error.message));
+          return reject(new Error("Error while fetching custom chain url : " + err.message));
         }
-        return resolve(result[0]);
+        return resolve(result[0] ?? null);
       });
     });
   });
 };
 
-const deleteCustomChainUrl = async (id) => {
+const deleteCustomChainUrl = async (id, user_id) => {
   return new Promise((resolve, reject) => {
-    connection.query(`DELETE FROM custom_urls WHERE id = ?`, [id], (error, results) => {
+    connection.query(`DELETE FROM custom_urls WHERE id = ? AND user_id = ?`, [id, user_id], (error, results) => {
       if (error) return reject(new Error("Error while deleting custom chain url : " + error.message));
-      return resolve(results);
+      return resolve(results.affectedRows);
     });
   });
 };
