@@ -233,15 +233,7 @@ const syncWallets = async (req, res) => {
 //below function is very partial, will be continued, once get confirmation on correctness
 const getUtilsForTransaction = async (req, res) => {
   try {
-    const { coin_type, from_address, to_address, amount, network, user_id, wallet_id } = req.body;
-    // const user = await dao.getUserById(user_id);
-    // console.log('user', user)
-    // if (!user) {
-    //     return res.status(400).json({
-    //         result: false,
-    //         message: "User not found"
-    //     });
-    // }
+    const { coin_type, from_address, to_address, amount, network } = req.body;
     sysLogger.logToDb(
       "SYSTEM_EVENT",
       "controllers.getUtilsForTransaction.requestBody",
@@ -250,7 +242,9 @@ const getUtilsForTransaction = async (req, res) => {
       },
       "INFO"
     );
-    let isAddressOwnedByUser = await dao.isAddressOwnedByUser(user_id, from_address, coin_type);
+    // Il controllo esisteva gia' ma confrontava l'indirizzo con l'utente
+    // indicato nella richiesta: bastava nominare la vittima perche' passasse.
+    let isAddressOwnedByUser = await dao.isAddressOwnedByUser(req.device.id, from_address, coin_type);
     if (!isAddressOwnedByUser) {
       return res.status(500).json({
         result: false,
@@ -861,34 +855,29 @@ const updateWallet = async (req, res) => {
 
 const fetchWallets = async (req, res) => {
   try {
-    const { wallet_id, device_id, user_id } = req.query;
-    if (!(wallet_id || device_id || user_id)) {
-      throw new Error("Please provide valid parameters to fetch wallet");
-    }
+    // Si restituiscono i wallet del dispositivo autenticato: device_id e
+    // user_id della richiesta erano una scelta del chiamante e permettevano di
+    // enumerare i wallet altrui.
+    const { wallet_id } = req.query;
+
     if (wallet_id) {
-      const response = await dao.getWalletById(parseInt(wallet_id));
+      if (!(await dao.isWalletOwnedByDevice(wallet_id, req.device.id))) {
+        return notFound(res, "Wallet not found");
+      }
+      const response = await dao.getWalletById(wallet_id);
       return res.status(200).json({
         result: true,
         message: "Wallet fetched successfully",
         data: response,
       });
     }
-    if (device_id) {
-      const response = await dao.getWalletsByDeviceId(parseInt(device_id));
-      return res.status(200).json({
-        result: true,
-        message: "Wallets fetched successfully",
-        data: response,
-      });
-    }
-    if (user_id) {
-      const response = await dao.getWalletsByUserId(parseInt(user_id));
-      return res.status(200).json({
-        result: true,
-        message: "Wallets fetched successfully",
-        data: response,
-      });
-    }
+
+    const response = await dao.getWalletsByDeviceId(req.device.id);
+    return res.status(200).json({
+      result: true,
+      message: "Wallets fetched successfully",
+      data: response,
+    });
   } catch (error) {
     console.log("Error while fetching wallet : ", error);
     return res.status(500).json({
@@ -912,12 +901,11 @@ const filterAddresses = async (req, res) => {
         });
       }
     }
-    const { user_id, wallet_id, coin_type, has_positive_address, network, selected_currency } = req.query;
+    const { wallet_id, coin_type, has_positive_address, network, selected_currency } = req.query;
     const coinRates = await service.getLatestCoinRates(selected_currency);
-    const filter1 = {};
-    if (user_id) {
-      filter1.id_utente = user_id;
-    }
+    // L'utente non e' negoziabile: viene dal token. Un wallet_id non proprio
+    // non trova nulla, perche' il filtro sull'utente resta comunque applicato.
+    const filter1 = { id_utente: req.device.id };
     if (wallet_id) {
       filter1.wallet_id = wallet_id;
     }
@@ -971,14 +959,14 @@ const filterAddresses = async (req, res) => {
 
 const fetchAssets = async (req, res) => {
   try {
-    const { user_id, wallet_id, selected_currency, network } = req.query;
-    if (!(user_id && wallet_id && selected_currency && network)) {
+    const { wallet_id, selected_currency, network } = req.query;
+    if (!(wallet_id && selected_currency && network)) {
       return res.status(400).json({
         result: false,
         message: "Invalid Parameters",
       });
     }
-    const filters = { id_utente: user_id, wallet_id: wallet_id };
+    const filters = { id_utente: req.device.id, wallet_id: wallet_id };
     const addresses = await dao.filterAddresses(filters);
 
     const assets = {};

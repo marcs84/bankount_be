@@ -211,6 +211,19 @@ test("scopes a bookmark removal to the device that owns it", async () => {
   assert.equal(rimossi, 1);
 });
 
+test("looks a wallet up by its identifier, not by a number parsed out of it", async () => {
+  const conn = addressConnection([{ id: "6f3dc28d-b4bd-431e-8266-87b589ab0ff1" }]);
+  global.connection = conn;
+
+  await dao.isWalletOwnedByDevice("6f3dc28d-b4bd-431e-8266-87b589ab0ff1", 42);
+
+  assert.deepEqual(
+    conn.executed[0].params,
+    ["6f3dc28d-b4bd-431e-8266-87b589ab0ff1", 42],
+    "gli identificativi dei wallet sono uuid: troncarli a numero li rende un altro wallet"
+  );
+});
+
 test("removes the addresses of a wallet from the table that exists", async () => {
   const conn = walletConnection(["w-mio"]);
   global.connection = conn;

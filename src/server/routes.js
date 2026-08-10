@@ -201,7 +201,7 @@ router.get("/api/verify", controllers.emailVerification);
  */
 router.post("/api/getBalance", urlencodedParser, auth.authenticateToken, controllers.getBalance);
 
-router.post("/api/coin-exchange-utils", jsonParser, auth.authenticateToken, controllers.getUtilsForTransaction);
+router.post("/api/coin-exchange-utils", jsonParser, auth.authenticateToken, resolveDevice, controllers.getUtilsForTransaction);
 
 /**
  * @swagger
@@ -1057,7 +1057,7 @@ router.put("/api/wallet/update", jsonParser, auth.authenticateToken, resolveDevi
  *       500:
  *         $ref: '#/components/responses/ServerError'  # <-- Internal server error response
  */
-router.get("/api/wallet", jsonParser, auth.authenticateToken, controllers.fetchWallets);
+router.get("/api/wallet", jsonParser, auth.authenticateToken, resolveDevice, controllers.fetchWallets);
 
 /**
  * @swagger
@@ -1227,7 +1227,7 @@ router.delete("/api/delete-wallets", jsonParser, auth.authenticateToken, resolve
  *       500:
  *         $ref: '#/components/responses/ServerError'  # <-- Internal server error response
  */
-router.get("/api/addresses", jsonParser, auth.authenticateToken, controllers.filterAddresses);
+router.get("/api/addresses", jsonParser, auth.authenticateToken, resolveDevice, controllers.filterAddresses);
 
 /**
  * @swagger
@@ -1358,7 +1358,7 @@ router.get("/api/addresses", jsonParser, auth.authenticateToken, controllers.fil
  *       500:
  *         $ref: '#/components/responses/ServerError'
  */
-router.get("/api/assets", jsonParser, auth.authenticateToken, controllers.fetchAssets);
+router.get("/api/assets", jsonParser, auth.authenticateToken, resolveDevice, controllers.fetchAssets);
 
 /**
  * @swagger
