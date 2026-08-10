@@ -1886,15 +1886,15 @@ const deleteWallets = async (req, res) => {
 };
 
 const updateDeviceLanguage = async (req, res) => {
-  const { user_id, selected_language } = req.body;
+  const { selected_language } = req.body;
   try {
-    if (!user_id || !selected_language) {
+    if (!selected_language) {
       return res.status(400).json({
         result: false,
-        message: "device_id and selected_language are mandate fields",
+        message: "selected_language is a mandate field",
       });
     }
-    await dao.updateDeviceLanguage(user_id, selected_language);
+    await dao.updateDeviceLanguage(req.device.id, selected_language);
     return res.status(200).json({
       result: true,
       message: "Language updated successfully",
@@ -1909,15 +1909,15 @@ const updateDeviceLanguage = async (req, res) => {
 };
 
 const updateDeviceToken = async (req, res) => {
-  const { user_id, device_token } = req.body;
+  const { device_token } = req.body;
   try {
-    if (!user_id || !device_token) {
+    if (!device_token) {
       return res.status(400).json({
         result: false,
-        message: "user_id and device_token are mandate fields",
+        message: "device_token is a mandate field",
       });
     }
-    await dao.udpateDeviceToken(user_id, device_token);
+    await dao.udpateDeviceToken(req.device.id, device_token);
     return res.status(200).json({
       result: true,
       message: "Device token updated successfully",
