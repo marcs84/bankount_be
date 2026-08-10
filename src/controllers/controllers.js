@@ -539,6 +539,35 @@ const quicknodeTransactionWebhook = async (req, res) => {
         const doesFromAddressExist = fromAddresses.length > 0;
         const doesToAddressExist = destinationAddresses.length > 0;
 
+        // Il movimento e' uno solo anche quando piu' dispositivi condividono
+        // l'indirizzo: la riga si scrive una volta, le notifiche restano per
+        // dispositivo.
+        if (doesFromAddressExist || doesToAddressExist) {
+          const owner = fromAddresses[0] || destinationAddresses[0];
+          await dao.insertTransactionNew({
+            isHistoryReceivedFromWebhook: true,
+            address_id: owner.id ?? null,
+            id_utente: owner.id_utente ?? null,
+            wallet_id: owner.wallet_id ?? null,
+            chain: transaction.chain,
+            chain_id: transaction.chainId ?? null,
+            network_type: transaction.network ?? null,
+            block_number: transaction.blockNumber ?? null,
+            gas: transaction.gas ?? null,
+            gas_price: transaction.gasPrice ?? null,
+            type: transaction.type ?? null,
+            block_hash: transaction.blockHash ?? null,
+            tx: transaction.hash,
+            input: transaction.input,
+            from_address: transaction.from,
+            destination_address: transaction.to,
+            amount: transaction.amount,
+            token: null,
+            logo: null,
+            usd_price: null,
+          });
+        }
+
         if (doesFromAddressExist) {
           const notificationTitle = "Transaction Sent";
           const notificationTitleItalian = "Transazione inviata";
@@ -550,28 +579,6 @@ const quicknodeTransactionWebhook = async (req, res) => {
           }. ID transazione: ${transaction.hash}`;
 
           for (const fromAddressDetails of fromAddresses) {
-            const payload = {
-              isHistoryReceivedFromWebhook: true,
-              address_id: fromAddressDetails.id ?? null,
-              id_utente: fromAddressDetails.id_utente ?? null,
-              wallet_id: fromAddressDetails.wallet_id ?? null,
-              chain: transaction.chain,
-              chain_id: transaction.chainId ?? null,
-              network_type: transaction.network ?? null,
-              block_number: transaction.blockNumber ?? null,
-              gas: transaction.gas ?? null,
-              gas_price: transaction.gasPrice ?? null,
-              type: transaction.type ?? null,
-              block_hash: transaction.blockHash ?? null,
-              tx: transaction.hash,
-              input: transaction.input,
-              from_address: transaction.from,
-              destination_address: transaction.to,
-              amount: transaction.amount,
-              token: null,
-              logo: null,
-              usd_price: null,
-            };
             await dao.insertTransactionNotification(
               fromAddressDetails.id_utente,
               fromAddressDetails.wallet_id,
@@ -579,7 +586,6 @@ const quicknodeTransactionWebhook = async (req, res) => {
               notificationBody,
               transaction.chain
             );
-            await dao.insertTransactionNew(payload);
             try {
               if (fromAddressDetails.device_token) {
                 const result = await notification.sendNotification(
@@ -607,29 +613,6 @@ const quicknodeTransactionWebhook = async (req, res) => {
             transaction.from
           }. ID transazione: ${transaction.hash}.`;
           for (const destinationAddressDetails of destinationAddresses) {
-            const payload = {
-              isHistoryReceivedFromWebhook: true,
-              address_id: destinationAddressDetails.id ?? null,
-              id_utente: destinationAddressDetails.id_utente ?? null,
-              wallet_id: destinationAddressDetails.wallet_id ?? null,
-              chain: transaction.chain,
-              chain_id: transaction.chainId ?? null,
-              network_type: transaction.network ?? null,
-              block_number: transaction.blockNumber ?? null,
-              gas: transaction.gas ?? null,
-              gas_price: transaction.gasPrice ?? null,
-              type: transaction.type ?? null,
-              block_hash: transaction.blockHash ?? null,
-              tx: transaction.hash,
-              input: transaction.input,
-              from_address: transaction.from,
-              destination_address: transaction.to,
-              amount: transaction.amount,
-              token: null,
-              logo: null,
-              usd_price: null,
-            };
-            await dao.insertTransactionNew(payload);
             await dao.insertTransactionNotification(
               destinationAddressDetails.id_utente,
               destinationAddressDetails.wallet_id,
@@ -690,6 +673,32 @@ const quicknodeTransactionWebhook = async (req, res) => {
           }
         }
 
+        if (doesFromAddressExist || doesToAddressExist) {
+          const owner = fromAddresses[0] || destinationAddresses[0];
+          await dao.insertTransactionNew({
+            isHistoryReceivedFromWebhook: true,
+            address_id: owner.id ?? null,
+            id_utente: owner.id_utente ?? null,
+            wallet_id: owner.wallet_id ?? null,
+            chain: receipt.chain,
+            chain_id: receipt.chainId ?? null,
+            network_type: receipt.network ?? null,
+            block_number: receipt.blockNumber ?? null,
+            gas: receipt.gas ?? null,
+            gas_price: receipt.gasPrice ?? null,
+            type: receipt.type ?? null,
+            block_hash: receipt.blockHash ?? null,
+            tx: receipt.hash,
+            input: receipt.input,
+            from_address: receipt.from,
+            destination_address: receipt.to,
+            amount: receipt.amount,
+            token: receipt.token ?? null,
+            logo: receipt.logo ?? null,
+            usd_price: receipt.usd_price ?? null,
+          });
+        }
+
         if (doesFromAddressExist) {
           const notificationTitle = "Transaction Sent";
           const notificationTitleItalian = "Transazione inviata";
@@ -703,29 +712,6 @@ Transaction ID: ${receipt.hash}`;
 ID transazione: ${receipt.hash}`;
 
           for (const fromAddressDetails of fromAddresses) {
-            const payload = {
-              isHistoryReceivedFromWebhook: true,
-              address_id: fromAddressDetails.id ?? null,
-              id_utente: fromAddressDetails.id_utente ?? null,
-              wallet_id: fromAddressDetails.wallet_id ?? null,
-              chain: receipt.chain,
-              chain_id: receipt.chainId ?? null,
-              network_type: receipt.network ?? null,
-              block_number: receipt.blockNumber ?? null,
-              gas: receipt.gas ?? null,
-              gas_price: receipt.gasPrice ?? null,
-              type: receipt.type ?? null,
-              block_hash: receipt.blockHash ?? null,
-              tx: receipt.hash,
-              input: receipt.input,
-              from_address: receipt.from,
-              destination_address: receipt.to,
-              amount: receipt.amount,
-              token: receipt.token ?? null,
-              logo: receipt.logo ?? null,
-              usd_price: receipt.usd_price,
-            };
-            await dao.insertTransactionNew(payload);
             await dao.insertTransactionNotification(
               fromAddressDetails.id_utente,
               fromAddressDetails.wallet_id,
@@ -765,29 +751,6 @@ ID transazione: ${receipt.hash}.
 `;
 
           for (const destinationAddressDetails of destinationAddresses) {
-            const payload = {
-              isHistoryReceivedFromWebhook: true,
-              address_id: destinationAddressDetails.id ?? null,
-              id_utente: destinationAddressDetails.idUtente ?? null,
-              wallet_id: destinationAddressDetails.wallet_id ?? null,
-              chain: receipt.chain,
-              chain_id: receipt.chainId ?? null,
-              network_type: receipt.network ?? null,
-              block_number: receipt.blockNumber ?? null,
-              gas: receipt.gas ?? null,
-              gas_price: receipt.gasPrice ?? null,
-              type: receipt.type ?? null,
-              block_hash: receipt.blockHash ?? null,
-              tx: receipt.hash,
-              input: receipt.input,
-              from_address: receipt.from,
-              destination_address: receipt.to,
-              amount: receipt.amount,
-              token: receipt.token ?? null,
-              logo: receipt.logo ?? null,
-              usd_price: receipt.usd_price,
-            };
-            await dao.insertTransactionNew(payload);
             await dao.insertTransactionNotification(
               destinationAddressDetails.id_utente,
               destinationAddressDetails.wallet_id,
