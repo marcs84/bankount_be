@@ -230,6 +230,23 @@ const getAllMatchingAddresses = (address, chain) => {
   });
 };
 
+const buildTransactionResponse = (row) => ({
+  id: row.id,
+  chain: row.chain,
+  token: row.token,
+  logo: row.logo,
+  address_id: row.address_id,
+  from_address: row.from_address,
+  destination_address: row.destination_address,
+  tx: row.tx,
+  amount: row.amount,
+  data_insert: row.data_insert,
+  block_number: row.block_number,
+  network_type: row.network_type,
+  wallet_id: row.wallet_id,
+  tx_status: row.tx_status,
+});
+
 const insertTransactionNew = ({
   isHistoryReceivedFromWebhook,
   address_id,
@@ -268,74 +285,55 @@ const insertTransactionNew = ({
       }
 
       if (results.length) {
-        // update the transaction data with new data
-        const query = `UPDATE transactions SET address_id = ?, id_utente = ?, wallet_id = ?, chain = ?, chain_id = ?, network_type = ?, block_number = ?, gas = ?, gas_price = ?, type = ?, block_hash = ?, input = ?, from_address = ?, destination_address = ?, amount = ?, tx_status = ?, token = ?, logo = ?, usd_price = ? WHERE id = ?`;
+        const existingId = results[0].id;
+        // Le due sorgenti conoscono porzioni diverse del movimento: l'app lo
+        // annuncia appena trasmesso, il webhook lo osserva incluso in un blocco.
+        // Ogni colonna conserva il valore gia' presente quando chi scrive non ha
+        // il dato, cosi' l'ordine di arrivo non cambia il risultato. Solo il
+        // webhook puo' promuovere lo stato a confermato.
+        const query = `UPDATE transactions SET address_id = COALESCE(?, address_id), id_utente = COALESCE(?, id_utente), wallet_id = COALESCE(?, wallet_id), chain = COALESCE(?, chain), chain_id = COALESCE(?, chain_id), block_number = COALESCE(?, block_number), gas = COALESCE(?, gas), gas_price = COALESCE(?, gas_price), type = COALESCE(?, type), block_hash = COALESCE(?, block_hash), input = COALESCE(?, input), amount = COALESCE(?, amount), tx_status = COALESCE(?, tx_status), token = COALESCE(?, token), logo = COALESCE(?, logo), usd_price = COALESCE(?, usd_price) WHERE id = ?`;
         const values = [
-          address_id,
-          id_utente,
-          wallet_id,
-          chain,
-          chain_id,
-          network_type,
-          block_number,
-          gas,
-          gas_price,
-          type,
-          block_hash,
-          input,
-          from_address,
-          destination_address,
-          amount,
-          "success", //update will execute when there will be webhook call from quicknode
-          token,
-          logo,
-          usd_price,
-          results[0].id,
+          address_id ?? null,
+          id_utente ?? null,
+          wallet_id ?? null,
+          chain ?? null,
+          chain_id ?? null,
+          block_number ?? null,
+          gas ?? null,
+          gas_price ?? null,
+          type ?? null,
+          block_hash ?? null,
+          input ?? null,
+          amount ?? null,
+          isHistoryReceivedFromWebhook ? "success" : null,
+          token ?? null,
+          logo ?? null,
+          usd_price ?? null,
+          existingId,
         ];
 
         connection.query(
           query,
           values,
-          (error, result) => {
+          (error) => {
             if (error) {
               logDbError("dao.insertTransactionNew.updateExisting", error, { query: query, values });
               return reject(new Error("Error while inserting transaction data : " + error.message));
             }
 
-            if (result.affectedRows) {
-              const query = `SELECT * FROM transactions WHERE tx = ?`;
-              connection.query(query, [tx], (error, result) => {
-                
-                if (error || result.length === 0) {
-                  const errToUse = error || new Error("No rows");
-                  logDbError("dao.insertTransactionNew.fetchUpdated", errToUse, {
-                    query: query,
-                    params: [tx],
-                  });
-                  return reject(new Error("Error while fetching updated transaction data : " + errToUse.message));
-                }
-
-                return resolve({
-                  id: result[0].id,
-                  chain: result[0].chain,
-                  token: result[0].token,
-                  address_id: result[0].address_id,
-                  from_address: result[0].from_address,
-                  tx: result[0].tx,
-                  destination_address: result[0].destination_address,
-                  amount: amount ? amount.toString() : "0",
-                  data_insert: result[0].data_insert,
-                  // block_number: block_number,
-                  network_type: network_type,
-                  wallet_id: result[0].wallet_id,
-                  is_synced: 1,
-                  status: result[0].address_id ? "outgoing" : "incoming",
-                  token: result[0].token,
-                  logo: result[0].logo,
-                  usd_price: result[0].usd_price,
+            const selectQuery = `SELECT * FROM transactions WHERE id = ?`;
+            connection.query(selectQuery, [existingId], (error, rows) => {
+              if (error || rows.length === 0) {
+                const errToUse = error || new Error("No rows");
+                logDbError("dao.insertTransactionNew.fetchUpdated", errToUse, {
+                  query: selectQuery,
+                  params: [existingId],
                 });
-              });
-            }
+                return reject(new Error("Error while fetching updated transaction data : " + errToUse.message));
+              }
+
+              return resolve(buildTransactionResponse(rows[0]));
+            });
           }
         );
       } else {
@@ -372,32 +370,19 @@ const insertTransactionNew = ({
               return reject(new Error("Error while inserting transaction : " + error.message));
             }
 
-            const query = `SELECT * FROM transactions WHERE id = ?`;
-            connection.query(query, [result.insertId], (error, result) => {
-              if (error) {
-                logDbError("dao.insertTransactionNew.fetchInserted", error, {
-                  query: query,
-                  params: [result.insertId],
+            const insertedId = result.insertId;
+            const selectQuery = `SELECT * FROM transactions WHERE id = ?`;
+            connection.query(selectQuery, [insertedId], (error, rows) => {
+              if (error || rows.length === 0) {
+                const errToUse = error || new Error("No rows");
+                logDbError("dao.insertTransactionNew.fetchInserted", errToUse, {
+                  query: selectQuery,
+                  params: [insertedId],
                 });
-                return reject(new Error("Error while fetching inserted data : " + error.message));
+                return reject(new Error("Error while fetching inserted data : " + errToUse.message));
               }
 
-              return resolve({
-                id: result[0].id,
-                chain: result[0].chain,
-                token: result[0].token,
-                address_id: result[0].address_id,
-                from_address: result[0].from_address,
-                tx: result[0].tx,
-                destination_address: result[0].destination_address,
-                amount: amount.toString(),
-                data_insert: result[0].data_insert,
-                // block_number: block_number,
-                network_type: network_type,
-                wallet_id: result[0].wallet_id,
-                is_synced: 1,
-                status: result[0].address_id ? "outgoing" : "incoming",
-              });
+              return resolve(buildTransactionResponse(rows[0]));
             });
           }
         );
