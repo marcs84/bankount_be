@@ -641,16 +641,18 @@ const quicknodeTransactionWebhook = async (req, res) => {
         const doesToAddressExist = destinationAddresses.length > 0;
         const doesFromAddressExist = fromAddresses.length > 0;
 
+        let decimals = receipt.decimals ?? null;
+
         if (receipt.chain === "ETH" || receipt.chain === "BNB") {
           try {
             const tokenDetails = await rango.token({ blockchain: receipt.chain, address: receipt.tokenAddress });
-            // console.log("tokenDetails", tokenDetails);
 
             // Controllo se tokenDetails e token esistono prima di accedere alle proprietà
             if (tokenDetails && tokenDetails.token) {
               receipt.token = tokenDetails.token.symbol || null;
               receipt.logo = tokenDetails.token.image || null;
               receipt.usd_price = tokenDetails.token.usdPrice || null;
+              decimals = decimals ?? tokenDetails.token.decimals ?? null;
             } else {
               console.warn(`Token details not found for ${receipt.chain} address: ${receipt.tokenAddress}`);
               receipt.token = null;
@@ -662,6 +664,29 @@ const quicknodeTransactionWebhook = async (req, res) => {
             receipt.token = null;
             receipt.logo = null;
             receipt.usd_price = null;
+          }
+        }
+
+        // La sorgente non conosce i decimali di ogni token e in quel caso manda
+        // l'importo grezzo: senza ricostruirlo il movimento resterebbe senza
+        // valore.
+        if (receipt.amount === null || receipt.amount === undefined) {
+          const recovered = utils.amountFromRawUnits(receipt.rawAmount, decimals);
+          if (recovered !== null) {
+            receipt.amount = recovered;
+          } else {
+            sysLogger.logToDb(
+              "SYSTEM_EVENT",
+              "controllers.quicknodeTransactionWebhook.amountUnresolved",
+              {
+                tx: receipt.hash || null,
+                chain: receipt.chain || null,
+                token_address: receipt.tokenAddress || null,
+                raw_amount: receipt.rawAmount || null,
+                decimals,
+              },
+              "WARN"
+            );
           }
         }
 

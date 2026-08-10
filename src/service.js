@@ -230,20 +230,31 @@ const getLatestCoinRates = async (currency) => {
   }
 };
 
+const COIN_GECKO_IDS = {
+  Ethereum: "ethereum",
+  ETH: "ethereum",
+  Solana: "solana",
+  SOL: "solana",
+  Bitcoin: "bitcoin",
+  BTC: "bitcoin",
+  Binance: "binancecoin",
+  BNB: "binancecoin",
+  BSC: "binancecoin",
+};
+
+// Restituisce null, non un valore assente, quando la conversione non e'
+// possibile: una catena senza quotazione o un importo mancante non devono
+// propagare undefined o NaN a chi consuma l'API.
 const convertCoinsToAmount = (coinType, coins, currency, coinRates) => {
-  try {
-    if (coinType === "Ethereum" || coinType === "ETH") {
-      return coinRates.ethereum[currency] * coins;
-    } else if (coinType === "Solana" || coinType === "SOL") {
-      return coinRates.solana[currency] * coins;
-    } else if (coinType === "Bitcoin" || coinType === "BTC") {
-      return coinRates.bitcoin[currency] * coins;
-    } else if (coinType === "Binance" || coinType === "BNB" || coinType === "BSC") {
-      return coinRates.binancecoin[currency] * coins;
-    }
-  } catch (error) {
-    throw error;
-  }
+  const id = COIN_GECKO_IDS[coinType];
+  if (!id || !coinRates || !Number.isFinite(coins)) return null;
+
+  const quote = coinRates[id];
+  const rate = quote ? quote[String(currency || "").toLowerCase()] : undefined;
+  if (!Number.isFinite(rate)) return null;
+
+  const converted = rate * coins;
+  return Number.isFinite(converted) ? converted : null;
 };
 
 const storeAddressInQuicknode = async (address) => {

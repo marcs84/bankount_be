@@ -146,6 +146,25 @@ function formatNumberRobust(value, maxDecimals = 18) {
     return "0";
 }
 
+// I trasferimenti di token arrivano come intero nelle unita' minime del token:
+// senza il numero di decimali quel valore non e' interpretabile.
+function amountFromRawUnits(rawAmount, decimals) {
+  if (rawAmount === null || rawAmount === undefined || decimals === null || decimals === undefined) return null;
+
+  const raw = String(rawAmount).trim();
+  if (!/^\d+$/.test(raw)) return null;
+
+  const places = Number(decimals);
+  if (!Number.isInteger(places) || places < 0 || places > 36) return null;
+  if (places === 0) return raw;
+
+  const padded = raw.padStart(places + 1, "0");
+  const whole = padded.slice(0, padded.length - places);
+  const fraction = padded.slice(padded.length - places).replace(/0+$/, "");
+
+  return fraction ? `${whole}.${fraction}` : whole;
+}
+
 async function usdToEurConversion(usdAmount){
   const response = await axios.get(`https://api.frankfurter.app/latest?amount=${usdAmount}&from=USD&to=EUR`)
   return response.data.rates.EUR;
@@ -165,5 +184,6 @@ module.exports = {
   createCustomError,
   ECDH_AES_Server,
   formatNumberRobust,
+  amountFromRawUnits,
   usdToEurConversion
 };
