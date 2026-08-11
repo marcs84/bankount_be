@@ -3,6 +3,17 @@ const { ECDH_AES_Server } = require("../../src/utils");
 const dao = require("../dao");
 const sysLogger = require("../sysLogger");
 const { notFound } = require("../server/deviceContext");
+const { verificaUrlEsterno } = require("../server/nodeUrl");
+
+const primoUrlNonValido = async (urls) => {
+  for (const [campo, valore] of Object.entries(urls)) {
+    const esito = await verificaUrlEsterno(valore);
+    if (!esito.ok) {
+      return `${campo}: ${esito.motivo}`;
+    }
+  }
+  return null;
+};
 const crypto = require("crypto");
 const moment = require("moment");
 const { default: axios } = require("axios");
@@ -1727,6 +1738,10 @@ const storeCustomChainUrl = async (req, res) => {
     if (!(await dao.isWalletOwnedByDevice(wallet_id, user_id))) {
       return notFound(res, "Wallet not found");
     }
+    const urlNonValido = await primoUrlNonValido({ node_url, explorer_url });
+    if (urlNonValido) {
+      return res.status(400).json({ result: false, message: urlNonValido });
+    }
     const existingCustomUrl = await dao.checkExistingCustomChainUrl(user_id, wallet_id, blockchain_name);
     // console.log('existingCustomUrl', existingCustomUrl)
     if (existingCustomUrl) {
@@ -1757,6 +1772,10 @@ const storeCustomChainUrl = async (req, res) => {
 const updateCustomChainUrl = async (req, res) => {
   try {
     const { id, node_url, explorer_url } = req.body;
+    const urlNonValido = await primoUrlNonValido({ node_url, explorer_url });
+    if (urlNonValido) {
+      return res.status(400).json({ result: false, message: urlNonValido });
+    }
     const data = await dao.updateCustomChainUrl(id, req.device.id, node_url, explorer_url);
     if (!data) {
       return notFound(res, "Custom chain url not found");
