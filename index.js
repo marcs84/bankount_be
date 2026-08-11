@@ -15,6 +15,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const { apiLimiter } = require("./src/server/rateLimit");
+const { hideInternalErrors } = require("./src/server/errorResponse");
 const routes = require("./src/server/routes");
 const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./src/config/swagger");
@@ -86,11 +87,19 @@ app.use(
 );
 app.use(apiLimiter);
 app.use(morgan("tiny"));
+app.use(hideInternalErrors);
 app.use('/public', express.static(path.join(process.cwd(), 'public')));
 
 // Importa le rotte dal file routes.js
 app.use("/", routes);
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// La documentazione descrive ogni rotta e ogni payload accettato: e' una mappa
+// dell'API per chi la sonda, e all'applicazione non serve. Si attiva solo dove
+// la si vuole davvero.
+if (process.env.SWAGGER_ENABLED === "true") {
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  console.log("Documentazione API esposta su /api-docs");
+}
 
 // Incapsula l'avvio del server e delle integrazioni
 async function bootstrapServer() {
