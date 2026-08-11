@@ -13,41 +13,53 @@ const SERVICE_ACCOUNT = {
   client_email: "sa@example-project.iam.gserviceaccount.com",
 };
 
-test("reads the service account from raw JSON in the environment", () => {
-  const env = { FIREBASE_SERVICE_ACCOUNT: JSON.stringify(SERVICE_ACCOUNT) };
-
-  assert.deepEqual(loadServiceAccount(env), SERVICE_ACCOUNT);
-});
-
-test("reads the service account from a base64 environment value", () => {
-  const env = {
-    FIREBASE_SERVICE_ACCOUNT: Buffer.from(JSON.stringify(SERVICE_ACCOUNT)).toString("base64"),
-  };
-
-  assert.deepEqual(loadServiceAccount(env), SERVICE_ACCOUNT);
-});
-
-test("reads the service account from the path in GOOGLE_APPLICATION_CREDENTIALS", () => {
+const conFile = (contenuto, prova) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bankount-sa-"));
   const file = path.join(dir, "service-account.json");
-  fs.writeFileSync(file, JSON.stringify(SERVICE_ACCOUNT));
-
+  fs.writeFileSync(file, contenuto);
   try {
-    assert.deepEqual(loadServiceAccount({ GOOGLE_APPLICATION_CREDENTIALS: file }), SERVICE_ACCOUNT);
+    return prova(file);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+};
+
+test("reads the service account from the path in GOOGLE_APPLICATION_CREDENTIALS", () => {
+  conFile(JSON.stringify(SERVICE_ACCOUNT), (file) => {
+    assert.deepEqual(loadServiceAccount({ GOOGLE_APPLICATION_CREDENTIALS: file }), SERVICE_ACCOUNT);
+  });
 });
 
-test("prefers the environment value over the credentials file path", () => {
-  const env = {
-    FIREBASE_SERVICE_ACCOUNT: JSON.stringify(SERVICE_ACCOUNT),
-    GOOGLE_APPLICATION_CREDENTIALS: "/nonexistent/service-account.json",
-  };
-
-  assert.deepEqual(loadServiceAccount(env), SERVICE_ACCOUNT);
+test("ignores the spaces around the path", () => {
+  conFile(JSON.stringify(SERVICE_ACCOUNT), (file) => {
+    assert.deepEqual(loadServiceAccount({ GOOGLE_APPLICATION_CREDENTIALS: `  ${file}  ` }), SERVICE_ACCOUNT);
+  });
 });
 
 test("fails loudly when no credential source is configured", () => {
-  assert.throws(() => loadServiceAccount({}), /Firebase credentials not configured/);
+  assert.throws(() => loadServiceAccount({}), /set GOOGLE_APPLICATION_CREDENTIALS/);
+  assert.throws(() => loadServiceAccount({ GOOGLE_APPLICATION_CREDENTIALS: "   " }), /set GOOGLE_APPLICATION_CREDENTIALS/);
+});
+
+test("says which file it could not read", () => {
+  assert.throws(
+    () => loadServiceAccount({ GOOGLE_APPLICATION_CREDENTIALS: "/percorso/inesistente/sa.json" }),
+    /not readable at \/percorso\/inesistente\/sa\.json/
+  );
+});
+
+test("says when the file is not the credential it expects", () => {
+  conFile("questo non e' json", (file) => {
+    assert.throws(() => loadServiceAccount({ GOOGLE_APPLICATION_CREDENTIALS: file }), /not valid JSON/);
+  });
+});
+
+test("no longer accepts the credential inlined in the environment", () => {
+  const env = { FIREBASE_SERVICE_ACCOUNT: JSON.stringify(SERVICE_ACCOUNT) };
+
+  assert.throws(
+    () => loadServiceAccount(env),
+    /set GOOGLE_APPLICATION_CREDENTIALS/,
+    "una chiave privata non deve stare in una variabile d'ambiente"
+  );
 });

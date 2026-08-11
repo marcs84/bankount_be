@@ -1,28 +1,28 @@
 const fs = require("fs");
 
-function parseServiceAccount(raw) {
-  const value = raw.trim();
-  const json = value.startsWith("{")
-    ? value
-    : Buffer.from(value, "base64").toString("utf8");
-
-  return JSON.parse(json);
-}
-
+// La credenziale di servizio contiene una chiave privata: resta in un file
+// fuori dal repository e l'ambiente ne indica solo il percorso.
 function loadServiceAccount(env = process.env) {
-  if (env.FIREBASE_SERVICE_ACCOUNT) {
-    return parseServiceAccount(env.FIREBASE_SERVICE_ACCOUNT);
-  }
+  const percorso = env.GOOGLE_APPLICATION_CREDENTIALS;
 
-  if (env.GOOGLE_APPLICATION_CREDENTIALS) {
-    return JSON.parse(
-      fs.readFileSync(env.GOOGLE_APPLICATION_CREDENTIALS, "utf8")
+  if (!percorso || !percorso.trim()) {
+    throw new Error(
+      "Firebase credentials not configured: set GOOGLE_APPLICATION_CREDENTIALS to the service account file"
     );
   }
 
-  throw new Error(
-    "Firebase credentials not configured: set FIREBASE_SERVICE_ACCOUNT or GOOGLE_APPLICATION_CREDENTIALS"
-  );
+  let contenuto;
+  try {
+    contenuto = fs.readFileSync(percorso.trim(), "utf8");
+  } catch (error) {
+    throw new Error(`Firebase credentials not readable at ${percorso.trim()}: ${error.message}`);
+  }
+
+  try {
+    return JSON.parse(contenuto);
+  } catch (error) {
+    throw new Error(`Firebase credentials at ${percorso.trim()} are not valid JSON`);
+  }
 }
 
 module.exports = { loadServiceAccount };
