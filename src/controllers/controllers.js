@@ -905,7 +905,8 @@ const filterAddresses = async (req, res) => {
     const coinRates = await service.getLatestCoinRates(selected_currency);
     // L'utente non e' negoziabile: viene dal token. Un wallet_id non proprio
     // non trova nulla, perche' il filtro sull'utente resta comunque applicato.
-    const filter1 = { id_utente: req.device.id };
+    const user_id = req.device.id;
+    const filter1 = { id_utente: user_id };
     if (wallet_id) {
       filter1.wallet_id = wallet_id;
     }
@@ -966,7 +967,8 @@ const fetchAssets = async (req, res) => {
         message: "Invalid Parameters",
       });
     }
-    const filters = { id_utente: req.device.id, wallet_id: wallet_id };
+    const user_id = req.device.id;
+    const filters = { id_utente: user_id, wallet_id: wallet_id };
     const addresses = await dao.filterAddresses(filters);
 
     const assets = {};
