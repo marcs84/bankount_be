@@ -933,9 +933,26 @@ const filterAddresses = async (req, res) => {
       });
     }
 
+    // Il saldo di un singolo indirizzo puo' non arrivare: nodo irraggiungibile,
+    // indirizzo non valido per la propria catena, moneta non configurata. Farne
+    // cadere l'intera richiesta nasconderebbe anche gli indirizzi sani.
     for (const address of addresses) {
-      const balance = await service.getBalance(address.coin_type, address.address, network, user_id, wallet_id);
-      address.balance = balance?.balance ?? balance;
+      try {
+        const balance = await service.getBalance(address.coin_type, address.address, network, user_id, wallet_id);
+        address.balance = balance?.balance ?? balance;
+      } catch (error) {
+        sysLogger.logToDb(
+          "SYSTEM_ERROR",
+          "controllers.filterAddresses.getBalanceFailed",
+          {
+            address: address.address,
+            coin_type: address.coin_type,
+            error: error && error.message ? error.message : String(error),
+          },
+          "ERROR"
+        );
+        address.balance = null;
+      }
     }
     const data = { addresses };
 
@@ -984,6 +1001,10 @@ const fetchAssets = async (req, res) => {
 
     const assets = {};
     const coinRates = await service.getLatestCoinRates(selected_currency);
+    // Gli indirizzi il cui saldo non arriva vengono scartati dopo il ciclo:
+    // toglierli mentre lo si percorre fa scalare i successivi, e quello subito
+    // dopo verrebbe saltato senza che nessuno se ne accorga.
+    const senzaSaldo = new Set();
     for (const index in addresses) {
       let balance;
       try {
@@ -999,7 +1020,7 @@ const fetchAssets = async (req, res) => {
           },
           "ERROR"
         );
-        addresses.splice(index, 1);
+        senzaSaldo.add(addresses[index].address);
         continue;
       }
       addresses[index].balance = balance?.balance ?? balance;
@@ -1052,13 +1073,15 @@ const fetchAssets = async (req, res) => {
 
     const bookmarkedTokens = await dao.fetchBookmarkedTokens(user_id, wallet_id);
 
-    if (addresses && bookmarkedTokens) {
+    const indirizziUtilizzabili = addresses.filter((a) => !senzaSaldo.has(a.address));
+
+    if (indirizziUtilizzabili.length && bookmarkedTokens) {
       for (const token of bookmarkedTokens) {
-        const index = addresses.findIndex((obj) => obj.coin_type === token.chain);
+        const index = indirizziUtilizzabili.findIndex((obj) => obj.coin_type === token.chain);
         if (index === -1) {
           continue;
         }
-        let blockchain = addresses[index].coin_type;
+        let blockchain = indirizziUtilizzabili[index].coin_type;
         if (blockchain === "BNB") {
           blockchain = "BSC";
         }
@@ -1066,7 +1089,7 @@ const fetchAssets = async (req, res) => {
           blockchain = "SOLANA";
         }
         token.balance = await rango.tokenBalance({
-          walletAddress: addresses[index].address,
+          walletAddress: indirizziUtilizzabili[index].address,
           blockchain,
           symbol: token.symbol,
           address: token.address,
