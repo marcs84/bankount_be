@@ -166,10 +166,19 @@ const filterTransactions = (data) => {
           });
         });
 
-        const walletAddressesMap = walletAddresses.map((addressObj) => addressObj.address);
+        // Le catene EVM scrivono lo stesso indirizzo in due grafie: la tabella
+        // degli indirizzi conserva la forma con checksum EIP-55, mentre le
+        // transazioni arrivano dal webhook tutte in minuscolo. Confrontarle
+        // alla lettera lasciava ogni movimento ETH e BNB senza tipo. Le altre
+        // catene usano base58, dove le maiuscole distinguono indirizzi diversi
+        // e vanno quindi confrontate cosi' come sono.
+        const perConfronto = (indirizzo) =>
+          typeof indirizzo === "string" && indirizzo.startsWith("0x") ? indirizzo.toLowerCase() : indirizzo;
+
+        const walletAddressesMap = walletAddresses.map((addressObj) => perConfronto(addressObj.address));
         transactions = transactions.map((tx) => {
-          const inviata = walletAddressesMap.includes(tx.from_address);
-          const ricevuta = walletAddressesMap.includes(tx.destination_address);
+          const inviata = walletAddressesMap.includes(perConfronto(tx.from_address));
+          const ricevuta = walletAddressesMap.includes(perConfronto(tx.destination_address));
           // Quando entrambi gli indirizzi appartengono al wallet i fondi non lo
           // lasciano: il movimento e' un trasferimento interno, non un invio.
           tx.transaction_type = inviata && ricevuta ? "self-transfer" : inviata ? "outgoing" : ricevuta ? "incoming" : null;
