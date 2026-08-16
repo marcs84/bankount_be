@@ -9,7 +9,20 @@ const sysLogger = require("./sysLogger");
 const { PublicKey } = require("@solana/web3.js");
 const { default: axios } = require("axios");
 
-const redisClient = new Redis();
+// Con la cache irraggiungibile i comandi verrebbero accodati e riprovati per
+// decine di secondi, e ogni richiesta resterebbe appesa ad aspettarli: qui
+// devono fallire subito, perche' chi li usa ha un'altra strada. La
+// riconnessione continua per conto suo, e la cache riprende quando torna.
+const redisClient = new Redis({
+  enableOfflineQueue: false,
+  maxRetriesPerRequest: 1,
+  connectTimeout: 1000,
+  retryStrategy: (tentativi) => Math.min(tentativi * 200, 5000),
+});
+
+redisClient.on("error", (error) => {
+  console.error(`redis non raggiungibile: ${error && error.message ? error.message : error}`);
+});
 
 const logServiceDbError = (action, error, meta = {}) => {
   try {
