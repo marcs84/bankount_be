@@ -179,54 +179,74 @@ const getDeviceTokenByFromAddress = (address) => {
   });
 };
 
-const getLatestCoinRates = async (currency) => {
-  try {
-    if (currency === "usd" || currency === "USD") {
-      const cacheValues = await redisClient.get("cached_coin_prices_usd");
-      if (cacheValues) {
-        return JSON.parse(cacheValues);
-      }
-      const response = await axios.get(`${process.env.COIN_GECKO_COIN_PRICE_URI}?ids=bitcoin,ethereum,solana,binancecoin&vs_currencies=${currency}`, {
-        headers: {
-          accept: "application/json",
-          "x-pro-cg-api-key": `${process.env.COIN_GECKO_API_KEY}`,
-        },
-      });
-      const data = response.data;
-      await redisClient.set("cached_coin_prices_usd", JSON.stringify(data), "EX", process.env.COIN_GECKO_CACHE_INTERVAL || 300);
-      return data;
-    }
+const DURATA_CACHE_PREZZI = 300;
 
-    if (currency === "eur" || currency === "EUR") {
-      const cacheValues = await redisClient.get("cached_coin_prices_eur");
-      if (cacheValues) {
-        return JSON.parse(cacheValues);
-      }
-      const response = await axios.get(`${process.env.COIN_GECKO_COIN_PRICE_URI}?ids=bitcoin,ethereum,solana,binancecoin&vs_currencies=${currency}`, {
-        headers: {
-          accept: "application/json",
-          "x-pro-cg-api-key": `${process.env.COIN_GECKO_API_KEY}`,
-        },
-      });
-      const data = response.data;
-      await redisClient.set("cached_coin_prices_eur", JSON.stringify(data), "EX", process.env.COIN_GECKO_CACHE_INTERVAL || 300);
-      return data;
-    }
+const registraGuasto = (evento, dettagli) => {
+  sysLogger.logToDb("SYSTEM_ERROR", evento, dettagli, "ERROR");
+};
+
+// La chiave demo vale sull'indirizzo aperto, quella a pagamento sul suo:
+// mandare l'intestazione dell'una all'altro equivale a non mandarla, e si
+// resta ai limiti di chi non ha chiave.
+const intestazioneCoinGecko = () => {
+  const chiave = process.env.COIN_GECKO_API_KEY;
+  if (!chiave) return {};
+
+  return String(process.env.COIN_GECKO_COIN_PRICE_URI || "").includes("pro-api.coingecko.com")
+    ? { "x-pro-cg-api-key": chiave }
+    : { "x-cg-demo-api-key": chiave };
+};
+
+// La cache accelera, non decide: se non risponde si interroga la fonte.
+const leggiPrezziInCache = async (chiave) => {
+  try {
+    const valori = await redisClient.get(chiave);
+    return valori ? JSON.parse(valori) : null;
   } catch (error) {
-    sysLogger.logToDb(
-      "SYSTEM_ERROR",
-      "service.getLatestCoinRates.failed",
-      {
-        currency,
-        error: error && error.message ? error.message : String(error),
+    registraGuasto("service.getLatestCoinRates.cacheUnavailable", {
+      chiave,
+      error: error && error.message ? error.message : String(error),
+    });
+    return null;
+  }
+};
+
+const scriviPrezziInCache = async (chiave, prezzi) => {
+  try {
+    const durata = Number.parseInt(process.env.COIN_GECKO_CACHE_INTERVAL, 10);
+    await redisClient.set(chiave, JSON.stringify(prezzi), "EX", Number.isFinite(durata) && durata > 0 ? durata : DURATA_CACHE_PREZZI);
+  } catch (error) {
+    registraGuasto("service.getLatestCoinRates.cacheNotWritten", {
+      chiave,
+      error: error && error.message ? error.message : String(error),
+    });
+  }
+};
+
+const getLatestCoinRates = async (currency) => {
+  const valuta = String(currency || "").toLowerCase();
+  if (!valuta) return null;
+
+  const chiaveCache = `cached_coin_prices_${valuta}`;
+  const inCache = await leggiPrezziInCache(chiaveCache);
+  if (inCache) return inCache;
+
+  try {
+    const response = await axios.get(`${process.env.COIN_GECKO_COIN_PRICE_URI}?ids=bitcoin,ethereum,solana,binancecoin&vs_currencies=${valuta}`, {
+      headers: {
+        accept: "application/json",
+        ...intestazioneCoinGecko(),
       },
-      "ERROR"
-    );
-    
-    setTimeout(async () => {
-      const data = await redisClient.get("cached_coin_prices");
-      return JSON.parse(data);
-    }, 5000);
+    });
+
+    await scriviPrezziInCache(chiaveCache, response.data);
+    return response.data;
+  } catch (error) {
+    registraGuasto("service.getLatestCoinRates.failed", {
+      currency,
+      error: error && error.message ? error.message : String(error),
+    });
+    return null;
   }
 };
 
