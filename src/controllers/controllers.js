@@ -1412,7 +1412,7 @@ const initiateSwap = async (req, res) => {
       response = await rango.swap(swapParams);
     } catch (error) {
       if (error?.response?.data?.error) {
-        throw new Error(error.response.data.error);
+        throw rifiutoDelFornitore(error.response.data.error);
       } else {
         throw error;
       }
@@ -1424,6 +1424,10 @@ const initiateSwap = async (req, res) => {
       data: response,
     });
   } catch (error) {
+    if (error?.daFornitore) {
+      return res.status(400).json({ result: false, message: error.message });
+    }
+
     return res.status(500).json({
       result: false,
       message: "Error while initiating swap : " + error.message,
@@ -1431,6 +1435,12 @@ const initiateSwap = async (req, res) => {
     });
   }
 };
+
+// Un rifiuto del fornitore di rotte riguarda la richiesta, non il server: la
+// sua spiegazione e' l'unica cosa utile a chi l'ha fatta, e senza di essa
+// resta un errore generico che non dice cosa correggere.
+const rifiutoDelFornitore = (messaggio) =>
+  Object.assign(new Error(messaggio), { daFornitore: true });
 
 const getSwapRoutes = async (req, res) => {
   try {
@@ -1464,7 +1474,7 @@ const getSwapRoutes = async (req, res) => {
       response.route.outputAmountEur = (await utils.usdToEurConversion(response.route.outputAmountUsd)) || null;
     } catch (error) {
       if (error?.response?.data?.error) {
-        throw new Error(error.response.data.error);
+        throw rifiutoDelFornitore(error.response.data.error);
       } else {
         throw error;
       }
@@ -1476,6 +1486,10 @@ const getSwapRoutes = async (req, res) => {
       data: response,
     });
   } catch (error) {
+    if (error?.daFornitore) {
+      return res.status(400).json({ result: false, message: error.message });
+    }
+
     console.log("Error while fetching swap routes : ", error);
     return res.status(500).json({
       result: false,
@@ -1505,7 +1519,7 @@ const getTokenBalance = async (req, res) => {
       });
     } catch (error) {
       if (error?.response?.data?.error) {
-        throw new Error(error.response.data.error);
+        throw rifiutoDelFornitore(error.response.data.error);
       } else {
         throw error;
       }
@@ -1516,6 +1530,10 @@ const getTokenBalance = async (req, res) => {
       data: response,
     });
   } catch (error) {
+    if (error?.daFornitore) {
+      return res.status(400).json({ result: false, message: error.message });
+    }
+
     console.log("Error while fetching token balance : ", error);
     return res.status(500).json({
       result: false,
@@ -1541,7 +1559,7 @@ const checkTxStatus = async (req, res) => {
       response = await rango.status({ requestId: request_id, txId: tx_id });
     } catch (error) {
       if (error?.response?.data?.error) {
-        throw new Error(error.response.data.error);
+        throw rifiutoDelFornitore(error.response.data.error);
       } else {
         throw error;
       }
@@ -1552,6 +1570,10 @@ const checkTxStatus = async (req, res) => {
       data: response,
     });
   } catch (error) {
+    if (error?.daFornitore) {
+      return res.status(400).json({ result: false, message: error.message });
+    }
+
     console.log("Error while checking tx status : ", error);
     return res.status(500).json({
       result: false,
