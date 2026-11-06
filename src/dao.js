@@ -238,8 +238,11 @@ const getAddressByAddress = (cointype, address) => {
 
 const getAllMatchingAddresses = (address, chain) => {
   return new Promise((resolve, reject) => {
-    const query = `SELECT addresses.*, device.selected_language, device.device_token FROM addresses JOIN device ON addresses.id_utente = device.id WHERE address LIKE ? AND addresses.cointype = ? AND device.is_active=?`;
-    connection.query(query, [`%${address}%`, chain, 1], (error, results) => {
+    // Confronto esatto, non `LIKE '%indirizzo%'`: la ricerca per sottostringa
+    // impediva di usare l'indice su `address` e, in linea di principio,
+    // faceva corrispondere un indirizzo contenuto in un altro.
+    const query = `SELECT addresses.*, device.selected_language, device.device_token FROM addresses JOIN device ON addresses.id_utente = device.id WHERE address = ? AND addresses.cointype = ? AND device.is_active=?`;
+    connection.query(query, [address, chain, 1], (error, results) => {
       if (error) {
         reject("Error querying the address: " + error.message);
         return;
@@ -710,33 +713,6 @@ const setUnmatchedAddressesToInactive = (userId, activeAddresses) => {
         return reject(new Error("Failed to set unmatched addresses to inactive: " + error.message));
       }
       resolve(results);
-    });
-  });
-};
-
-const getDeviceTokenByFromAddress = (address) => {
-  const query = `
-        SELECT DISTINCT d.device_token 
-        FROM addresses a
-        JOIN wallet w ON w.user_id = a.id_utente
-        JOIN device d ON d.id = w.device_id
-        WHERE a.address = ? 
-        AND d.device_token IS NOT NULL 
-        AND d.is_active = 1
-        AND w.is_active = 1`;
-
-  const queryParams = [address];
-
-  return new Promise((resolve, reject) => {
-    connection.query(query, queryParams, (error, results) => {
-      if (error) {
-        return reject(new Error("Failed to retrieve device token: " + error.message));
-      }
-      if (results.length === 0) {
-        return resolve([]);
-      }
-      // Restituisce array di device token per gestire dispositivi multipli
-      return resolve(results.map((row) => row.device_token));
     });
   });
 };
@@ -1648,7 +1624,6 @@ module.exports = {
 
   verifyDeviceDetails,
 
-  getDeviceTokenByFromAddress,
   updateAddressStatus,
   getAddressByUserIdAndAddressAndChain,
   setUnmatchedAddressesToInactive,

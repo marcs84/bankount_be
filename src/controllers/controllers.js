@@ -588,6 +588,14 @@ const quicknodeTransactionWebhook = async (req, res) => {
             transaction.to
           }. ID transazione: ${transaction.hash}`;
 
+          // Una riga di notifica per portafoglio -- ognuno ha il suo registro --
+          // ma **una sola push per dispositivo**. `getAllMatchingAddresses`
+          // restituisce una riga per ogni portafoglio che possiede
+          // l'indirizzo, e con la stessa seed in piu' portafogli dello stesso
+          // utente le righe sono piu' d'una: inviando per riga arrivavano
+          // notifiche identiche ripetute sullo stesso telefono.
+          const pushInviate = new Set();
+
           for (const fromAddressDetails of fromAddresses) {
             await dao.insertTransactionNotification(
               fromAddressDetails.id_utente,
@@ -597,7 +605,10 @@ const quicknodeTransactionWebhook = async (req, res) => {
               transaction.chain
             );
             try {
-              if (fromAddressDetails.device_token) {
+              if (fromAddressDetails.device_token &&
+                  !pushInviate.has(fromAddressDetails.device_token)) {
+                pushInviate.add(fromAddressDetails.device_token);
+
                 const result = await notification.sendNotification(
                   fromAddressDetails.device_token,
                   {
@@ -622,6 +633,14 @@ const quicknodeTransactionWebhook = async (req, res) => {
           const notficationBodyItalian = `Hai ricevuto ${utils.formatNumberRobust(transaction.amount)} ${transaction.chain} dall'indirizzo ${
             transaction.from
           }. ID transazione: ${transaction.hash}.`;
+          // Una riga di notifica per portafoglio -- ognuno ha il suo registro --
+          // ma **una sola push per dispositivo**. `getAllMatchingAddresses`
+          // restituisce una riga per ogni portafoglio che possiede
+          // l'indirizzo, e con la stessa seed in piu' portafogli dello stesso
+          // utente le righe sono piu' d'una: inviando per riga arrivavano
+          // notifiche identiche ripetute sullo stesso telefono.
+          const pushInviate = new Set();
+
           for (const destinationAddressDetails of destinationAddresses) {
             await dao.insertTransactionNotification(
               destinationAddressDetails.id_utente,
@@ -632,7 +651,10 @@ const quicknodeTransactionWebhook = async (req, res) => {
             );
 
             try {
-              if (destinationAddressDetails.device_token) {
+              if (destinationAddressDetails.device_token &&
+                  !pushInviate.has(destinationAddressDetails.device_token)) {
+                pushInviate.add(destinationAddressDetails.device_token);
+
                 const result = await notification.sendNotification(
                   destinationAddressDetails.device_token,
                   {
@@ -742,6 +764,14 @@ Transaction ID: ${receipt.hash}`;
           } all'indirizzo ${receipt.to}.
 ID transazione: ${receipt.hash}`;
 
+          // Una riga di notifica per portafoglio -- ognuno ha il suo registro --
+          // ma **una sola push per dispositivo**. `getAllMatchingAddresses`
+          // restituisce una riga per ogni portafoglio che possiede
+          // l'indirizzo, e con la stessa seed in piu' portafogli dello stesso
+          // utente le righe sono piu' d'una: inviando per riga arrivavano
+          // notifiche identiche ripetute sullo stesso telefono.
+          const pushInviate = new Set();
+
           for (const fromAddressDetails of fromAddresses) {
             await dao.insertTransactionNotification(
               fromAddressDetails.id_utente,
@@ -752,7 +782,10 @@ ID transazione: ${receipt.hash}`;
             );
 
             try {
-              if (fromAddressDetails.device_token) {
+              if (fromAddressDetails.device_token &&
+                  !pushInviate.has(fromAddressDetails.device_token)) {
+                pushInviate.add(fromAddressDetails.device_token);
+
                 const result = await notification.sendNotification(
                   fromAddressDetails.device_token,
                   {
@@ -781,6 +814,14 @@ Transaction ID: ${receipt.hash}.`;
 ID transazione: ${receipt.hash}.
 `;
 
+          // Una riga di notifica per portafoglio -- ognuno ha il suo registro --
+          // ma **una sola push per dispositivo**. `getAllMatchingAddresses`
+          // restituisce una riga per ogni portafoglio che possiede
+          // l'indirizzo, e con la stessa seed in piu' portafogli dello stesso
+          // utente le righe sono piu' d'una: inviando per riga arrivavano
+          // notifiche identiche ripetute sullo stesso telefono.
+          const pushInviate = new Set();
+
           for (const destinationAddressDetails of destinationAddresses) {
             await dao.insertTransactionNotification(
               destinationAddressDetails.id_utente,
@@ -790,7 +831,10 @@ ID transazione: ${receipt.hash}.
               receipt.chain
             );
             try {
-              if (destinationAddressDetails.device_token) {
+              if (destinationAddressDetails.device_token &&
+                  !pushInviate.has(destinationAddressDetails.device_token)) {
+                pushInviate.add(destinationAddressDetails.device_token);
+
                 const result = await notification.sendNotification(
                   destinationAddressDetails.device_token,
                   {

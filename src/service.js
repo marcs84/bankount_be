@@ -179,19 +179,6 @@ const findDeviceDetails = (id) => {
 //   });
 // };
 
-const getDeviceTokenByFromAddress = (address) => {
-  return new Promise((resolve, reject) => {
-    dao
-      .getDeviceTokenByFromAddress(address)
-      .then(async (data) => {
-        resolve(data);
-      })
-      .catch((error) => {
-        reject(error);
-      });
-  });
-};
-
 const DURATA_CACHE_PREZZI = 300;
 
 const registraGuasto = (evento, dettagli) => {
@@ -491,7 +478,6 @@ module.exports = {
   findDeviceDetails,
 
   // insertTransactionDetails,
-  getDeviceTokenByFromAddress,
   getLatestCoinRates,
   convertCoinsToAmount,
   storeAddressInQuicknode,
