@@ -422,8 +422,10 @@ const txUtilsForExchangeCoinBetweenSameBc = (cointype, fromAddress, toAddress, a
 
       let userAddress = await dao.getAddressByAddress(cointype, fromAddress);
 
-      if (userAddress == null) {
-        reject("Indirizzo non valido");
+      // `reject` non interrompe l'esecuzione: senza il `return` si proseguiva
+      // con un indirizzo assente e si leggevano campi indefiniti.
+      if (!userAddress || !userAddress.address) {
+        return reject("Indirizzo non valido");
       }
       let response;
       switch (cointype) {

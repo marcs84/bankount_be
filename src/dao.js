@@ -73,7 +73,6 @@ const filterTransactions = (data) => {
                 FROM addresses a
                 JOIN wallet w ON w.id = a.wallet_id
                 WHERE a.id_utente = ?
-                  AND w.is_active = 1
                   AND (a.address = t.from_address OR a.address = t.destination_address)
                   {{WALLET_SCOPE}}
             )
@@ -84,10 +83,16 @@ const filterTransactions = (data) => {
 
     // Dynamically add conditions for each filter if provided
     if (wallet_id) {
+      // Il portafoglio e' indicato: lo stato attivo non c'entra piu'. Chiederlo
+      // in aggiunta rendeva la cronologia vuota ogni volta che il flag sul
+      // server restava indietro rispetto a quello scelto sul telefono, e il
+      // sintomo era indistinguibile da "questo portafoglio non ha movimenti".
       body = body.replace("{{WALLET_SCOPE}}", "AND a.wallet_id = ?");
       params.push(wallet_id);
     } else {
-      body = body.replace("{{WALLET_SCOPE}}", "");
+      // Senza portafoglio indicato si intende quello in uso, e qui lo stato
+      // attivo e' l'unica cosa che dice quale sia.
+      body = body.replace("{{WALLET_SCOPE}}", "AND w.is_active = 1");
     }
 
     if (start_date && end_date) {
@@ -204,8 +209,12 @@ const getAddressByAddress = (cointype, address) => {
         reject("Error querying the address: " + error.message);
         return;
       }
-      // Se esiste l'indirizzo
-      if (results && results.length === 1) {
+      // Se esiste l'indirizzo. Piu' righe sono la norma, non un'anomalia: lo
+      // stesso indirizzo compare per ogni portafoglio che lo possiede, e
+      // l'ORDER BY qui sopra sta proprio a rendere stabile quale fornisce i
+      // metadati. Pretendere una riga sola faceva cadere nel ramo "non
+      // trovato" tutti gli indirizzi condivisi.
+      if (results && results.length >= 1) {
         const addressRecord = {
           id: results[0].id,
           cointype: results[0].cointype,
@@ -218,9 +227,10 @@ const getAddressByAddress = (cointype, address) => {
         };
         resolve(addressRecord);
       } else {
-        // Address non trovato
-        const addressRecord = {};
-        resolve(addressRecord);
+        // Non trovato: null, non un oggetto vuoto. Chi chiama controlla
+        // `== null`, e un oggetto vuoto superava il controllo per poi
+        // presentarsi come un record con tutti i campi indefiniti.
+        resolve(null);
       }
     });
   });
@@ -563,17 +573,41 @@ const verifyDevice = (identifier, passkey, device_token, selected_language) => {
   });
 };
 
+// Lo stesso indirizzo appartiene legittimamente a piu' portafogli dello stesso
+// utente: due portafogli importati dalla stessa seed derivano gli stessi
+// indirizzi, ed e' il caso di una carta e del telefono che la recupera. Il
+// resto del sistema lo prevede gia' -- le transazioni si leggono per indirizzo
+// con lo scopo del portafoglio applicato attraverso questa tabella, e i webhook
+// si diramano su tutte le righe corrispondenti -- quindi l'unicita' va valutata
+// per portafoglio, non per utente.
+//
+// Un doppione sullo stesso portafoglio non e' un errore: e' una ripetizione
+// della stessa richiesta, e restituire la riga che c'e' gia' la rende
+// ripetibile. Prima invece veniva rifiutata, e dentro un Promise.all il rifiuto
+// abbatteva l'intero lotto lasciando inserito cio' che era passato prima.
 const insertUserAddress = async (userData) => {
   const results = await Promise.all(
     userData.map((item) => {
       return new Promise((resolve, reject) => {
-        const selectQuery = `SELECT * FROM addresses WHERE id_utente = ? AND address = ? AND cointype = ?`;
-        const matches = [item.user_id, item.address, item.coin_type];
+        // Senza portafoglio indicato non c'e' niente per cui restringere, e
+        // `wallet_id = NULL` non corrisponderebbe a nessuna riga: si
+        // inserirebbe senza alcun controllo. In quel caso si torna al
+        // confronto per utente, che e' il piu' stretto dei due.
+        const perPortafoglio = item.wallet_id !== undefined && item.wallet_id !== null;
+
+        const selectQuery = perPortafoglio
+          ? `SELECT * FROM addresses WHERE id_utente = ? AND address = ? AND cointype = ? AND wallet_id = ?`
+          : `SELECT * FROM addresses WHERE id_utente = ? AND address = ? AND cointype = ?`;
+
+        const matches = perPortafoglio
+          ? [item.user_id, item.address, item.coin_type, item.wallet_id]
+          : [item.user_id, item.address, item.coin_type];
+
         connection.query(selectQuery, matches, (error, resultData) => {
           if (error) {
             return reject(error);
-          } else if (resultData.length === 1) {
-            reject("Address is already exist");
+          } else if (resultData.length >= 1) {
+            resolve(resultData[0].id);
           } else {
             const values = [item.coin_type, item.address, item.address_name, item.user_id, item.index, item.tatumStatus, item.wallet_id];
             const query =
