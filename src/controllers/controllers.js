@@ -1002,7 +1002,12 @@ const fetchAssets = async (req, res) => {
     }
     const user_id = req.device.id;
     const filters = { id_utente: user_id, wallet_id: wallet_id };
-    const addresses = await dao.filterAddresses(filters);
+    // `filterAddresses` restituisce null, non un array vuoto, quando non trova
+    // righe. Un portafoglio senza indirizzi e' un caso legittimo -- appena
+    // creato, o non ancora registrato -- e il `for...in` piu' sotto lo
+    // tollerava, ma il `.filter` sui token preferiti no: l'intera risposta
+    // cadeva con un TypeError e la schermata degli asset restava vuota.
+    const addresses = (await dao.filterAddresses(filters)) || [];
 
     const assets = {};
     const coinRates = await service.getLatestCoinRates(selected_currency);
