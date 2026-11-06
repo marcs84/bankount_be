@@ -122,7 +122,12 @@ const syncAddresses = async (req, res) => {
       const checkAddress = addressData.address;
       const checkChain = addressData.coin_type;
 
-      const userAddress = await dao.getAddressByUserIdAndAddressAndChain(userId, checkAddress, checkChain);
+      const userAddress = await dao.getAddressByUserIdAndAddressAndChain(
+        userId,
+        checkAddress,
+        checkChain,
+        addressData.wallet_id
+      );
       if (userAddress) {
         addressIds.push(userAddress.id);
       }

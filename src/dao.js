@@ -645,9 +645,23 @@ const verifyDeviceDetails = (identifier) => {
   });
 };
 
-const getAddressByUserIdAndAddressAndChain = (userId, address, chain) => {
-  const query = `SELECT * FROM addresses WHERE id_utente = ? AND address = ? AND cointype = ?`;
-  const queryParams = [userId, address, chain];
+// `walletId` e' facoltativo per non cambiare il significato delle chiamate che
+// non lo passano, ma chi sincronizza gli indirizzi deve passarlo: lo stesso
+// indirizzo appartiene a piu' portafogli dello stesso utente, e cercarlo senza
+// restringere trovava la riga di un altro portafoglio. La sincronizzazione ne
+// concludeva che l'indirizzo c'era gia' e non registrava mai quelli del
+// portafoglio nuovo, che restava senza indirizzi sul server.
+const getAddressByUserIdAndAddressAndChain = (userId, address, chain, walletId) => {
+  const perPortafoglio = walletId !== undefined && walletId !== null;
+
+  const query = perPortafoglio
+    ? `SELECT * FROM addresses WHERE id_utente = ? AND address = ? AND cointype = ? AND wallet_id = ?`
+    : `SELECT * FROM addresses WHERE id_utente = ? AND address = ? AND cointype = ?`;
+
+  const queryParams = perPortafoglio
+    ? [userId, address, chain, walletId]
+    : [userId, address, chain];
+
   return new Promise((resolve, reject) => {
     connection.query(query, queryParams, (error, results) => {
       if (error) {
