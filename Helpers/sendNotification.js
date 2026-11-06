@@ -5,6 +5,14 @@ const sysLogger = require('../src/sysLogger');
 async function sendNotification(deviceToken, { notificationTitle, notificationBody }, userId = null) {
   
   if (!deviceToken) {
+    // Chi chiama controlla già il token, quindi arrivare qui vuol dire che una
+    // riga di dispositivo e' incoerente: va detto, non ingoiato.
+    sysLogger.logToDb(
+      "SYSTEM_ERROR",
+      "notification.failed",
+      { userId, notificationTitle, errorCode: 'NO_DEVICE_TOKEN' },
+      "ERROR"
+    );
     return { success: false, tokenInvalid: false, error: 'Device token is null' };
   }
 
@@ -51,12 +59,14 @@ async function sendNotification(deviceToken, { notificationTitle, notificationBo
       if (error.code === 'messaging/registration-token-not-registered' || 
           error.code === 'messaging/invalid-registration-token') {
         
+        let tokenRimosso = false;
         try {
           if (userId) {
             await dao.removeInvalidDeviceToken(userId);
           } else {
             await dao.removeDeviceTokenByToken(deviceToken);
           }
+          tokenRimosso = true;
         } catch (dbError) {
           sysLogger.logToDb(
             "SYSTEM_ERROR",
@@ -70,33 +80,47 @@ async function sendNotification(deviceToken, { notificationTitle, notificationBo
           );
         }
         
+        // Il token non e' piu' valido: app disinstallata o reinstallata. E'
+        // un evento atteso, ma **cancella un dato**, e finora non lasciava
+        // traccia: in una sola chiamata dodici righe di dispositivo sono state
+        // svuotate senza che nulla lo dicesse.
+        sysLogger.logToDb(
+          "SYSTEM_EVENT",
+          "notification.tokenRemoved",
+          {
+            deviceToken,
+            userId,
+            notificationTitle,
+            errorCode: error.code,
+            tokenRimosso,
+          },
+          "WARN"
+        );
+
         return { success: false, tokenInvalid: true };
       }
-      
+
+      // Qualunque altro motivo: quota, messaggio malformato, credenziali
+      // scadute. Il codice d'errore e' l'unica cosa che distingue un guasto
+      // del singolo token da una configurazione rotta per tutti, e senza
+      // questa voce la differenza non si vedeva da nessuna parte.
+      sysLogger.logToDb(
+        "SYSTEM_ERROR",
+        "notification.failed",
+        {
+          deviceToken,
+          userId,
+          notificationTitle,
+          errorCode: error.code || null,
+          error: error.message,
+        },
+        "ERROR"
+      );
+
       return { success: false, tokenInvalid: false, error: error.message };
   }
 }
 
-const sendNotificationToMultipleDevices = async (deviceTokens, { notificationTitle, notificationBody }) => {
-  if (!deviceTokens || deviceTokens.length === 0) {
-    return [];
-  }
-
-  const results = [];
-  for (let i = 0; i < deviceTokens.length; i++) {
-    const deviceToken = deviceTokens[i];
-    const result = await sendNotification(deviceToken, { notificationTitle, notificationBody });
-    results.push({ deviceToken, ...result });
-  }
-  
-  const successCount = results.filter(r => r.success).length;
-  const invalidTokenCount = results.filter(r => r.tokenInvalid).length;
-  const errorCount = results.filter(r => !r.success && !r.tokenInvalid).length;
-  
-  return results;
-};
-
 module.exports = {
   sendNotification,
-  sendNotificationToMultipleDevices
 };

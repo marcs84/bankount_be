@@ -543,6 +543,21 @@ const quicknodeTransactionWebhook = async (req, res) => {
     const transactions = req.body.payload;
     const receipts = req.body.receipts;
 
+    // L'esito di ogni invio veniva assegnato a una variabile e mai letto:
+    // "non e' stato avvisato nessuno" e "sono stati avvisati tutti" avevano
+    // lo stesso aspetto nei log, cioe' l'assenza di notification.sent --
+    // un'assenza, non un segnale. Si contano qui e si riassumono una volta
+    // per chiamata: una voce per destinatario allagherebbe system_logs senza
+    // dire di piu'.
+    const esitiPush = { inviate: 0, tokenRimossi: 0, fallite: 0 };
+    const inviaEConta = async (deviceToken, testi, userId) => {
+      const esito = await notification.sendNotification(deviceToken, testi, userId);
+      if (esito && esito.success) esitiPush.inviate++;
+      else if (esito && esito.tokenInvalid) esitiPush.tokenRimossi++;
+      else esitiPush.fallite++;
+      return esito;
+    };
+
     if (transactions && transactions.length) {
       for (let i = 0; i < transactions.length; i++) {
         const transaction = transactions[i];
@@ -609,7 +624,7 @@ const quicknodeTransactionWebhook = async (req, res) => {
                   !pushInviate.has(fromAddressDetails.device_token)) {
                 pushInviate.add(fromAddressDetails.device_token);
 
-                const result = await notification.sendNotification(
+                await inviaEConta(
                   fromAddressDetails.device_token,
                   {
                     notificationTitle: fromAddressDetails.selected_language === "en" ? notificationTitle : notificationTitleItalian,
@@ -655,7 +670,7 @@ const quicknodeTransactionWebhook = async (req, res) => {
                   !pushInviate.has(destinationAddressDetails.device_token)) {
                 pushInviate.add(destinationAddressDetails.device_token);
 
-                const result = await notification.sendNotification(
+                await inviaEConta(
                   destinationAddressDetails.device_token,
                   {
                     notificationTitle: destinationAddressDetails.selected_language === "en" ? notificationTitle : notficationTitleItalian,
@@ -786,7 +801,7 @@ ID transazione: ${receipt.hash}`;
                   !pushInviate.has(fromAddressDetails.device_token)) {
                 pushInviate.add(fromAddressDetails.device_token);
 
-                const result = await notification.sendNotification(
+                await inviaEConta(
                   fromAddressDetails.device_token,
                   {
                     notificationTitle: fromAddressDetails.selected_language === "en" ? notificationTitle : notificationTitleItalian,
@@ -835,7 +850,7 @@ ID transazione: ${receipt.hash}.
                   !pushInviate.has(destinationAddressDetails.device_token)) {
                 pushInviate.add(destinationAddressDetails.device_token);
 
-                const result = await notification.sendNotification(
+                await inviaEConta(
                   destinationAddressDetails.device_token,
                   {
                     notificationTitle: destinationAddressDetails.selected_language === "en" ? notificationTitle : notificationTitleItalian,
@@ -850,6 +865,20 @@ ID transazione: ${receipt.hash}.
           }
         }
       }
+    }
+
+    if (esitiPush.inviate || esitiPush.tokenRimossi || esitiPush.fallite) {
+      sysLogger.logToDb(
+        "SYSTEM_EVENT",
+        "notification.riepilogo",
+        {
+          inviate: esitiPush.inviate,
+          tokenRimossi: esitiPush.tokenRimossi,
+          fallite: esitiPush.fallite,
+          transazioni: transactions ? transactions.length : 0,
+        },
+        esitiPush.fallite ? "ERROR" : "INFO"
+      );
     }
 
     res.status(200).json({
