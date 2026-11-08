@@ -1267,75 +1267,139 @@ const fetchTransactionNotification = async (user_id, wallet_id, page, limit) => 
   });
 };
 
-// Si cancellano solo i wallet del dispositivo che lo chiede: gli identificativi
-// arrivano dal client e non provano il possesso. Quelli non suoi vengono
-// ignorati, non segnalati.
+// Dimentica i portafogli indicati, e con loro i relativi indirizzi.
+//
+// Si tocca solo cio' che appartiene al dispositivo che lo chiede: gli
+// identificativi arrivano dal client e non provano il possesso. Quelli non
+// suoi vengono ignorati, non segnalati.
+//
+// Il possesso si verificava **solo** sulla riga di `wallet`: se quella non
+// c'era si tornava zero e non si toccava nulla. Ma gli indirizzi possono
+// esistere senza il portafoglio -- una creazione interrotta a meta' lascia
+// la riga locale, e la sincronizzazione degli indirizzi li spinge qui senza
+// chiedersi se il portafoglio sia mai arrivato. Quelle righe restavano per
+// sempre, e la query che mira le notifiche non guarda il portafoglio:
+// bastano gli indirizzi perche' una notifica parta. Osservato sul campo,
+// quattro indirizzi di un portafoglio che non esisteva da nessuna parte.
+//
+// Per quelli il possesso si verifica su `addresses.id_utente`, che descrive
+// lo stesso dispositivo di `wallet.device_id`: l'autorizzazione resta
+// altrettanto stretta, e lo zero torna a significare "non ho niente di
+// tuo".
+//
+// Restituisce per quanti dei portafogli richiesti il server ha dimenticato
+// qualcosa: la riga, i suoi indirizzi, o soltanto gli indirizzi. Zero vuol
+// dire "non ho niente di tuo", ed e' quello che il chiamante legge come 404.
 const deleteWallets = (wallet_ids = [], device_id) => {
   return new Promise((resolve, reject) => {
     if (!Array.isArray(wallet_ids) || wallet_ids.length === 0) {
       return reject(new Error("wallet_ids must be a non-empty array."));
     }
 
-    const placeholders = wallet_ids.map(() => "?").join(",");
+    const segni = (n) => Array.from({ length: n }, () => "?").join(",");
+    const interroga = (sql, params) =>
+      new Promise((ris, rif) =>
+        connection.query(sql, params, (error, dati) => (error ? rif(error) : ris(dati)))
+      );
 
-    connection.query(
-      `SELECT id FROM wallet WHERE id IN (${placeholders}) AND device_id = ?`,
-      [...wallet_ids, device_id],
-      (error, owned) => {
-        if (error) {
-          logDbError("dao.deleteWallets.selectOwned", error, { params: [...wallet_ids, device_id] });
-          return reject(new Error("Error while deleting wallets : " + error.message));
+    (async () => {
+      const posseduti = (
+        await interroga(
+          `SELECT id FROM wallet WHERE id IN (${segni(wallet_ids.length)}) AND device_id = ?`,
+          [...wallet_ids, device_id]
+        )
+      ).map((row) => row.id);
+
+      // Fra i richiesti, quelli che hanno indirizzi di questo dispositivo ma
+      // nessuna riga di portafoglio.
+      const conIndirizzi = (
+        await interroga(
+          `SELECT DISTINCT wallet_id FROM addresses WHERE wallet_id IN (${segni(
+            wallet_ids.length
+          )}) AND id_utente = ?`,
+          [...wallet_ids, device_id]
+        )
+      ).map((row) => row.wallet_id);
+      const orfani = conIndirizzi.filter((id) => id && !posseduti.includes(id));
+
+      if (!posseduti.length && !orfani.length) return 0;
+
+      await nellaTransazione(async (esegui) => {
+        if (posseduti.length) {
+          // Per un portafoglio posseduto si tolgono tutti i suoi indirizzi,
+          // senza restringere per dispositivo: il portafoglio e' suo, e una
+          // riga scritta con un `id_utente` diverso non va lasciata indietro.
+          await esegui(
+            `DELETE FROM addresses WHERE wallet_id IN (${segni(posseduti.length)})`,
+            posseduti
+          );
         }
 
-        const ids = (owned || []).map((row) => row.id);
-        if (!ids.length) {
-          return resolve(0);
+        if (orfani.length) {
+          await esegui(
+            `DELETE FROM addresses WHERE wallet_id IN (${segni(
+              orfani.length
+            )}) AND id_utente = ?`,
+            [...orfani, device_id]
+          );
         }
 
-        const ownedPlaceholders = ids.map(() => "?").join(",");
+        if (posseduti.length) {
+          await esegui(
+            `DELETE FROM wallet WHERE id IN (${segni(posseduti.length)})`,
+            posseduti
+          );
+        }
+      });
 
-        connection.getConnection((err, conn) => {
-          if (err) return reject(err);
+      return posseduti.length + orfani.length;
+    })()
+      .then(resolve)
+      .catch((error) => {
+        logDbError("dao.deleteWallets", error, { params: [...wallet_ids, device_id] });
+        reject(error instanceof Error ? error : new Error("Error while deleting wallets : " + error));
+      });
+  });
+};
 
-          conn.beginTransaction((err) => {
-            if (err) {
-              conn.destroy();
-              return reject(err);
-            }
+// Esegue `lavoro` dentro una transazione, e la disfa se qualcosa va storto.
+//
+// Serve perche' la cancellazione tocca due tabelle: lasciare gli indirizzi
+// senza il portafoglio e' proprio il guasto che si sta correggendo, quindi i
+// due passi devono valere o cadere insieme.
+const nellaTransazione = (lavoro) => {
+  return new Promise((resolve, reject) => {
+    connection.getConnection((err, conn) => {
+      if (err) return reject(err);
 
-            conn.query(`DELETE FROM addresses WHERE wallet_id IN (${ownedPlaceholders})`, ids, (err) => {
-              if (err) {
-                return conn.rollback(() => {
-                  conn.destroy();
-                  reject(err);
-                });
-              }
+      const esegui = (sql, params) =>
+        new Promise((ris, rif) =>
+          conn.query(sql, params, (error, dati) => (error ? rif(error) : ris(dati)))
+        );
 
-              conn.query(`DELETE FROM wallet WHERE id IN (${ownedPlaceholders})`, ids, (err, result) => {
-                if (err) {
-                  return conn.rollback(() => {
-                    conn.destroy();
-                    reject(err);
-                  });
-                }
-
-                conn.commit((err) => {
-                  if (err) {
-                    return conn.rollback(() => {
-                      conn.destroy();
-                      reject(err);
-                    });
-                  }
-
-                  conn.release();
-                  resolve(result.affectedRows);
-                });
-              });
-            });
-          });
+      const disfa = (error) =>
+        conn.rollback(() => {
+          conn.destroy();
+          reject(error);
         });
-      }
-    );
+
+      conn.beginTransaction((err) => {
+        if (err) {
+          conn.destroy();
+          return reject(err);
+        }
+
+        lavoro(esegui)
+          .then((esito) =>
+            conn.commit((err) => {
+              if (err) return disfa(err);
+              conn.release();
+              resolve(esito);
+            })
+          )
+          .catch(disfa);
+      });
+    });
   });
 };
 

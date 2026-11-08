@@ -90,7 +90,7 @@ test("reports nothing removed when the url belongs to someone else", async () =>
   assert.equal(await dao.deleteCustomChainUrl(5, 999), 0);
 });
 
-function walletConnection(posseduti = []) {
+function walletConnection(posseduti = [], conIndirizzi = null) {
   const executed = [];
   const conn = {
     beginTransaction: (cb) => cb(null),
@@ -110,6 +110,10 @@ function walletConnection(posseduti = []) {
     query(sql, params, cb) {
       executed.push({ sql: sql.replace(/\s+/g, " ").trim(), params });
       if (/^SELECT id FROM wallet/i.test(sql)) return cb(null, posseduti.map((id) => ({ id })));
+      if (/^SELECT DISTINCT wallet_id FROM addresses/i.test(sql)) {
+        const righe = conIndirizzi === null ? posseduti : conIndirizzi;
+        return cb(null, righe.map((wallet_id) => ({ wallet_id })));
+      }
       return cb(null, []);
     },
   };
@@ -138,6 +142,39 @@ test("touches nothing when no requested wallet belongs to the device", async () 
   assert.ok(
     !conn.executed.some((e) => /^DELETE/i.test(e.sql)),
     "nessuna cancellazione, nemmeno degli indirizzi"
+  );
+});
+
+// Una creazione interrotta a meta' lascia la riga locale, e la
+// sincronizzazione spinge qui gli indirizzi senza che il portafoglio sia mai
+// arrivato. Verificando il possesso solo su `wallet` quelle righe non si
+// potevano piu' togliere, e le notifiche si mirano proprio dagli indirizzi.
+test("removes the addresses of a wallet whose row never arrived", async () => {
+  const conn = walletConnection([], ["w-senza-riga"]);
+  global.connection = conn;
+
+  const tolte = await dao.deleteWallets(["w-senza-riga"], 42);
+
+  const del = conn.executed.find((e) => /^DELETE FROM addresses/i.test(e.sql));
+  assert.ok(del, "gli indirizzi vanno tolti anche senza la riga del portafoglio");
+  assert.deepEqual(del.params, ["w-senza-riga", 42], "il possesso si verifica sul dispositivo");
+  assert.ok(
+    !conn.executed.some((e) => /^DELETE FROM wallet /i.test(e.sql)),
+    "non c'e' nessuna riga di portafoglio da togliere"
+  );
+  assert.ok(tolte > 0, "zero vorrebbe dire 404, e qualcosa invece e' stato tolto");
+});
+
+test("does not touch addresses of another device when the wallet row is missing", async () => {
+  const conn = walletConnection([], []);
+  global.connection = conn;
+
+  // Nessuna riga di portafoglio e nessun indirizzo di questo dispositivo:
+  // la richiesta non trova niente di suo.
+  assert.equal(await dao.deleteWallets(["w-altrui"], 42), 0);
+  assert.ok(
+    !conn.executed.some((e) => /^DELETE/i.test(e.sql)),
+    "senza niente di proprio non si cancella nulla"
   );
 });
 
