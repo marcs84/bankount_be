@@ -15,6 +15,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const { apiLimiter } = require("./src/server/rateLimit");
+const { interpretaFiducia } = require("./src/server/trustProxy");
 const { hideInternalErrors } = require("./src/server/errorResponse");
 const routes = require("./src/server/routes");
 const swaggerUi = require("swagger-ui-express");
@@ -75,8 +76,17 @@ const RUN_SYNC = process.argv.includes('--run-sync');
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Dietro la galleria frpc le richieste arrivano da 127.0.0.1 con l'indirizzo
+// vero in `X-Forwarded-For`. Senza questa impostazione `req.ip` e' quello
+// della presa per tutti: il limitatore dei tentativi di accesso conterebbe
+// ogni visitatore nello stesso mucchio, e l'indirizzo nelle tracce sarebbe
+// quello del tunnel.
+//
+// Il valore passa da `interpretaFiducia` perche' l'ambiente da' stringhe ed
+// Express tratta la stringa "1" come un elenco di indirizzi, non come un
+// salto di proxy.
 if (process.env.TRUST_PROXY) {
-  app.set("trust proxy", process.env.TRUST_PROXY);
+  app.set("trust proxy", interpretaFiducia(process.env.TRUST_PROXY));
 }
 
 app.disable("x-powered-by");
