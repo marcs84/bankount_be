@@ -902,6 +902,338 @@
     if (!catalogo) caricaCatalogo();
   }
 
+  // ------------------------------------------------------------ vista utenti
+
+  var mioNome = null;
+  var mioRuolo = null;
+  var miaFonte = null;
+  var inResetDi = null;
+  var inEliminazioneDi = null;
+
+  function avvisoUtenti(messaggio) {
+    var nodo = el("utenti-avviso");
+    if (!messaggio) { nodo.hidden = true; return; }
+    nodo.textContent = messaggio;
+    nodo.hidden = false;
+  }
+
+  function nascondiModuli() {
+    inResetDi = null;
+    inEliminazioneDi = null;
+    el("scheda-reset").hidden = true;
+    el("scheda-elimina").hidden = true;
+    el("r-password").value = "";
+    el("r-password2").value = "";
+    el("e-conferma").value = "";
+    el("e-esegui").disabled = true;
+  }
+
+  function apriReset(nome) {
+    nascondiModuli();
+    inResetDi = nome;
+    el("r-nome-visto").textContent = nome;
+    el("r-esito").textContent = "—";
+    el("scheda-reset").hidden = false;
+    el("r-password").focus();
+  }
+
+  function apriEliminazione(nome) {
+    nascondiModuli();
+    inEliminazioneDi = nome;
+    el("e-nome-visto").textContent = nome;
+    el("e-esito").textContent = "—";
+    el("scheda-elimina").hidden = false;
+    el("e-conferma").focus();
+  }
+
+  function bottoneRiga(testo, classe, quando) {
+    var b = crea("button", "minuto" + (classe ? " " + classe : ""), testo);
+    b.type = "button";
+    b.addEventListener("click", quando);
+    return b;
+  }
+
+  function disegnaUtenti(d) {
+    var corpo = el("tabella-utenti").tBodies[0];
+    svuota(corpo);
+
+    // L'amministratore di .env non ha una riga nella tabella, e si mostra a
+    // parte: chi guarda l'elenco deve sapere che esiste e che nessuno di qui
+    // dentro puo' toccarlo.
+    var tr = corpo.insertRow();
+    tr.insertCell().textContent = d.ambiente.nome;
+    tr.insertCell().appendChild(etichetta(d.ambiente.ruolo, "etichetta-ok"));
+    tr.insertCell().appendChild(etichetta("da .env", null));
+    tr.insertCell().textContent = "—";
+    tr.insertCell().textContent = "—";
+    var nota = tr.insertCell();
+    nota.className = "sottile";
+    nota.textContent = "si cambia con npm run admin:hash";
+
+    d.utenti.forEach(function (u) {
+      var riga = corpo.insertRow();
+      riga.insertCell().textContent = u.nome;
+      riga.insertCell().appendChild(
+        etichetta(u.ruolo, u.ruolo === "proprietario" ? "etichetta-ok" : null)
+      );
+      riga.insertCell().appendChild(
+        u.abilitato
+          ? etichetta("abilitato", null)
+          : etichetta("disabilitato", "etichetta-errore")
+      );
+
+      var creato = riga.insertCell();
+      creato.textContent = oraLocale(u.creatoIl).split(",")[0];
+      creato.title = (u.creatoDa ? "da " + u.creatoDa + " · " : "") + oraLocale(u.creatoIl);
+
+      var accesso = riga.insertCell();
+      accesso.textContent = u.ultimoAccesso ? quandoFa(u.ultimoAccesso) : "mai";
+      accesso.title = oraLocale(u.ultimoAccesso);
+
+      var azioni = riga.insertCell();
+      azioni.className = "azioni";
+
+      var suDiMe = u.nome.toLowerCase() === String(mioNome).toLowerCase();
+
+      azioni.appendChild(bottoneRiga("password", null, function () {
+        apriReset(u.nome);
+      }));
+
+      var cambia = bottoneRiga(
+        u.abilitato ? "disabilita" : "abilita",
+        null,
+        function () { cambiaAbilitazione(u.nome, !u.abilitato); }
+      );
+      // Disabilitare se stessi chiuderebbe la propria sessione: il server lo
+      // rifiuta, e qui il bottone non si offre nemmeno.
+      if (suDiMe && u.abilitato) cambia.disabled = true;
+      azioni.appendChild(cambia);
+
+      var elimina = bottoneRiga("elimina", "pericolo", function () {
+        apriEliminazione(u.nome);
+      });
+      if (suDiMe) elimina.disabled = true;
+      azioni.appendChild(elimina);
+    });
+
+    el("sommario-utenti").textContent =
+      d.utenti.length === 0
+        ? "nessun amministratore nella tabella: per ora entra solo quello di .env"
+        : d.utenti.length + " nella tabella, piu' quello di .env";
+
+    var ruoli = el("u-ruolo");
+    if (!ruoli.options.length) {
+      d.ruoli.forEach(function (r) {
+        var o = crea("option", null, r);
+        o.value = r;
+        if (r === "operatore") o.selected = true;
+        ruoli.appendChild(o);
+      });
+    }
+
+    el("nota-nuovo-utente").textContent =
+      "La password deve essere lunga almeno " + d.lunghezzaMinimaPassword +
+      " caratteri. Nasce operatore: il proprietario e' l'unico che gestisce gli accessi.";
+  }
+
+  function caricaUtenti() {
+    el("sommario-utenti").textContent = "leggo…";
+
+    return chiama("admins").then(function (r) {
+      if (r.stato === 401) { esci(true); return; }
+
+      if (r.stato === 403) {
+        el("scheda-elenco-utenti").hidden = true;
+        el("scheda-nuovo-utente").hidden = true;
+        avvisoUtenti("La gestione degli amministratori spetta al proprietario.");
+        return;
+      }
+
+      if (!r.ok) {
+        avvisoUtenti("lettura non riuscita: " + ((r.dati && r.dati.message) || r.stato));
+        return;
+      }
+
+      var d = r.dati.data;
+
+      if (!d.tabella) {
+        // Senza la tabella il pannello funziona: entra l'amministratore di
+        // .env. Si dice cos'altro serve, invece di mostrare un guasto.
+        el("scheda-elenco-utenti").hidden = true;
+        el("scheda-nuovo-utente").hidden = true;
+        avvisoUtenti(
+          "La tabella degli amministratori non esiste ancora: va applicata la " +
+          "migrazione database/migrations/009_admin_users.sql. Fino ad allora " +
+          "entra solo l'amministratore scritto in .env."
+        );
+        return;
+      }
+
+      avvisoUtenti(null);
+      el("scheda-elenco-utenti").hidden = false;
+      el("scheda-nuovo-utente").hidden = false;
+      disegnaUtenti(d);
+    }).catch(function () {
+      avvisoUtenti("il server non risponde");
+    });
+  }
+
+  function creaUtente(evento) {
+    evento.preventDefault();
+    var esito = el("u-esito");
+
+    if (el("u-password").value !== el("u-password2").value) {
+      esito.textContent = "le due password non coincidono";
+      return;
+    }
+
+    esito.textContent = "creo…";
+    chiama("admins", {
+      metodo: "POST",
+      corpo: {
+        nome: el("u-nome").value.trim(),
+        password: el("u-password").value,
+        ruolo: el("u-ruolo").value,
+      },
+    }).then(function (r) {
+      if (!r.ok) {
+        esito.textContent = (r.dati && r.dati.message) || "non riuscita";
+        return;
+      }
+      esito.textContent = "creato: " + r.dati.data.nome + " (" + r.dati.data.ruolo + ")";
+      el("u-nome").value = "";
+      el("u-password").value = "";
+      el("u-password2").value = "";
+      caricaUtenti();
+    }).catch(function () {
+      esito.textContent = "il server non risponde";
+    });
+  }
+
+  function cambiaAbilitazione(nome, acceso) {
+    chiama("admins/" + encodeURIComponent(nome) + "/enabled", {
+      metodo: "POST",
+      corpo: { acceso: acceso },
+    }).then(function (r) {
+      if (!r.ok) {
+        avvisoUtenti((r.dati && r.dati.message) || "non riuscita");
+        return;
+      }
+      avvisoUtenti(null);
+      caricaUtenti();
+    }).catch(function () {
+      avvisoUtenti("il server non risponde");
+    });
+  }
+
+  function resetPassword(evento) {
+    evento.preventDefault();
+    if (!inResetDi) return;
+    var esito = el("r-esito");
+
+    if (el("r-password").value !== el("r-password2").value) {
+      esito.textContent = "le due password non coincidono";
+      return;
+    }
+
+    esito.textContent = "cambio…";
+    chiama("admins/" + encodeURIComponent(inResetDi) + "/password", {
+      metodo: "POST",
+      corpo: { password: el("r-password").value },
+    }).then(function (r) {
+      if (!r.ok) {
+        esito.textContent = (r.dati && r.dati.message) || "non riuscita";
+        return;
+      }
+      nascondiModuli();
+      caricaUtenti();
+    }).catch(function () {
+      esito.textContent = "il server non risponde";
+    });
+  }
+
+  function eliminaUtente(evento) {
+    evento.preventDefault();
+    if (!inEliminazioneDi) return;
+    var esito = el("e-esito");
+
+    esito.textContent = "elimino…";
+    chiama("admins/" + encodeURIComponent(inEliminazioneDi), {
+      metodo: "DELETE",
+      corpo: { conferma: el("e-conferma").value.trim() },
+    }).then(function (r) {
+      if (!r.ok) {
+        esito.textContent = (r.dati && r.dati.message) || "non riuscita";
+        return;
+      }
+      nascondiModuli();
+      caricaUtenti();
+    }).catch(function () {
+      esito.textContent = "il server non risponde";
+    });
+  }
+
+  function cambiaMiaPassword(evento) {
+    evento.preventDefault();
+    var esito = el("m-esito");
+
+    if (el("m-nuova").value !== el("m-nuova2").value) {
+      esito.textContent = "le due password non coincidono";
+      return;
+    }
+
+    esito.textContent = "cambio…";
+    chiama("me/password", {
+      metodo: "POST",
+      corpo: {
+        passwordAttuale: el("m-attuale").value,
+        passwordNuova: el("m-nuova").value,
+      },
+    }).then(function (r) {
+      if (!r.ok) {
+        esito.textContent = (r.dati && r.dati.message) || "non riuscita";
+        return;
+      }
+      // La sessione in corso e' nata con la password di prima: il cancello la
+      // rifiuta dal prossimo aggiornamento. Si esce da qui, dicendolo, invece
+      // di farlo sembrare una scadenza arrivata per caso.
+      esito.textContent = "cambiata. Entra di nuovo con quella nuova.";
+      el("m-attuale").value = "";
+      el("m-nuova").value = "";
+      el("m-nuova2").value = "";
+      chiama("logout", { metodo: "POST" }).catch(function () {}).then(function () {
+        esci(false);
+        var errore = el("errore-accesso");
+        errore.textContent = "Password cambiata. Entra con quella nuova.";
+        errore.hidden = false;
+      });
+    }).catch(function () {
+      esito.textContent = "il server non risponde";
+    });
+  }
+
+  function apriUtenti() {
+    nascondiModuli();
+
+    var daTabella = miaFonte === "tabella";
+    el("scheda-mia-password").hidden = false;
+    el("mia-riga").hidden = !daTabella;
+    el("m-esito").textContent = "—";
+    el("mia-nota").textContent = daTabella
+      ? "Sei " + mioNome + " (" + mioRuolo + "), dalla tabella."
+      : "Sei " + mioNome + ", l'amministratore scritto in .env: la sua password " +
+        "si cambia con `npm run admin:hash` e un riavvio, non da qui.";
+
+    if (mioRuolo !== "proprietario") {
+      el("scheda-elenco-utenti").hidden = true;
+      el("scheda-nuovo-utente").hidden = true;
+      avvisoUtenti("La gestione degli amministratori spetta al proprietario.");
+      return;
+    }
+
+    caricaUtenti();
+  }
+
   // --------------------------------------------------------------- caricamento
 
   function avviso(messaggio) {
@@ -923,7 +1255,19 @@
     database: { percorso: "database", funzione: disegnaDatabase },
     registro: { manuale: true, apri: apriRegistro },
     consolle: { manuale: true, apri: apriConsolle },
+    utenti: { manuale: true, apri: apriUtenti },
   };
+
+  // Chi sono: lo dice il server all'accesso e lo ripete alla verifica della
+  // sessione. La pagina non lo decide e non lo tiene fra un giro e l'altro -
+  // un ruolo ricordato dalla pagina sarebbe un ruolo che il server non ha
+  // confermato.
+  function ricordaChiSono(d) {
+    distruttivoAmmesso = Boolean(d.destructive_enabled);
+    mioNome = d.username || null;
+    mioRuolo = d.ruolo || null;
+    miaFonte = d.fonte || null;
+  }
 
   function intestazione(d) {
     el("nome-macchina").textContent = d.macchina.nome;
@@ -1044,7 +1388,7 @@
     }).then(function (risposta) {
       if (risposta.ok && risposta.dati && risposta.dati.data) {
         el("password").value = "";
-        distruttivoAmmesso = Boolean(risposta.dati.data.destructive_enabled);
+        ricordaChiSono(risposta.dati.data);
         entra(risposta.dati.data.token);
         return;
       }
@@ -1139,6 +1483,21 @@
   el("c-metodo").addEventListener("change", aggiornaConferma);
   el("c-manda").addEventListener("click", mandaSonda);
 
+  // ------------------------------------------------- eventi degli utenti
+
+  el("modulo-nuovo-utente").addEventListener("submit", creaUtente);
+  el("modulo-reset").addEventListener("submit", resetPassword);
+  el("modulo-elimina").addEventListener("submit", eliminaUtente);
+  el("modulo-mia-password").addEventListener("submit", cambiaMiaPassword);
+  el("r-annulla").addEventListener("click", nascondiModuli);
+  el("e-annulla").addEventListener("click", nascondiModuli);
+
+  // Il bottone si accende solo col nome ribattuto per intero.
+  el("e-conferma").addEventListener("input", function () {
+    el("e-esegui").disabled =
+      el("e-conferma").value.trim() !== String(inEliminazioneDi || "");
+  });
+
   // Tornando sulla scheda si aggiorna subito: i numeri fermi da dieci minuti
   // sono peggio di nessun numero, perche' sembrano attuali.
   document.addEventListener("visibilitychange", function () {
@@ -1157,9 +1516,7 @@
     token = salvato;
     chiama("session").then(function (risposta) {
       if (risposta.ok) {
-        if (risposta.dati && risposta.dati.data) {
-          distruttivoAmmesso = Boolean(risposta.dati.data.destructive_enabled);
-        }
+        if (risposta.dati && risposta.dati.data) ricordaChiSono(risposta.dati.data);
         entra(salvato);
       } else {
         esci(false);

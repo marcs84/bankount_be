@@ -53,6 +53,7 @@
     <button type="button" class="linguetta" data-vista="database">Database</button>
     <button type="button" class="linguetta" data-vista="registro">Registro</button>
     <button type="button" class="linguetta" data-vista="consolle">Consolle</button>
+    <button type="button" class="linguetta" data-vista="utenti">Utenti</button>
   </nav>
 
   <!-- Salute -->
@@ -297,6 +298,114 @@
       <pre class="corpo" id="c-risposta">nessuna richiesta mandata</pre>
       <h2>Intestazioni della risposta</h2>
       <pre class="corpo corpo-breve" id="c-intestazioni-risposta">—</pre>
+    </div>
+  </section>
+
+  <!-- Utenti -->
+  <section id="vista-utenti" class="vista" hidden>
+    <p id="utenti-avviso" class="avviso" role="status" hidden></p>
+
+    <div class="scheda" id="scheda-elenco-utenti" hidden>
+      <h2>Amministratori</h2>
+      <p class="sommario" id="sommario-utenti">—</p>
+      <table class="tabella tabella-larga" id="tabella-utenti">
+        <thead>
+          <tr><th>nome</th><th>ruolo</th><th>stato</th><th>creato</th><th>ultimo accesso</th><th>azioni</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="scheda" id="scheda-nuovo-utente" hidden>
+      <h2>Nuovo amministratore</h2>
+      <p class="sommario" id="nota-nuovo-utente">—</p>
+      <form id="modulo-nuovo-utente" autocomplete="off">
+        <div class="filtri-riga">
+          <label class="campo">
+            <span>nome</span>
+            <input id="u-nome" type="text" autocomplete="off" spellcheck="false">
+          </label>
+          <label class="campo">
+            <span>password</span>
+            <input id="u-password" type="password" autocomplete="new-password">
+          </label>
+          <label class="campo">
+            <span>ripeti</span>
+            <input id="u-password2" type="password" autocomplete="new-password">
+          </label>
+          <label class="campo campo-breve">
+            <span>ruolo</span>
+            <select id="u-ruolo"></select>
+          </label>
+          <button type="submit" class="minuto principale">crea</button>
+        </div>
+        <p class="sommario" id="u-esito">—</p>
+      </form>
+    </div>
+
+    <div class="scheda" id="scheda-reset" hidden>
+      <h2>Nuova password per <span id="r-nome-visto">—</span></h2>
+      <p class="sommario">
+        Le sessioni aperte con la password di prima si chiudono: il pannello
+        confronta l'istante del cambio con quello scritto nella sessione.
+      </p>
+      <form id="modulo-reset" autocomplete="off">
+        <div class="filtri-riga">
+          <label class="campo">
+            <span>password</span>
+            <input id="r-password" type="password" autocomplete="new-password">
+          </label>
+          <label class="campo">
+            <span>ripeti</span>
+            <input id="r-password2" type="password" autocomplete="new-password">
+          </label>
+          <button type="submit" class="minuto principale">cambia</button>
+          <button type="button" class="minuto" id="r-annulla">lascia stare</button>
+        </div>
+        <p class="sommario" id="r-esito">—</p>
+      </form>
+    </div>
+
+    <div class="scheda scheda-pericolo" id="scheda-elimina" hidden>
+      <h2>Elimina <span id="e-nome-visto">—</span></h2>
+      <p class="sommario">
+        Non si annulla. Cio' che quell'amministratore ha fatto resta nel
+        registro, dove il nome e' scritto come testo.
+      </p>
+      <form id="modulo-elimina" autocomplete="off">
+        <div class="filtri-riga">
+          <label class="campo campo-largo">
+            <span>ribattere il nome per confermare</span>
+            <input id="e-conferma" type="text" autocomplete="off" spellcheck="false">
+          </label>
+          <button type="submit" class="minuto pericolo" id="e-esegui" disabled>elimina</button>
+          <button type="button" class="minuto" id="e-annulla">lascia stare</button>
+        </div>
+        <p class="sommario" id="e-esito">—</p>
+      </form>
+    </div>
+
+    <div class="scheda" id="scheda-mia-password">
+      <h2>La tua password</h2>
+      <p class="sommario" id="mia-nota">—</p>
+      <form id="modulo-mia-password" autocomplete="off">
+        <div class="filtri-riga" id="mia-riga">
+          <label class="campo">
+            <span>attuale</span>
+            <input id="m-attuale" type="password" autocomplete="current-password">
+          </label>
+          <label class="campo">
+            <span>nuova</span>
+            <input id="m-nuova" type="password" autocomplete="new-password">
+          </label>
+          <label class="campo">
+            <span>ripeti</span>
+            <input id="m-nuova2" type="password" autocomplete="new-password">
+          </label>
+          <button type="submit" class="minuto principale">cambia</button>
+        </div>
+        <p class="sommario" id="m-esito">—</p>
+      </form>
     </div>
   </section>
 </div>

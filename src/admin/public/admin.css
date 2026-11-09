@@ -495,3 +495,10 @@ td.cella-dettagli { padding: 0 0 10px; }
 
 .istogramma-riga.ora { grid-template-columns: 104px 1fr 92px; }
 .istogramma-numero.doppio { font-size: 11px; }
+
+/* ---------- utenti ---------- */
+
+.tabella td.azioni { white-space: nowrap; }
+.tabella td.azioni .minuto { margin: 0 4px 2px 0; padding: 3px 8px; font-size: 12px; }
+.tabella td.azioni .minuto.pericolo:not(:disabled) { background: transparent; color: var(--guasto); border-color: color-mix(in srgb, var(--guasto) 45%, var(--bordo)); }
+.tabella td.azioni .minuto.pericolo:not(:disabled):hover { background: var(--guasto); color: #fff; }
