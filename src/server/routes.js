@@ -998,7 +998,7 @@ router.put("/api/wallet/update", jsonParser, auth.authenticateToken, resolveDevi
 
 /**
  * @swagger
- * /api/wallet/fetch:
+ * /api/wallet:
  *   get:
  *     summary: Fetch wallet(s) based on provided parameters
  *     description: Retrieve wallet details using wallet_id, device_id, or user_id.

@@ -16,6 +16,7 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 const { apiLimiter } = require("./src/server/rateLimit");
 const { interpretaFiducia } = require("./src/server/trustProxy");
+const { PERCORSO_ICONA, CACHE_ICONA } = require("./src/server/icona");
 const { hideInternalErrors } = require("./src/server/errorResponse");
 const routes = require("./src/server/routes");
 const swaggerUi = require("swagger-ui-express");
@@ -102,6 +103,24 @@ app.use(apiLimiter);
 app.use(morgan("tiny"));
 app.use(hideInternalErrors);
 app.use('/public', express.static(path.join(process.cwd(), 'public')));
+
+// L'icona del sito, per tutto il server e non solo per il pannello.
+//
+// Il browser la chiede qui - alla radice - per ogni pagina che non ne
+// dichiari una propria, e senza questa rotta ogni apertura di /api-docs o
+// della radice lasciava un 404 nel registro delle API.
+//
+// Sta **prima** di `app.use("/", routes)`: cosi' la richiesta non attraversa
+// il registro delle richieste, che e' il trattamento giusto per un file
+// statico, ed e' lo stesso che ricevono i file del pannello.
+app.get("/favicon.ico", (req, res) => {
+  res.sendFile(PERCORSO_ICONA, { maxAge: CACHE_ICONA }, (errore) => {
+    // Se il file non c'e' si risponde 404 senza rumore: un'icona mancante non
+    // e' un guasto del server, e sollevare qui farebbe cadere la richiesta in
+    // un gestore di errori che non ha niente da dire.
+    if (errore && !res.headersSent) res.status(404).end();
+  });
+});
 
 // Importa le rotte dal file routes.js
 app.use("/", routes);
