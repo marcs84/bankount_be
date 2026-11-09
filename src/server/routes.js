@@ -210,6 +210,82 @@ router.get("/api/verify", controllers.emailVerification);
  */
 router.post("/api/getBalance", urlencodedParser, auth.authenticateToken, controllers.getBalance);
 
+/**
+ * @swagger
+ * /api/coin-exchange-utils:
+ *   post:
+ *     summary: Fetch the data needed to build a transfer
+ *     description: >
+ *       Returns fees, nonce and the other chain-specific values needed to build a
+ *       transfer between two addresses of the same blockchain. The sender address
+ *       must belong to the logged-in device: when it does not, the call is refused
+ *       with status 500 and an explanatory message.
+ *     operationId: getUtilsForTransaction
+ *     tags:
+ *       - Transactions
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - coin_type
+ *               - from_address
+ *               - to_address
+ *               - amount
+ *             properties:
+ *               coin_type:
+ *                 type: string
+ *                 example: "ETH"
+ *               from_address:
+ *                 type: string
+ *                 description: Must be an address of the logged-in device.
+ *                 example: "0x33dC6397DeDA3066Ca93a9A42eA563390F02E680"
+ *               to_address:
+ *                 type: string
+ *                 example: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
+ *               amount:
+ *                 type: number
+ *                 example: 0.015
+ *               network:
+ *                 type: string
+ *                 example: "TESTNET"
+ *     responses:
+ *       200:
+ *         description: Transaction utils fetched successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Transaction utils fetched successfully"
+ *                 data:
+ *                   type: object
+ *                   description: Chain-specific values for the transfer.
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         description: Sender address not owned by the device, or server error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "The sender address is not part of the logged in user"
+ */
 router.post("/api/coin-exchange-utils", jsonParser, auth.authenticateToken, resolveDevice, controllers.getUtilsForTransaction);
 
 /**
@@ -2117,6 +2193,99 @@ router.get("/api/token-balance", jsonParser, auth.authenticateToken, controllers
  */
 router.get("/api/search-token", jsonParser, auth.authenticateToken, controllers.searchTokensUsingCoinpaprika);
 
+/**
+ * @swagger
+ * /api/webhook-quicknode/transaction:
+ *   post:
+ *     summary: Transaction webhook from QuickNode Streams
+ *     description: >
+ *       Called by QuickNode, not by the app. Every delivery carries an HMAC
+ *       signature over nonce, timestamp and body; the server recomputes it with
+ *       QUICKNODE_WEBHOOK_SECRET and refuses the call when it does not match or
+ *       when the timestamp is outside the tolerance window. The name of the
+ *       signature header is configured in QUICKNODE_WEBHOOK_SIGNATURE_HEADER.
+ *       Transactions that touch a known address are stored, and the devices that
+ *       own that address are notified.
+ *     operationId: quicknodeTransactionWebhook
+ *     tags:
+ *       - Webhooks
+ *     parameters:
+ *       - in: header
+ *         name: x-qn-nonce
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Part of the signed payload.
+ *       - in: header
+ *         name: x-qn-timestamp
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Part of the signed payload; must fall within the tolerance window.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               payload:
+ *                 type: array
+ *                 description: The transactions of the block.
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     chain:
+ *                       type: string
+ *                       example: "ETH"
+ *                     network:
+ *                       type: string
+ *                       example: "TESTNET"
+ *                     hash:
+ *                       type: string
+ *                     from:
+ *                       type: string
+ *                     to:
+ *                       type: string
+ *                     amount:
+ *                       type: string
+ *                     blockNumber:
+ *                       type: integer
+ *               receipts:
+ *                 type: array
+ *                 description: The receipts of the same block, when the stream sends them.
+ *                 items:
+ *                   type: object
+ *     responses:
+ *       200:
+ *         description: Delivery accepted.
+ *       401:
+ *         description: Signature missing or mismatched, or timestamp outside tolerance.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid signature"
+ *       503:
+ *         description: The webhook is not configured on this server.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Webhook not configured"
+ */
 router.post("/api/webhook-quicknode/transaction", webhookParser, verifyQuicknode, controllers.quicknodeTransactionWebhook);
 
 /**
@@ -2700,8 +2869,120 @@ router.get("/api/dapps-list", jsonParser, auth.authenticateToken, controllers.fe
  */
 router.get("/api/transaction-notifications", jsonParser, auth.authenticateToken, controllers.fetchTransactionNotification);
 
+/**
+ * @swagger
+ * /api/update-user-language:
+ *   patch:
+ *     summary: Update the language of the logged-in device
+ *     description: Sets the language used for the notifications sent to this device.
+ *     operationId: updateDeviceLanguage
+ *     tags:
+ *       - Device Login
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - selected_language
+ *             properties:
+ *               selected_language:
+ *                 type: string
+ *                 example: "it"
+ *     responses:
+ *       200:
+ *         description: Language updated successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Language updated successfully"
+ *       400:
+ *         description: The field is missing.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "selected_language is a mandate field"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 router.patch("/api/update-user-language", jsonParser, auth.authenticateToken, resolveDevice, controllers.updateDeviceLanguage);
 
+/**
+ * @swagger
+ * /api/update-device-token:
+ *   patch:
+ *     summary: Update the push token of the logged-in device
+ *     description: >
+ *       Replaces the token used to send push notifications to this device. The app
+ *       calls it whenever the push service issues a new one.
+ *     operationId: updateDeviceToken
+ *     tags:
+ *       - Device Login
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - device_token
+ *             properties:
+ *               device_token:
+ *                 type: string
+ *                 description: The token issued by the push service.
+ *     responses:
+ *       200:
+ *         description: Device token updated successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Device token updated successfully"
+ *       400:
+ *         description: The field is missing.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "device_token is a mandate field"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
 router.patch("/api/update-device-token", jsonParser, auth.authenticateToken, resolveDevice, controllers.updateDeviceToken);
 
 module.exports = router;
