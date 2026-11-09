@@ -577,6 +577,17 @@ const costruisciRouter = (configurazione, ritenzione = leggiRitenzione()) => {
       return { dati: esito, traccia: { nome: esito.nome, abilitato: esito.abilitato } };
     }));
 
+  router.post("/api/admins/:nome/role", richiedeAmministratore, richiedeProprietario,
+    jsonParser,
+    operazione("ruoloCambiato", async (req) => {
+      const esito = await utenti.cambiaRuolo({
+        nome: req.params.nome,
+        ruolo: (req.body || {}).ruolo,
+        chiLoChiede: req.amministratore.utente,
+      });
+      return { dati: esito, traccia: { nome: esito.nome, ruolo: esito.ruolo } };
+    }));
+
   // Il nome si ribatte per confermare. Eliminare un accesso e' l'unica cosa
   // qui dentro che non si annulla, e un elenco di righe tutte uguali e' il
   // posto piu' facile per cliccare quella sbagliata.

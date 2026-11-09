@@ -314,6 +314,56 @@ test("the owner of a password must know the current one to change it", async () 
   assert.equal(esito.nome, "silvia");
 });
 
+test("changes a role, and refuses a role that does not exist", async () => {
+  const { chieste } = finge({ tabella: true, righe: [await riga()] });
+
+  await assert.rejects(
+    () => utenti.cambiaRuolo({ nome: "silvia", ruolo: "capo" }),
+    /ruolo sconosciuto/
+  );
+
+  const esito = await utenti.cambiaRuolo({ nome: "silvia", ruolo: RUOLI.PROPRIETARIO });
+  assert.equal(esito.ruolo, RUOLI.PROPRIETARIO);
+
+  const aggiornamento = chieste.find((c) => /^\s*UPDATE/i.test(c.sql));
+  assert.match(aggiornamento.sql, /SET role = \?/);
+  assert.equal(aggiornamento.parametri[0], RUOLI.PROPRIETARIO);
+});
+
+test("refuses to take the management of accesses away from yourself", async () => {
+  finge({ tabella: true, righe: [await riga({ role: RUOLI.PROPRIETARIO })] });
+
+  // Declassarsi da se' lascerebbe la tabella senza nessuno che la governi,
+  // finche' non entra quello di .env a rimetterla a posto.
+  await assert.rejects(
+    () =>
+      utenti.cambiaRuolo({
+        nome: "silvia",
+        ruolo: RUOLI.OPERATORE,
+        chiLoChiede: "SILVIA",
+      }),
+    /non puoi togliere a te stesso/
+  );
+
+  // Promuovere se stessi non ha lo stesso problema, ed e' comunque una cosa
+  // che solo un proprietario puo' chiedere.
+  const su = await utenti.cambiaRuolo({
+    nome: "silvia",
+    ruolo: RUOLI.PROPRIETARIO,
+    chiLoChiede: "silvia",
+  });
+  assert.equal(su.ruolo, RUOLI.PROPRIETARIO);
+});
+
+test("refuses to change the role of someone who is not there", async () => {
+  finge({ tabella: true, righe: [] });
+
+  await assert.rejects(
+    () => utenti.cambiaRuolo({ nome: "nessuno", ruolo: RUOLI.OPERATORE }),
+    /non esiste/
+  );
+});
+
 test("marking a login never breaks the login", async () => {
   finge({ tabella: true, errore: new Error("database sparito") });
 

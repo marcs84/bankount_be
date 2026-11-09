@@ -242,6 +242,34 @@ const abilita = async ({ nome, acceso, chiLoChiede } = {}) => {
   return { nome: riga.username, abilitato: Boolean(acceso) };
 };
 
+const cambiaRuolo = async ({ nome, ruolo, chiLoChiede } = {}) => {
+  const riga = await esigiRiga(nome);
+
+  if (!ruoloValido(ruolo)) throw perLUtente(`ruolo sconosciuto: ${ruolo}`);
+
+  // Togliersi da se' la gestione degli accessi lascerebbe la tabella senza
+  // nessuno che la governi, finche' non entra quello di `.env` a rimetterla a
+  // posto. Si rifiuta: a declassare un proprietario ci pensa un altro
+  // proprietario.
+  if (
+    ruolo !== RUOLI.PROPRIETARIO &&
+    typeof chiLoChiede === "string" &&
+    chiLoChiede.toLowerCase() === riga.username.toLowerCase()
+  ) {
+    throw perLUtente("non puoi togliere a te stesso la gestione degli accessi");
+  }
+
+  await interroga(
+    `UPDATE ${TABELLA} SET role = ?, updated_at = NOW() WHERE id = ?`,
+    [ruolo, riga.id]
+  );
+
+  // Il cancello legge il ruolo dal database a ogni richiesta, con la cache
+  // davanti: buttarla fa valere il ruolo nuovo sulla sessione gia' aperta.
+  scordaStato(riga.username);
+  return { nome: riga.username, ruolo };
+};
+
 const elimina = async ({ nome, chiLoChiede } = {}) => {
   const riga = await esigiRiga(nome);
 
@@ -355,6 +383,7 @@ module.exports = {
   crea,
   cambiaPassword,
   cambiaPasswordDaSe,
+  cambiaRuolo,
   abilita,
   elimina,
   verifica,

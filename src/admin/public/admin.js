@@ -999,6 +999,15 @@
         apriReset(u.nome);
       }));
 
+      // Con due soli ruoli il cambio e' un interruttore, e l'etichetta dice
+      // dove si va a finire invece di dove si e'.
+      var altroRuolo = u.ruolo === "proprietario" ? "operatore" : "proprietario";
+      var ruolo = bottoneRiga("→ " + altroRuolo, null, function () {
+        cambiaRuolo(u.nome, altroRuolo);
+      });
+      if (suDiMe && altroRuolo === "operatore") ruolo.disabled = true;
+      azioni.appendChild(ruolo);
+
       var cambia = bottoneRiga(
         u.abilitato ? "disabilita" : "abilita",
         null,
@@ -1107,6 +1116,22 @@
       caricaUtenti();
     }).catch(function () {
       esito.textContent = "il server non risponde";
+    });
+  }
+
+  function cambiaRuolo(nome, ruolo) {
+    chiama("admins/" + encodeURIComponent(nome) + "/role", {
+      metodo: "POST",
+      corpo: { ruolo: ruolo },
+    }).then(function (r) {
+      if (!r.ok) {
+        avvisoUtenti((r.dati && r.dati.message) || "non riuscita");
+        return;
+      }
+      avvisoUtenti(null);
+      caricaUtenti();
+    }).catch(function () {
+      avvisoUtenti("il server non risponde");
     });
   }
 
