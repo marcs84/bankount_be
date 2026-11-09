@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>Monitoraggio Bankount</title>
+<!-- Lo stesso logo dell'app: copia di crypto-wallet-app/assets/images/icon.png,
+     che il pubspec dichiara come sorgente dell'icona di lancio. Senza questa
+     riga il browser chiede /favicon.ico alla radice del server - che non
+     esiste - e ogni apertura del pannello lasciava cinque 404 nel registro
+     delle API. L'indirizzo e' relativo, quindi diventa /admin/logo.png: e'
+     l'ennesimo motivo per cui la barra finale conta. -->
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="apple-touch-icon" href="logo.png">
 <link rel="stylesheet" href="admin.css">
 </head>
 <body>
