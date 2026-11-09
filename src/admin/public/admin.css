@@ -48,6 +48,18 @@
 
 * { box-sizing: border-box; }
 
+/* Un elemento nascosto deve restare nascosto.
+   Il browser nasconde `[hidden]` con `display: none`, ma e' una regola con un
+   selettore di attributo: qualunque classe la batte in specificita'. Qui
+   `.accesso` dichiara `display: flex`, quindi nascondere la schermata di
+   accesso non la nascondeva: restava a schermo - alta 100vh - con il pannello
+   disegnato sotto, fuori dalla parte visibile. Dopo l'accesso sembrava che
+   l'accesso non fosse avvenuto, mentre il pannello stava gia' aggiornando.
+   Lo stesso valeva per le righe `.filtri-riga` che si mostrano al momento
+   giusto: la conferma della purga e quella della consolle si vedevano subito.
+   `!important` e' il posto giusto per usarlo: qui vince l'attributo, sempre. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   padding: 0 16px 48px;
