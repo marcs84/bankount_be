@@ -51,6 +51,8 @@
     <button type="button" class="linguetta attiva" data-vista="salute">Salute</button>
     <button type="button" class="linguetta" data-vista="sistema">Sistema</button>
     <button type="button" class="linguetta" data-vista="database">Database</button>
+    <button type="button" class="linguetta" data-vista="registro">Registro</button>
+    <button type="button" class="linguetta" data-vista="consolle">Consolle</button>
   </nav>
 
   <!-- Salute -->
@@ -121,6 +123,180 @@
         <thead><tr><th>tabella</th><th>righe (stima)</th><th>dati</th><th>indici</th><th>totale</th></tr></thead>
         <tbody></tbody>
       </table>
+    </div>
+  </section>
+
+  <!-- Registro -->
+  <section id="vista-registro" class="vista" hidden>
+    <form class="scheda filtri" id="filtri-registro" autocomplete="off">
+      <div class="filtri-riga">
+        <label class="campo">
+          <span>finestra</span>
+          <select id="f-finestra"></select>
+        </label>
+        <label class="campo campo-largo">
+          <span>azione contiene</span>
+          <input id="f-azione" type="text" placeholder="/api/deviceLogin">
+        </label>
+        <label class="campo campo-largo">
+          <span>dettagli contengono <em id="nota-lenta" hidden>(scansione)</em></span>
+          <input id="f-testo" type="text" placeholder="testo libero">
+        </label>
+        <label class="campo campo-breve">
+          <span>durata min (ms)</span>
+          <input id="f-durata" type="number" min="0" step="10" placeholder="0">
+        </label>
+        <label class="campo campo-breve">
+          <span>per pagina</span>
+          <select id="f-limite">
+            <option>25</option><option selected>50</option><option>100</option><option>200</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="filtri-riga">
+        <div class="gruppo">
+          <span class="gruppo-titolo">tipo</span>
+          <div class="pastiglie" id="f-tipi"></div>
+        </div>
+        <div class="gruppo">
+          <span class="gruppo-titolo">stato</span>
+          <div class="pastiglie" id="f-stati"></div>
+        </div>
+      </div>
+
+      <div class="filtri-riga filtri-coda">
+        <label class="interruttore">
+          <input type="checkbox" id="f-maschera" checked>
+          <span>maschera indirizzi e identificativi</span>
+        </label>
+        <button type="submit" class="minuto principale">cerca</button>
+        <button type="button" class="minuto" id="f-azzera">azzera</button>
+        <span class="sottile" id="sommario-ricerca">—</span>
+      </div>
+    </form>
+
+    <div class="scheda">
+      <div class="scheda-testa">
+        <h2>Righe</h2>
+        <div class="paginazione">
+          <button type="button" class="minuto" id="pagina-prima">←</button>
+          <span class="sottile" id="pagina-stato">—</span>
+          <button type="button" class="minuto" id="pagina-dopo">→</button>
+        </div>
+      </div>
+      <table class="tabella tabella-larga tabella-registro" id="tabella-registro">
+        <thead>
+          <tr><th>istante</th><th>tipo</th><th>stato</th><th>azione</th><th class="numero">durata</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="colonne">
+      <div class="scheda">
+        <h2>Righe ed errori per ora</h2>
+        <p class="sommario">Barra piena: tutte le righe. Parte rossa: quelle in errore.</p>
+        <div id="istogramma-ore" class="istogramma"></div>
+      </div>
+      <div class="scheda">
+        <h2>Azioni piu' frequenti</h2>
+        <table class="tabella" id="tabella-frequenti">
+          <thead><tr><th>azione</th><th class="numero">righe</th><th class="numero">errori</th><th class="numero">media</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="scheda">
+        <h2>Azioni piu' lente</h2>
+        <p class="sommario">
+          Solo le righe che hanno una durata: gli eventi di sistema non ce
+          l'hanno, e contarle come zero farebbe sembrare veloce tutto.
+        </p>
+        <table class="tabella" id="tabella-lente">
+          <thead><tr><th>azione</th><th class="numero">righe</th><th class="numero">media</th><th class="numero">massimo</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="scheda scheda-pericolo">
+      <h2>Purga del registro</h2>
+      <p class="sommario" id="stato-ritenzione">—</p>
+      <div class="filtri-riga">
+        <label class="campo campo-breve">
+          <span>conserva gli ultimi (giorni)</span>
+          <input id="p-giorni" type="number" min="1" step="1" value="90">
+        </label>
+        <button type="button" class="minuto" id="p-anteprima">quante righe?</button>
+      </div>
+      <p class="sommario" id="p-esito">—</p>
+      <div class="filtri-riga" id="p-conferma-riga" hidden>
+        <label class="campo campo-largo">
+          <span>battere CANCELLA per confermare</span>
+          <input id="p-conferma" type="text" autocomplete="off" placeholder="CANCELLA">
+        </label>
+        <button type="button" class="minuto pericolo" id="p-esegui" disabled>cancella</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Consolle -->
+  <section id="vista-consolle" class="vista" hidden>
+    <div class="scheda">
+      <h2>Richiesta</h2>
+      <p class="sommario" id="sommario-catalogo">—</p>
+
+      <div class="filtri-riga">
+        <label class="campo campo-pieno">
+          <span>rotta dal catalogo</span>
+          <select id="c-rotta"></select>
+        </label>
+      </div>
+
+      <div class="filtri-riga">
+        <label class="campo campo-breve">
+          <span>metodo</span>
+          <select id="c-metodo">
+            <option>GET</option><option>HEAD</option><option>OPTIONS</option>
+            <option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
+          </select>
+        </label>
+        <label class="campo campo-pieno">
+          <span>percorso su questo server</span>
+          <input id="c-percorso" type="text" placeholder="/api/…" spellcheck="false">
+        </label>
+      </div>
+
+      <div class="colonne colonne-strette">
+        <label class="campo campo-pieno">
+          <span>intestazioni — una per riga, <code>Nome: valore</code></span>
+          <textarea id="c-intestazioni" rows="4" spellcheck="false"
+            placeholder="Authorization: Bearer …"></textarea>
+        </label>
+        <label class="campo campo-pieno">
+          <span>corpo JSON</span>
+          <textarea id="c-corpo" rows="8" spellcheck="false"></textarea>
+        </label>
+      </div>
+
+      <div class="filtri-riga filtri-coda">
+        <label class="campo campo-largo" id="c-conferma-riga" hidden>
+          <span id="c-conferma-etichetta">conferma</span>
+          <input id="c-conferma" type="text" autocomplete="off">
+        </label>
+        <button type="button" class="minuto principale" id="c-manda">manda</button>
+        <span class="sottile" id="c-avviso">—</span>
+      </div>
+    </div>
+
+    <div class="scheda">
+      <div class="scheda-testa">
+        <h2>Risposta</h2>
+        <span class="sottile" id="c-esito">—</span>
+      </div>
+      <pre class="corpo" id="c-risposta">nessuna richiesta mandata</pre>
+      <h2>Intestazioni della risposta</h2>
+      <pre class="corpo corpo-breve" id="c-intestazioni-risposta">—</pre>
     </div>
   </section>
 </div>

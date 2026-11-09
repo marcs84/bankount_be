@@ -21,8 +21,9 @@ const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./src/config/swagger");
 const { Redis } = require("ioredis");
 const sysLogger = require("./src/sysLogger");
-const { leggiConfigurazione } = require("./src/admin/adminConfig");
+const { leggiConfigurazione, leggiRitenzione } = require("./src/admin/adminConfig");
 const { costruisciRouter } = require("./src/admin/routes");
+const purgaRegistro = require("./src/admin/purga");
 
 // const { startSolanaCron } = require("./cron/solana-cron");
 // const { startBinanceCron } = require("./cron/binance-cron");
@@ -118,15 +119,21 @@ if (process.env.SWAGGER_ENABLED === "true") {
 // Il motivo va su stderr e non nel registro: in quel momento potrebbe essere
 // il database stesso a non rispondere, e questo messaggio e' l'unica cosa che
 // deve arrivare comunque a chi sta avviando il server.
+//
+// La conservazione del registro si legge qui accanto, e con lo stesso esito
+// se e' scritta male: la pianificazione di una cancellazione automatica non
+// deve poter partire "quasi giusta".
 let configurazionePannello;
+let ritenzioneRegistro;
 try {
   configurazionePannello = leggiConfigurazione();
+  ritenzioneRegistro = leggiRitenzione();
 } catch (errore) {
   console.error(`\n[pannello] avvio interrotto: ${errore.message}\n`);
   process.exit(1);
 }
 if (configurazionePannello.attivo) {
-  app.use("/admin", costruisciRouter(configurazionePannello).router);
+  app.use("/admin", costruisciRouter(configurazionePannello, ritenzioneRegistro).router);
   sysLogger.logToDb(
     "SYSTEM_EVENT",
     "adminPanel.mounted",
@@ -164,6 +171,38 @@ async function bootstrapServer() {
         await syncTokenMetaDataInDB();
       }
     );
+
+    // La scadenza del registro. Esiste solo se qualcuno l'ha accesa: senza
+    // `ADMIN_LOG_RETENTION_DAYS` questo blocco non viene nemmeno letto, e
+    // nessuna riga di registro viene mai cancellata da sola.
+    if (ritenzioneRegistro.attiva) {
+      cron.schedule(ritenzioneRegistro.cron, async () => {
+        try {
+          await purgaRegistro.purga({
+            primaDi: purgaRegistro.primaDiGiorni(ritenzioneRegistro.giorni),
+            tipi: ritenzioneRegistro.tipi,
+            origine: "cron",
+          });
+        } catch (errore) {
+          // `purga` scrive da se' la riga di esito quando riesce. Questa e'
+          // per quando non riesce: una purga automatica che cade in silenzio
+          // si scoprirebbe solo dal registro che non smette di crescere.
+          sysLogger.logToDb(
+            "SYSTEM_ERROR",
+            "logPurge.cron.failed",
+            {
+              error: errore && errore.message ? errore.message : String(errore),
+              giorni: ritenzioneRegistro.giorni,
+            },
+            "ERROR"
+          );
+        }
+      });
+      console.log(
+        `Scadenza del registro attiva: ${ritenzioneRegistro.giorni} giorni, ` +
+          `pianificata "${ritenzioneRegistro.cron}"`
+      );
+    }
   }
 
   // Avvio Express solo se non in manual sync

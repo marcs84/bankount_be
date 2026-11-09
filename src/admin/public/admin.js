@@ -20,6 +20,11 @@
   var vistaCorrente = "salute";
   var inCorso = false;
 
+  // Lo dice il server all'accesso: la consolle mostra subito se i metodi
+  // distruttivi sono accesi, invece di farlo scoprire con un rifiuto dopo
+  // aver scritto la richiesta.
+  var distruttivoAmmesso = false;
+
   // ---------------------------------------------------------------- memoria
   //
   // sessionStorage puo' sollevare: finestra privata, dati del sito bloccati.
@@ -447,6 +452,456 @@
     });
   }
 
+  // ---------------------------------------------------------- vista registro
+
+  var filtri = { tipi: [], stati: [], pagina: 1 };
+  var vociPronte = false;
+  var ultimaAnteprima = null;
+
+  function classeStato(stato) {
+    if (stato === "ERROR") return "etichetta-errore";
+    if (stato === "WARN") return "etichetta-avviso";
+    if (stato === "SUCCESS") return "etichetta-ok";
+    return null;
+  }
+
+  function etichetta(testo, classe) {
+    return crea("span", "etichetta" + (classe ? " " + classe : ""), testo || "—");
+  }
+
+  function disegnaPastiglie(contenitore, voci, selezionati, quando) {
+    svuota(contenitore);
+    voci.forEach(function (v) {
+      var bottone = crea("button", "pastiglia", v.valore + " · " + numero(v.righe));
+      bottone.type = "button";
+      if (selezionati.indexOf(v.valore) !== -1) bottone.className += " attiva";
+      bottone.addEventListener("click", function () {
+        var i = selezionati.indexOf(v.valore);
+        if (i === -1) selezionati.push(v.valore);
+        else selezionati.splice(i, 1);
+        bottone.className =
+          selezionati.indexOf(v.valore) === -1 ? "pastiglia" : "pastiglia attiva";
+        quando();
+      });
+      contenitore.appendChild(bottone);
+    });
+  }
+
+  function caricaVoci() {
+    return chiama("logs/facets").then(function (r) {
+      if (!r.ok) return;
+      var d = r.dati.data;
+
+      var finestre = el("f-finestra");
+      svuota(finestre);
+      d.finestre.forEach(function (f) {
+        var o = crea("option", null, f === "tutto" ? "tutto il registro" : "ultime " + f);
+        o.value = f;
+        if (f === "24h") o.selected = true;
+        finestre.appendChild(o);
+      });
+
+      disegnaPastiglie(el("f-tipi"), d.tipi, filtri.tipi, function () { cercaRegistro(1); });
+      disegnaPastiglie(el("f-stati"), d.stati, filtri.stati, function () { cercaRegistro(1); });
+      vociPronte = true;
+    });
+  }
+
+  function queryRegistro(pagina) {
+    var pezzi = [];
+    function aggiungi(chiave, valore) {
+      if (valore === null || valore === undefined || valore === "") return;
+      pezzi.push(chiave + "=" + encodeURIComponent(valore));
+    }
+    aggiungi("finestra", el("f-finestra").value);
+    aggiungi("tipo", filtri.tipi.join(","));
+    aggiungi("stato", filtri.stati.join(","));
+    aggiungi("azione", el("f-azione").value.trim());
+    aggiungi("testo", el("f-testo").value.trim());
+    aggiungi("durataMinMs", el("f-durata").value);
+    aggiungi("limite", el("f-limite").value);
+    aggiungi("pagina", pagina);
+    if (!el("f-maschera").checked) aggiungi("maschera", "false");
+    return pezzi.join("&");
+  }
+
+  function disegnaRighe(d) {
+    var corpo = el("tabella-registro").tBodies[0];
+    svuota(corpo);
+
+    if (!d.righe.length) {
+      var tr = corpo.insertRow();
+      var td = tr.insertCell();
+      td.colSpan = 5;
+      td.className = "vuoto";
+      td.textContent = "nessuna riga con questi filtri";
+    }
+
+    d.righe.forEach(function (r) {
+      var tr = corpo.insertRow();
+      tr.className = "riga-registro";
+      tr.insertCell().textContent = oraLocale(r.istante);
+      tr.insertCell().appendChild(etichetta(r.tipo, null));
+      tr.insertCell().appendChild(etichetta(r.stato, classeStato(r.stato)));
+
+      var cella = tr.insertCell();
+      cella.className = "azione";
+      cella.textContent = r.azione || "—";
+
+      var durataCella = tr.insertCell();
+      durataCella.className = "numero";
+      durataCella.textContent = r.durataMs === null ? "—" : r.durataMs + " ms";
+
+      // I dettagli si aprono sotto la riga. Mostrarli tutti aperti renderebbe
+      // illeggibile l'elenco; non mostrarli affatto costringerebbe a
+      // interrogare il database a mano.
+      var aperta = null;
+      tr.addEventListener("click", function () {
+        if (aperta) {
+          corpo.deleteRow(aperta.sectionRowIndex);
+          aperta = null;
+          return;
+        }
+        aperta = corpo.insertRow(tr.sectionRowIndex + 1);
+        var td = aperta.insertCell();
+        td.colSpan = 5;
+        td.className = "cella-dettagli";
+        var testo =
+          r.dettagli === null || r.dettagli === undefined
+            ? "nessun dettaglio"
+            : typeof r.dettagli === "string"
+              ? r.dettagli
+              : JSON.stringify(r.dettagli, null, 2);
+        var pre = crea("pre", "corpo", "#" + r.id + "  " + r.tipo + "\n\n" + testo);
+        td.appendChild(pre);
+      });
+    });
+
+    el("pagina-stato").textContent = "pagina " + d.pagina + " di " + d.pagine;
+    el("pagina-prima").disabled = d.pagina <= 1;
+    el("pagina-dopo").disabled = d.pagina >= d.pagine;
+    el("nota-lenta").hidden = !d.interrogazioneLenta;
+
+    el("sommario-ricerca").textContent =
+      (d.totaleEsatto ? "" : "piu' di ") + numero(d.totale) + " righe · " +
+      (d.mascherato ? "mascherate" : "in chiaro") +
+      (d.interrogazioneLenta ? " · scansione dei dettagli" : "");
+  }
+
+  function disegnaStatistiche(s) {
+    var ore = el("istogramma-ore");
+    svuota(ore);
+    var massimo = s.perOra.reduce(function (a, o) { return Math.max(a, o.righe); }, 1);
+    if (!s.perOra.length) {
+      ore.appendChild(crea("p", "vuoto", "nessuna riga in questa finestra"));
+    }
+    s.perOra.forEach(function (o) {
+      var riga = crea("div", "istogramma-riga ora");
+      riga.appendChild(crea("span", "istogramma-giorno", o.ora.slice(5)));
+      var barra = crea("div", "barra-doppia");
+      var totale = crea("div", "barra-totale");
+      totale.style.width = Math.round((o.righe / massimo) * 100) + "%";
+      var errori = crea("div", "barra-errori");
+      errori.style.width = Math.round((o.errori / massimo) * 100) + "%";
+      barra.appendChild(totale);
+      barra.appendChild(errori);
+      riga.appendChild(barra);
+      riga.appendChild(crea("span", "istogramma-numero doppio",
+        numero(o.righe) + (o.errori ? " / " + numero(o.errori) : "")));
+      ore.appendChild(riga);
+    });
+
+    var frequenti = el("tabella-frequenti").tBodies[0];
+    svuota(frequenti);
+    s.frequenti.forEach(function (f) {
+      var tr = frequenti.insertRow();
+      var a = tr.insertCell();
+      a.className = "azione";
+      a.textContent = f.azione || "—";
+      [numero(f.righe), f.errori ? numero(f.errori) : "—", ms(f.durataMedia)]
+        .forEach(function (v) {
+          var td = tr.insertCell();
+          td.className = "numero";
+          td.textContent = v;
+        });
+    });
+
+    var lente = el("tabella-lente").tBodies[0];
+    svuota(lente);
+    s.lente.forEach(function (l) {
+      var tr = lente.insertRow();
+      var a = tr.insertCell();
+      a.className = "azione";
+      a.textContent = l.azione || "—";
+      [numero(l.righe), ms(l.durataMedia), ms(l.durataMassima)].forEach(function (v) {
+        var td = tr.insertCell();
+        td.className = "numero";
+        td.textContent = v;
+      });
+    });
+  }
+
+  function cercaRegistro(pagina) {
+    if (!token) return;
+    filtri.pagina = pagina || 1;
+    var q = queryRegistro(filtri.pagina);
+    el("sommario-ricerca").textContent = "cerco…";
+
+    chiama("logs?" + q).then(function (r) {
+      if (r.stato === 401) { esci(true); return; }
+      if (!r.ok) {
+        el("sommario-ricerca").textContent =
+          "ricerca non riuscita: " + ((r.dati && r.dati.message) || r.stato);
+        return;
+      }
+      disegnaRighe(r.dati.data);
+    }).catch(function () {
+      el("sommario-ricerca").textContent = "il server non risponde";
+    });
+
+    chiama("logs/stats?" + q).then(function (r) {
+      if (r.ok) disegnaStatistiche(r.dati.data);
+    }).catch(function () {});
+  }
+
+  function caricaRitenzione() {
+    return chiama("retention").then(function (r) {
+      if (!r.ok) return;
+      var d = r.dati.data;
+      el("stato-ritenzione").textContent = d.attiva
+        ? "Scadenza automatica attiva: conserva " + d.giorni + " giorni, pianificata \"" +
+          d.cron + "\". La traccia del pannello (" + d.tipiProtetti.join(", ") +
+          ") non viene toccata."
+        : "Scadenza automatica spenta: nessuna riga viene cancellata da sola. " +
+          "La traccia del pannello (" + d.tipiProtetti.join(", ") + ") resta fuori anche dalla purga a mano.";
+    });
+  }
+
+  function anteprimaPurga() {
+    ultimaAnteprima = null;
+    el("p-conferma-riga").hidden = true;
+    el("p-conferma").value = "";
+    el("p-esegui").disabled = true;
+    el("p-esito").textContent = "conto…";
+
+    chiama("purge/preview", {
+      metodo: "POST",
+      corpo: { giorni: Number(el("p-giorni").value) },
+    }).then(function (r) {
+      if (!r.ok) {
+        el("p-esito").textContent = (r.dati && r.dati.message) || "anteprima non riuscita";
+        return;
+      }
+      var d = r.dati.data;
+      ultimaAnteprima = d;
+      el("p-esito").textContent =
+        numero(d.righe) + " righe su " + numero(d.righeTotali) +
+        " verrebbero cancellate" +
+        (d.prima ? " (dal " + oraLocale(d.prima) + " al " + oraLocale(d.ultima) + ")" : "") +
+        ", tutte scritte prima del " + oraLocale(d.primaDi) + ".";
+      el("p-conferma-riga").hidden = d.righe === 0;
+    }).catch(function () {
+      el("p-esito").textContent = "il server non risponde";
+    });
+  }
+
+  function eseguiPurga() {
+    el("p-esegui").disabled = true;
+    el("p-esito").textContent = "cancello…";
+
+    chiama("purge", {
+      metodo: "POST",
+      corpo: {
+        giorni: Number(el("p-giorni").value),
+        conferma: el("p-conferma").value,
+      },
+    }).then(function (r) {
+      el("p-conferma").value = "";
+      el("p-conferma-riga").hidden = true;
+      if (!r.ok) {
+        el("p-esito").textContent = (r.dati && r.dati.message) || "purga non riuscita";
+        return;
+      }
+      var d = r.dati.data;
+      el("p-esito").textContent =
+        numero(d.righe) + " righe cancellate in " + d.lotti + " lotti (" + d.durataMs + " ms)" +
+        (d.incompleta ? " — fermata al tetto dei lotti, rilanciala per finire" : "") + ".";
+      cercaRegistro(1);
+    }).catch(function () {
+      el("p-esito").textContent = "il server non risponde";
+    });
+  }
+
+  function apriRegistro() {
+    var prima = vociPronte ? Promise.resolve() : caricaVoci();
+    prima.then(function () {
+      caricaRitenzione();
+      cercaRegistro(filtri.pagina);
+    });
+  }
+
+  // ---------------------------------------------------------- vista consolle
+
+  var catalogo = null;
+
+  function serveConferma(metodo) {
+    return ["POST", "PUT", "PATCH", "DELETE"].indexOf(metodo) !== -1;
+  }
+
+  function aggiornaConferma() {
+    var metodo = el("c-metodo").value;
+    var serve = serveConferma(metodo);
+    el("c-conferma-riga").hidden = !serve;
+    el("c-conferma-etichetta").textContent = "battere " + metodo + " per confermare";
+    if (!serve) el("c-conferma").value = "";
+
+    if (metodo === "DELETE" && !distruttivoAmmesso) {
+      el("c-avviso").textContent =
+        "DELETE e' spento su questo server: ADMIN_PROBE_DESTRUCTIVE=true e un riavvio";
+    } else {
+      el("c-avviso").textContent = serve
+        ? "il metodo modifica dati: la conferma si batte per intero"
+        : "—";
+    }
+  }
+
+  function caricaCatalogo() {
+    return chiama("catalog").then(function (r) {
+      if (!r.ok) {
+        el("sommario-catalogo").textContent = "catalogo non disponibile";
+        return;
+      }
+      catalogo = r.dati.data;
+
+      var scelta = el("c-rotta");
+      svuota(scelta);
+      var vuota = crea("option", null, "— percorso battuto a mano —");
+      vuota.value = "";
+      scelta.appendChild(vuota);
+
+      var gruppi = {};
+      catalogo.rotte.forEach(function (rotta, i) {
+        var tag = rotta.tag || "senza gruppo";
+        if (!gruppi[tag]) {
+          gruppi[tag] = document.createElement("optgroup");
+          gruppi[tag].label = tag;
+          scelta.appendChild(gruppi[tag]);
+        }
+        var o = crea("option", null, rotta.metodo + "  " + rotta.percorso +
+          (rotta.sommario ? "  —  " + rotta.sommario : ""));
+        o.value = String(i);
+        gruppi[tag].appendChild(o);
+      });
+
+      el("sommario-catalogo").textContent =
+        catalogo.quante + " rotte documentate, dalla stessa descrizione che genera /api-docs. " +
+        "Una rotta senza commento di documentazione non compare: il percorso si puo' battere a mano.";
+    });
+  }
+
+  function scegliRotta() {
+    var valore = el("c-rotta").value;
+    if (valore === "" || !catalogo) return;
+    var rotta = catalogo.rotte[Number(valore)];
+    if (!rotta) return;
+
+    el("c-metodo").value = rotta.metodo;
+    el("c-percorso").value = rotta.percorso;
+    el("c-corpo").value = rotta.corpoEsempio
+      ? JSON.stringify(rotta.corpoEsempio, null, 2)
+      : "";
+
+    if (rotta.richiedeToken && !el("c-intestazioni").value.trim()) {
+      el("c-intestazioni").value = "Authorization: Bearer ";
+    }
+
+    aggiornaConferma();
+
+    if (rotta.segnaposti.length) {
+      el("c-avviso").textContent =
+        "da sostituire nel percorso: " + rotta.segnaposti.join(", ");
+    }
+  }
+
+  // "Nome: valore" per riga. Un oggetto JSON da battere a mano sarebbe
+  // un'occasione in piu' di sbagliare una virgola e non capire perche'.
+  function leggiIntestazioni() {
+    var fuori = {};
+    var righeTesto = el("c-intestazioni").value.split("\n");
+    for (var i = 0; i < righeTesto.length; i += 1) {
+      var riga = righeTesto[i].trim();
+      if (riga === "") continue;
+      var due = riga.indexOf(":");
+      if (due <= 0) return { errore: "riga " + (i + 1) + ": manca il due punti" };
+      fuori[riga.slice(0, due).trim()] = riga.slice(due + 1).trim();
+    }
+    return { intestazioni: fuori };
+  }
+
+  function mandaSonda() {
+    var lette = leggiIntestazioni();
+    if (lette.errore) {
+      el("c-avviso").textContent = lette.errore;
+      return;
+    }
+
+    var metodo = el("c-metodo").value;
+    var richiesta = {
+      metodo: metodo,
+      percorso: el("c-percorso").value.trim(),
+      intestazioni: lette.intestazioni,
+    };
+
+    var corpo = el("c-corpo").value.trim();
+    if (corpo !== "") richiesta.corpo = corpo;
+    if (serveConferma(metodo)) richiesta.conferma = el("c-conferma").value.trim();
+
+    el("c-manda").disabled = true;
+    el("c-esito").textContent = "mando…";
+    el("c-risposta").textContent = "";
+    el("c-intestazioni-risposta").textContent = "—";
+
+    chiama("probe", { metodo: "POST", corpo: richiesta }).then(function (r) {
+      if (r.stato === 401) { esci(true); return; }
+
+      if (!r.ok) {
+        el("c-esito").textContent = "rifiutata";
+        el("c-risposta").textContent = (r.dati && r.dati.message) || r.testo || String(r.stato);
+        return;
+      }
+
+      var d = r.dati.data;
+      el("c-esito").textContent =
+        d.stato + " " + (d.messaggioStato || "") + " · " + d.durataMs + " ms · " + byte(d.byte) +
+        (d.troncata ? " · risposta troncata" : "");
+
+      var testo = d.corpo;
+      try {
+        testo = JSON.stringify(JSON.parse(d.corpo), null, 2);
+      } catch (e) { /* non JSON: si mostra com'e' */ }
+      el("c-risposta").textContent = testo === "" ? "(corpo vuoto)" : testo;
+
+      var intestazioni = Object.keys(d.intestazioni || {})
+        .map(function (k) { return k + ": " + d.intestazioni[k]; })
+        .join("\n");
+      el("c-intestazioni-risposta").textContent = intestazioni || "—";
+
+      // La conferma si ribatte a ogni invio: tenerla dentro farebbe del
+      // secondo DELETE un clic solo.
+      el("c-conferma").value = "";
+    }).catch(function (errore) {
+      el("c-esito").textContent = "guasto";
+      el("c-risposta").textContent = errore && errore.message ? errore.message : String(errore);
+    }).then(function () {
+      el("c-manda").disabled = false;
+    });
+  }
+
+  function apriConsolle() {
+    aggiornaConferma();
+    if (!catalogo) caricaCatalogo();
+  }
+
   // --------------------------------------------------------------- caricamento
 
   function avviso(messaggio) {
@@ -456,22 +911,37 @@
     nodo.hidden = false;
   }
 
-  var DISEGNA = {
+  // Due famiglie di viste. Le prime tre si ridisegnano da sole: sono numeri
+  // che cambiano da soli, e guardarli vecchi di dieci minuti e' peggio che non
+  // guardarli. Le ultime due sono a richiesta, perche' rifare una ricerca nel
+  // registro ogni cinque secondi vorrebbe dire ripetere la stessa scansione
+  // mentre si legge il risultato, e una richiesta della consolle non la si
+  // rimanda certo per conto di chi l'ha scritta.
+  var VISTE = {
     salute: { percorso: "health", funzione: disegnaSalute },
     sistema: { percorso: "system", funzione: disegnaSistema },
     database: { percorso: "database", funzione: disegnaDatabase },
+    registro: { manuale: true, apri: apriRegistro },
+    consolle: { manuale: true, apri: apriConsolle },
   };
+
+  function intestazione(d) {
+    el("nome-macchina").textContent = d.macchina.nome;
+    el("riga-processo").textContent =
+      d.processo.versioneNode + " · pid " + d.processo.pid + " · su " + d.macchina.piattaforma;
+  }
 
   function aggiorna() {
     if (!token || inCorso) return Promise.resolve();
     inCorso = true;
 
-    var quale = DISEGNA[vistaCorrente];
+    var quale = VISTE[vistaCorrente];
 
     // La testa mostra sempre nome macchina e processo, anche quando si sta
     // guardando un'altra vista: si chiede quindi anche /system.
-    var richieste = [chiama(quale.percorso)];
-    if (vistaCorrente !== "sistema") richieste.push(chiama("system"));
+    var percorso = quale.manuale ? "system" : quale.percorso;
+    var richieste = [chiama(percorso)];
+    if (!quale.manuale && vistaCorrente !== "sistema") richieste.push(chiama("system"));
 
     return Promise.all(richieste).then(function (risposte) {
       var principale = risposte[0];
@@ -479,19 +949,18 @@
       if (principale.stato === 401) { esci(true); return; }
 
       if (!principale.ok) {
-        avviso("lettura di " + quale.percorso + " non riuscita: " +
+        avviso("lettura di " + percorso + " non riuscita: " +
           ((principale.dati && principale.dati.message) || principale.stato));
         return;
       }
 
       avviso(null);
-      quale.funzione(principale.dati.data);
 
-      if (risposte[1] && risposte[1].ok) {
-        var d = risposte[1].dati.data;
-        el("nome-macchina").textContent = d.macchina.nome;
-        el("riga-processo").textContent =
-          d.processo.versioneNode + " · pid " + d.processo.pid + " · su " + d.macchina.piattaforma;
+      if (quale.manuale) {
+        intestazione(principale.dati.data);
+      } else {
+        quale.funzione(principale.dati.data);
+        if (risposte[1] && risposte[1].ok) intestazione(risposte[1].dati.data);
       }
 
       el("istante-lettura").textContent = "letto alle " +
@@ -514,11 +983,11 @@
   }
 
   function mostraVista(nome) {
-    if (!DISEGNA[nome]) nome = "salute";
+    if (!VISTE[nome]) nome = "salute";
     vistaCorrente = nome;
     scriviMemoria(CHIAVE_VISTA, nome);
 
-    ["salute", "sistema", "database"].forEach(function (v) {
+    Object.keys(VISTE).forEach(function (v) {
       el("vista-" + v).hidden = v !== nome;
     });
 
@@ -529,6 +998,7 @@
     }
 
     aggiorna();
+    if (VISTE[nome].apri) VISTE[nome].apri();
   }
 
   // ---------------------------------------------------------------- sessione
@@ -574,6 +1044,7 @@
     }).then(function (risposta) {
       if (risposta.ok && risposta.dati && risposta.dati.data) {
         el("password").value = "";
+        distruttivoAmmesso = Boolean(risposta.dati.data.destructive_enabled);
         entra(risposta.dati.data.token);
         return;
       }
@@ -611,6 +1082,63 @@
     });
   }
 
+  // ------------------------------------------------- eventi del registro
+
+  el("filtri-registro").addEventListener("submit", function (evento) {
+    evento.preventDefault();
+    cercaRegistro(1);
+  });
+
+  el("f-azzera").addEventListener("click", function () {
+    filtri.tipi.length = 0;
+    filtri.stati.length = 0;
+    el("f-azione").value = "";
+    el("f-testo").value = "";
+    el("f-durata").value = "";
+    el("f-finestra").value = "24h";
+    el("f-maschera").checked = true;
+    vociPronte = false;
+    caricaVoci().then(function () { cercaRegistro(1); });
+  });
+
+  el("f-finestra").addEventListener("change", function () { cercaRegistro(1); });
+  el("f-limite").addEventListener("change", function () { cercaRegistro(1); });
+  el("f-maschera").addEventListener("change", function () { cercaRegistro(filtri.pagina); });
+
+  el("pagina-prima").addEventListener("click", function () {
+    if (filtri.pagina > 1) cercaRegistro(filtri.pagina - 1);
+  });
+  el("pagina-dopo").addEventListener("click", function () {
+    cercaRegistro(filtri.pagina + 1);
+  });
+
+  el("p-anteprima").addEventListener("click", anteprimaPurga);
+
+  // Il bottone si accende solo con la parola intera. E se i giorni cambiano
+  // dopo l'anteprima, l'anteprima non vale piu': si ricomincia, perche'
+  // confermare un numero e cancellarne un altro e' il modo piu' facile di
+  // cancellare troppo.
+  el("p-conferma").addEventListener("input", function () {
+    el("p-esegui").disabled = el("p-conferma").value.trim() !== "CANCELLA";
+  });
+
+  el("p-giorni").addEventListener("input", function () {
+    if (!ultimaAnteprima) return;
+    ultimaAnteprima = null;
+    el("p-conferma-riga").hidden = true;
+    el("p-conferma").value = "";
+    el("p-esegui").disabled = true;
+    el("p-esito").textContent = "i giorni sono cambiati: ricontare prima di cancellare";
+  });
+
+  el("p-esegui").addEventListener("click", eseguiPurga);
+
+  // ------------------------------------------------- eventi della consolle
+
+  el("c-rotta").addEventListener("change", scegliRotta);
+  el("c-metodo").addEventListener("change", aggiornaConferma);
+  el("c-manda").addEventListener("click", mandaSonda);
+
   // Tornando sulla scheda si aggiorna subito: i numeri fermi da dieci minuti
   // sono peggio di nessun numero, perche' sembrano attuali.
   document.addEventListener("visibilitychange", function () {
@@ -628,8 +1156,14 @@
   } else {
     token = salvato;
     chiama("session").then(function (risposta) {
-      if (risposta.ok) entra(salvato);
-      else esci(false);
+      if (risposta.ok) {
+        if (risposta.dati && risposta.dati.data) {
+          distruttivoAmmesso = Boolean(risposta.dati.data.destructive_enabled);
+        }
+        entra(salvato);
+      } else {
+        esci(false);
+      }
     }).catch(function () { esci(false); });
   }
 })();

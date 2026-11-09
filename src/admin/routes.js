@@ -5,7 +5,12 @@ const bodyParser = require("body-parser");
 const metricheSistema = require("./metricheSistema");
 const metricheDatabase = require("./metricheDatabase");
 const fattiSalute = require("./fattiSalute");
+const registroVisore = require("./registroVisore");
+const purga = require("./purga");
+const catalogoApi = require("./catalogoApi");
+const sonda = require("./sonda");
 const { SOGLIE } = require("./salute");
+const { leggiRitenzione } = require("./adminConfig");
 const { adminLoginLimiter } = require("../server/rateLimit");
 const { registraAccesso, registraAzione } = require("./auditTrail");
 const { revoca } = require("./revoche");
@@ -27,9 +32,34 @@ const {
 // imparare nulla da cio' che gli si risponde.
 const RIFIUTO = { result: false, message: "Unauthorized" };
 
-const costruisciRouter = (configurazione) => {
+// La parola della purga. Maiuscola e in chiaro: deve essere scomoda da
+// battere per sbaglio e impossibile da battere per abitudine.
+const PAROLA_PURGA = "CANCELLA";
+
+// Il corpo mandato dalla consolle finisce nella traccia. Se e' JSON si
+// registra come oggetto, cosi' `redact` puo' entrarci dentro e togliere le
+// chiavi sensibili; se non lo e' si registra solo quanto era lungo, perche'
+// un corpo opaco nella traccia non serve a nessuno e puo' contenere qualunque
+// cosa.
+const corpoPerLaTraccia = (corpo) => {
+  if (corpo === null || corpo === undefined) return null;
+  try {
+    const dato = JSON.parse(corpo);
+    if (dato && typeof dato === "object") return dato;
+  } catch (e) {
+    /* non e' JSON */
+  }
+  return { _byte: String(corpo).length };
+};
+
+const costruisciRouter = (configurazione, ritenzione = leggiRitenzione()) => {
   const router = express.Router();
   const jsonParser = bodyParser.json({ limit: "64kb" });
+
+  // La consolle puo' mandare un corpo fino a 64kb: il contenitore che lo
+  // avvolge deve starci piu' largo, o il limite vero sarebbe questo e il
+  // rifiuto arriverebbe da un posto che non lo spiega.
+  const jsonGrande = bodyParser.json({ limit: "128kb" });
 
   // Il cancello. Da qui in poi ogni rotta lo attraversa.
   const richiedeAmministratore = (req, res, next) => {
@@ -137,7 +167,7 @@ const costruisciRouter = (configurazione) => {
   // lasciando leggibili gli altri.
   const vista = (nome, raccogli) => async (req, res) => {
     try {
-      res.json({ result: true, data: await raccogli() });
+      res.json({ result: true, data: await raccogli(req) });
     } catch (errore) {
       registraAzione(
         `admin.vista.${nome}.guasto`,
@@ -166,6 +196,175 @@ const costruisciRouter = (configurazione) => {
   // nel codice.
   router.get("/api/thresholds", richiedeAmministratore, (req, res) => {
     res.json({ result: true, data: SOGLIE });
+  });
+
+  // ------------------------------------------------------------------
+  // il visore del registro
+  // ------------------------------------------------------------------
+  //
+  // Anche queste sono letture e non lasciano traccia. La purga, che e' l'unica
+  // cosa qui dentro che cancella, la lascia due volte: una riga di
+  // `SYSTEM_EVENT` scritta da `purga` subito dopo aver cancellato, e una di
+  // `ADMIN_ACTION` con il nome di chi l'ha chiesta.
+
+  router.get("/api/logs/stats", richiedeAmministratore,
+    vista("logs.stats", (req) => registroVisore.statistiche(req.query)));
+
+  router.get("/api/logs/facets", richiedeAmministratore,
+    vista("logs.facets", () => registroVisore.voci()));
+
+  // Togliere la maschera e' l'unica lettura che lascia una traccia. Le altre
+  // sono il pannello che si aggiorna da se'; questa e' una persona che ha
+  // deciso di guardare in chiaro indirizzi e identificativi, e di quella
+  // decisione resta scritto cosa stava guardando.
+  const tracciaSeInChiaro = (req) => {
+    if (registroVisore.vuoleMaschera(req.query.maschera)) return;
+    registraAzione("admin.registro.inChiaro", req, {
+      finestra: req.query.finestra || null,
+      tipo: req.query.tipo || null,
+      stato: req.query.stato || null,
+      azione: req.query.azione || null,
+      testo: req.query.testo || null,
+      pagina: req.query.pagina || null,
+    });
+  };
+
+  router.get("/api/logs", richiedeAmministratore, async (req, res) => {
+    try {
+      tracciaSeInChiaro(req);
+      res.json({ result: true, data: await registroVisore.cerca(req.query) });
+    } catch (errore) {
+      registraAzione("admin.vista.logs.guasto", req,
+        { error: errore && errore.message ? errore.message : String(errore) }, "ERROR");
+      res.status(503).json({ result: false, message: "lettura del registro non riuscita" });
+    }
+  });
+
+  router.get("/api/logs/:id", richiedeAmministratore, async (req, res) => {
+    try {
+      tracciaSeInChiaro(req);
+      const riga = await registroVisore.unaRiga(req.params.id, {
+        maschera: req.query.maschera,
+      });
+      if (!riga) return res.status(404).json({ result: false, message: "Not found" });
+      res.json({ result: true, data: riga });
+    } catch (errore) {
+      res.status(503).json({ result: false, message: "lettura della riga non riuscita" });
+    }
+  });
+
+  // Quanto porterebbe via la purga, prima di chiederla. La conferma si batte
+  // sopra questo numero.
+  router.post("/api/purge/preview", richiedeAmministratore, jsonParser, async (req, res) => {
+    const corpo = req.body || {};
+    try {
+      const primaDi = corpo.primaDi
+        ? corpo.primaDi
+        : purga.primaDiGiorni(corpo.giorni);
+      res.json({
+        result: true,
+        data: await purga.anteprima({ primaDi, tipi: corpo.tipi }),
+      });
+    } catch (errore) {
+      res.status(400).json({
+        result: false,
+        message: errore && errore.message ? errore.message : "anteprima non riuscita",
+      });
+    }
+  });
+
+  router.post("/api/purge", richiedeAmministratore, jsonParser, async (req, res) => {
+    const corpo = req.body || {};
+
+    // La parola si batte per intero. Un bottone "sei sicuro?" si clicca senza
+    // leggere; questa no.
+    if (String(corpo.conferma || "") !== PAROLA_PURGA) {
+      registraAzione("admin.purga.senzaConferma", req, { conferma_mancante: true }, "WARN");
+      return res.status(400).json({
+        result: false,
+        message: `per cancellare serve la conferma: battere ${PAROLA_PURGA}`,
+      });
+    }
+
+    try {
+      const primaDi = corpo.primaDi ? corpo.primaDi : purga.primaDiGiorni(corpo.giorni);
+      const esito = await purga.purga({ primaDi, tipi: corpo.tipi, origine: "pannello" });
+      registraAzione("admin.purga.eseguita", req, esito, esito.incompleta ? "WARN" : "INFO");
+      res.json({ result: true, data: esito });
+    } catch (errore) {
+      const motivo = errore && errore.message ? errore.message : String(errore);
+      registraAzione("admin.purga.guasto", req, { error: motivo }, "ERROR");
+      res.status(400).json({ result: false, message: motivo });
+    }
+  });
+
+  // Lo stato della scadenza automatica: accesa o spenta, ogni quanto, con
+  // quanti giorni di conservazione. Sta a schermo accanto al bottone della
+  // purga manuale, cosi' non si cancella a mano cio' che sarebbe andato via
+  // da solo stanotte.
+  router.get("/api/retention", richiedeAmministratore, (req, res) => {
+    res.json({ result: true, data: { ...ritenzione, tipiProtetti: purga.TIPI_PROTETTI } });
+  });
+
+  // ------------------------------------------------------------------
+  // la consolle di prova
+  // ------------------------------------------------------------------
+
+  router.get("/api/catalog", richiedeAmministratore,
+    vista("catalog", async () => catalogoApi.catalogo()));
+
+  router.post("/api/probe", richiedeAmministratore, jsonGrande, async (req, res) => {
+    const corpo = req.body || {};
+
+    const controllo = sonda.valida(corpo, {
+      distruttivoAmmesso: configurazione.distruttivoAmmesso,
+    });
+
+    if (!controllo.ok) {
+      // Anche un rifiuto si registra: un tentativo di DELETE respinto perche'
+      // l'interruttore e' spento e' esattamente il genere di cosa che si vuole
+      // ritrovare nel registro.
+      registraAzione(
+        "admin.sonda.rifiutata",
+        req,
+        { metodo: corpo.metodo || null, percorso: corpo.percorso || null, motivo: controllo.motivo },
+        "WARN"
+      );
+      return res.status(400).json({ result: false, message: controllo.motivo });
+    }
+
+    const preparata = controllo.richiesta;
+
+    // La destinazione non arriva dal corpo: e' la presa su cui e' entrata
+    // questa stessa richiesta.
+    const risposta = await sonda.esegui(preparata, {
+      porta: (req.socket && req.socket.localPort) || process.env.PORT || null,
+      protocollo: req.protocol,
+    });
+
+    registraAzione(
+      "admin.sonda.chiamata",
+      req,
+      {
+        metodo: preparata.metodo,
+        percorso: preparata.percorso,
+        // Il corpo passa da `redact` dentro `registraAzione`: una password
+        // battuta nella consolle per provare l'accesso non si deposita qui.
+        corpo: corpoPerLaTraccia(preparata.corpo),
+        stato: risposta.ok ? risposta.stato : null,
+        esito: risposta.ok ? "risposta" : "guasto",
+        motivo: risposta.ok ? null : risposta.motivo,
+        durata_ms: risposta.durataMs,
+      },
+      risposta.ok && risposta.stato < 400 ? "INFO" : "WARN",
+      risposta.durataMs
+    );
+
+    if (!risposta.ok) {
+      return res.status(502).json({ result: false, message: risposta.motivo });
+    }
+
+    res.json({ result: true, data: risposta });
   });
 
   // ------------------------------------------------------------------

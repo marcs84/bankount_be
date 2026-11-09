@@ -329,3 +329,169 @@ h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
 .istogramma-numero { font-family: var(--mono); font-size: 11.5px; text-align: right; }
 
 .vuoto { color: var(--testo-tenue); font-size: 12.5px; font-style: italic; }
+
+/* ---------- filtri ---------- */
+
+.filtri-riga {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-end;
+  margin-bottom: 12px;
+}
+
+.filtri-riga:last-child { margin-bottom: 0; }
+.filtri-coda { align-items: center; }
+
+.campo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+.campo > span {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--testo-tenue);
+}
+
+.campo > span em { font-style: normal; text-transform: none; letter-spacing: 0; }
+
+.campo input, .campo select, .campo textarea {
+  padding: 7px 9px;
+  border: 1px solid var(--bordo);
+  border-radius: 6px;
+  background: var(--fondo);
+  color: var(--testo);
+  font: inherit;
+  font-size: 13px;
+  min-width: 120px;
+}
+
+.campo textarea { font-family: var(--mono); font-size: 12px; resize: vertical; width: 100%; }
+.campo input:focus-visible, .campo select:focus-visible, .campo textarea:focus-visible {
+  outline: 2px solid var(--accento);
+  outline-offset: 1px;
+}
+
+.campo-breve input, .campo-breve select { width: 110px; min-width: 0; }
+.campo-largo { flex: 1 1 220px; }
+.campo-largo input { width: 100%; }
+.campo-pieno { flex: 1 1 100%; }
+.campo-pieno input, .campo-pieno select { width: 100%; }
+
+.gruppo { display: flex; flex-direction: column; gap: 5px; }
+.gruppo-titolo {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--testo-tenue);
+}
+
+.pastiglie { display: flex; flex-wrap: wrap; gap: 5px; }
+
+.pastiglia {
+  padding: 4px 10px;
+  border: 1px solid var(--bordo);
+  border-radius: 999px;
+  background: var(--fondo);
+  color: var(--testo-tenue);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pastiglia.attiva {
+  background: color-mix(in srgb, var(--accento) 16%, transparent);
+  border-color: var(--accento);
+  color: var(--testo);
+  font-weight: 600;
+}
+
+.minuto.principale {
+  background: var(--accento);
+  border-color: var(--accento);
+  color: #fff;
+  font-weight: 600;
+}
+
+.minuto.pericolo {
+  background: var(--guasto);
+  border-color: var(--guasto);
+  color: #fff;
+  font-weight: 600;
+}
+
+.minuto:disabled { opacity: .45; cursor: not-allowed; }
+.minuto.pericolo:disabled { background: var(--fondo-scheda); color: var(--testo-tenue); }
+
+.scheda-pericolo { border-color: color-mix(in srgb, var(--guasto) 45%, var(--bordo)); }
+
+.scheda-testa {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.scheda-testa h2 { margin-bottom: 10px; }
+
+.paginazione { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+
+.colonne-strette { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+
+/* ---------- registro ---------- */
+
+.tabella-registro tbody tr.riga-registro { cursor: pointer; }
+.tabella-registro tbody tr.riga-registro:hover { background: var(--fondo-tenue); }
+.tabella-registro td:first-child { color: var(--testo); font-family: var(--mono); font-size: 12px; }
+.tabella-registro td.azione { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+
+.etichetta {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-family: var(--mono);
+  background: var(--fondo-tenue);
+  color: var(--testo-tenue);
+  white-space: nowrap;
+}
+
+.etichetta-errore { background: color-mix(in srgb, var(--guasto) 16%, transparent); color: var(--guasto); }
+.etichetta-avviso { background: color-mix(in srgb, var(--attenzione) 18%, transparent); color: var(--attenzione); }
+.etichetta-ok { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+
+.corpo {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 7px;
+  background: var(--fondo-tenue);
+  color: var(--testo);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 460px;
+  overflow: auto;
+}
+
+.corpo-breve { max-height: 160px; }
+
+td.cella-dettagli { padding: 0 0 10px; }
+
+/* L'istogramma delle ore porta due numeri nella stessa barra: il totale e,
+   sopra, la parte in errore. Due barre affiancate costringerebbero a fare il
+   rapporto a mente. */
+.barra-doppia { position: relative; height: 7px; border-radius: 4px; background: var(--fondo-tenue); }
+.barra-doppia .barra-totale,
+.barra-doppia .barra-errori {
+  position: absolute;
+  top: 0; left: 0;
+  height: 100%;
+  border-radius: 4px;
+}
+.barra-doppia .barra-totale { background: var(--accento); }
+.barra-doppia .barra-errori { background: var(--guasto); }
+
+.istogramma-riga.ora { grid-template-columns: 104px 1fr 92px; }
+.istogramma-numero.doppio { font-size: 11px; }

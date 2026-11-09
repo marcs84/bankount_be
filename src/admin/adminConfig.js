@@ -1,3 +1,4 @@
+const nodeCron = require("node-cron");
 const { improntaValida } = require("./password");
 
 // Configurazione del pannello, letta dall'ambiente e controllata all'avvio.
@@ -93,4 +94,59 @@ const leggiConfigurazione = (env = process.env) => {
   };
 };
 
-module.exports = { leggiConfigurazione, problemi, PREDEFINITI };
+// La scadenza automatica del registro.
+//
+// Vive fuori dalla configurazione del pannello, e non per capriccio: la
+// conservazione del registro riguarda il database, non la schermata, e deve
+// poter funzionare su un server dove il pannello e' spento. Nasce comunque
+// spenta anche lei: senza `ADMIN_LOG_RETENTION_DAYS` nessun cron viene
+// pianificato e nessuna riga viene mai cancellata da sola.
+const RITENZIONE_CRON_PREDEFINITO = "30 3 * * *";
+
+const leggiRitenzione = (env = process.env) => {
+  const grezzo = presente(env.ADMIN_LOG_RETENTION_DAYS)
+    ? env.ADMIN_LOG_RETENTION_DAYS.trim()
+    : "";
+
+  if (grezzo === "" || grezzo === "0") {
+    return { attiva: false };
+  }
+
+  // Un valore scritto male non diventa una conservazione a caso: ferma
+  // l'avvio, come per il pannello. Il caso peggiore sarebbe un refuso che
+  // cancella piu' di quanto si voleva.
+  if (!/^[1-9][0-9]{0,4}$/.test(grezzo)) {
+    throw new Error(
+      `ADMIN_LOG_RETENTION_DAYS deve essere un numero intero di giorni maggiore di zero (letto: "${grezzo}")`
+    );
+  }
+
+  const cron = presente(env.ADMIN_LOG_RETENTION_CRON)
+    ? env.ADMIN_LOG_RETENTION_CRON.trim()
+    : RITENZIONE_CRON_PREDEFINITO;
+
+  if (!nodeCron.validate(cron)) {
+    throw new Error(
+      `ADMIN_LOG_RETENTION_CRON non e' una pianificazione valida (letto: "${cron}")`
+    );
+  }
+
+  return {
+    attiva: true,
+    giorni: Number.parseInt(grezzo, 10),
+    cron,
+    // Vuoto vuol dire "tutti i tipi tranne la traccia di controllo": e'
+    // `purga` a decidere quali sono, in un posto solo.
+    tipi: presente(env.ADMIN_LOG_RETENTION_TYPES)
+      ? env.ADMIN_LOG_RETENTION_TYPES.trim()
+      : null,
+  };
+};
+
+module.exports = {
+  leggiConfigurazione,
+  leggiRitenzione,
+  problemi,
+  PREDEFINITI,
+  RITENZIONE_CRON_PREDEFINITO,
+};
