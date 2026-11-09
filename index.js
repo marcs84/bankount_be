@@ -21,6 +21,8 @@ const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./src/config/swagger");
 const { Redis } = require("ioredis");
 const sysLogger = require("./src/sysLogger");
+const { leggiConfigurazione } = require("./src/admin/adminConfig");
+const { costruisciRouter } = require("./src/admin/routes");
 
 // const { startSolanaCron } = require("./cron/solana-cron");
 // const { startBinanceCron } = require("./cron/binance-cron");
@@ -99,6 +101,48 @@ app.use("/", routes);
 if (process.env.SWAGGER_ENABLED === "true") {
   app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
   console.log("Documentazione API esposta su /api-docs");
+}
+
+// Il pannello di monitoraggio, con lo stesso interruttore della documentazione.
+//
+// Spento, le rotte non vengono montate e `/admin` non esiste. Acceso ma
+// configurato male, l'avvio si deve fermare: un pannello mezzo configurato
+// sarebbe la peggiore delle tre possibilita', raggiungibile e indifeso.
+//
+// "Fermare l'avvio" qui vuol dire uscire, non sollevare. Il gestore di
+// `uncaughtException` registrato piu' sopra non termina il processo, e il
+// keepalive del pool tiene vivo il ciclo di eventi: lasciando salire
+// l'eccezione il server resterebbe in piedi senza ascoltare su nessuna porta,
+// e il guasto si vedrebbe solo in una riga di registro. Verificato.
+//
+// Il motivo va su stderr e non nel registro: in quel momento potrebbe essere
+// il database stesso a non rispondere, e questo messaggio e' l'unica cosa che
+// deve arrivare comunque a chi sta avviando il server.
+let configurazionePannello;
+try {
+  configurazionePannello = leggiConfigurazione();
+} catch (errore) {
+  console.error(`\n[pannello] avvio interrotto: ${errore.message}\n`);
+  process.exit(1);
+}
+if (configurazionePannello.attivo) {
+  app.use("/admin", costruisciRouter(configurazionePannello).router);
+  sysLogger.logToDb(
+    "SYSTEM_EVENT",
+    "adminPanel.mounted",
+    {
+      path: "/admin",
+      ttl_sessione: configurazionePannello.ttlSessione,
+      distruttivo_ammesso: configurazionePannello.distruttivoAmmesso,
+    },
+    "INFO"
+  );
+  console.log(
+    "Pannello di monitoraggio esposto su /admin" +
+      (configurazionePannello.distruttivoAmmesso
+        ? " (consolle con i metodi distruttivi ABILITATI)"
+        : "")
+  );
 }
 
 // Incapsula l'avvio del server e delle integrazioni

@@ -7,7 +7,8 @@
     "test": "node --test --test-force-exit",
     "dev": "nodemon index.js",
     "start": "node index.js",
-    "sync-metadata": "node index.js --run-sync"
+    "sync-metadata": "node index.js --run-sync",
+    "admin:hash": "node scripts/admin-hash.js"
   },
   "author": "alexcav",
   "license": "ISC",
