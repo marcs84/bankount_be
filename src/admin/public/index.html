@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Monitoraggio Bankount</title>
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+<!-- Il modulo di accesso: l'unica cosa che si vede senza un token. -->
+<main id="accesso" class="accesso" hidden>
+  <form id="modulo-accesso" class="scheda scheda-accesso" autocomplete="off">
+    <h1>Monitoraggio</h1>
+    <p class="sommario">Pannello di amministrazione del server Bankount.</p>
+
+    <label for="utente">Utente</label>
+    <input id="utente" name="username" type="text" autocomplete="username" required>
+
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+    <button type="submit" id="bottone-accesso">Entra</button>
+    <p id="errore-accesso" class="errore" role="alert" hidden></p>
+  </form>
+</main>
+
+<!-- Il pannello. -->
+<div id="pannello" hidden>
+  <header class="testa">
+    <div class="testa-sinistra">
+      <span id="semaforo-complessivo" class="pallino pallino-ignoto" title="stato complessivo"></span>
+      <strong id="nome-macchina">—</strong>
+      <span class="sottile" id="riga-processo">—</span>
+    </div>
+    <div class="testa-destra">
+      <span class="sottile" id="istante-lettura">—</span>
+      <label class="interruttore">
+        <input type="checkbox" id="aggiornamento" checked>
+        <span>aggiorna</span>
+      </label>
+      <button type="button" id="bottone-ora" class="minuto">adesso</button>
+      <button type="button" id="bottone-uscita" class="minuto">esci</button>
+    </div>
+  </header>
+
+  <p id="avviso" class="avviso" role="alert" hidden></p>
+
+  <nav class="linguette">
+    <button type="button" class="linguetta attiva" data-vista="salute">Salute</button>
+    <button type="button" class="linguetta" data-vista="sistema">Sistema</button>
+    <button type="button" class="linguetta" data-vista="database">Database</button>
+  </nav>
+
+  <!-- Salute -->
+  <section id="vista-salute" class="vista">
+    <div class="griglia" id="semafori"></div>
+
+    <div class="colonne">
+      <div class="scheda">
+        <h2>Contatori dell'applicazione</h2>
+        <table class="tabella" id="tabella-contatori"><tbody></tbody></table>
+      </div>
+      <div class="scheda">
+        <h2>Errori delle ultime 24 ore</h2>
+        <p class="sommario" id="sommario-errori">—</p>
+        <table class="tabella" id="tabella-errori">
+          <thead><tr><th>righe</th><th>azione</th><th>ultima</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Sistema -->
+  <section id="vista-sistema" class="vista" hidden>
+    <div class="griglia" id="riquadri-sistema"></div>
+
+    <div class="colonne">
+      <div class="scheda">
+        <h2>CPU per nucleo</h2>
+        <p class="sommario" id="sommario-cpu">—</p>
+        <div id="nuclei" class="nuclei"></div>
+      </div>
+      <div class="scheda">
+        <h2>Ritardo del ciclo di eventi</h2>
+        <p class="sommario">
+          Quanto tardi arriva un timer rispetto a quando era previsto: dice se
+          node e' in sofferenza, cosa che il carico medio non racconta.
+          Misurato da quando il processo e' partito.
+        </p>
+        <table class="tabella" id="tabella-ciclo"><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Database -->
+  <section id="vista-database" class="vista" hidden>
+    <div class="griglia" id="riquadri-database"></div>
+
+    <div class="colonne">
+      <div class="scheda">
+        <h2>Pool delle connessioni</h2>
+        <table class="tabella" id="tabella-pool"><tbody></tbody></table>
+      </div>
+      <div class="scheda">
+        <h2>Registro</h2>
+        <p class="sommario" id="sommario-registro">—</p>
+        <div id="istogramma-registro" class="istogramma"></div>
+      </div>
+    </div>
+
+    <div class="scheda">
+      <h2>Tabelle</h2>
+      <p class="sommario">
+        Il numero di righe di InnoDB e' una stima del motore, non un conteggio:
+        contarle davvero a ogni aggiornamento costerebbe piu' del dato.
+      </p>
+      <table class="tabella tabella-larga" id="tabella-tabelle">
+        <thead><tr><th>tabella</th><th>righe (stima)</th><th>dati</th><th>indici</th><th>totale</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script src="admin.js"></script>
+</body>
+</html>

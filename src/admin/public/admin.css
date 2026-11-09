@@ -1,0 +1,331 @@
+/* Pannello di monitoraggio. Nessuna libreria: i numeri si leggono meglio in
+   una pagina che carica in un istante anche da una rete lenta. */
+
+:root {
+  --fondo: #f6f7f9;
+  --fondo-scheda: #ffffff;
+  --fondo-tenue: #eef0f4;
+  --bordo: #d8dce3;
+  --testo: #16181d;
+  --testo-tenue: #5d646f;
+  --accento: #2f5fd0;
+  --ok: #1a8a4a;
+  --attenzione: #b47400;
+  --guasto: #c22b2b;
+  --ignoto: #8a909b;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="chiaro"]) {
+    --fondo: #14161a;
+    --fondo-scheda: #1c1f25;
+    --fondo-tenue: #23272e;
+    --bordo: #30353d;
+    --testo: #e6e8ec;
+    --testo-tenue: #98a0ac;
+    --accento: #6f9bff;
+    --ok: #3ec27a;
+    --attenzione: #e0a33c;
+    --guasto: #ef5b5b;
+    --ignoto: #747b86;
+  }
+}
+
+:root[data-tema="scuro"] {
+  --fondo: #14161a;
+  --fondo-scheda: #1c1f25;
+  --fondo-tenue: #23272e;
+  --bordo: #30353d;
+  --testo: #e6e8ec;
+  --testo-tenue: #98a0ac;
+  --accento: #6f9bff;
+  --ok: #3ec27a;
+  --attenzione: #e0a33c;
+  --guasto: #ef5b5b;
+  --ignoto: #747b86;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 16px 48px;
+  background: var(--fondo);
+  color: var(--testo);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+h1 { font-size: 20px; margin: 0 0 4px; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
+     color: var(--testo-tenue); margin: 0 0 10px; font-weight: 600; }
+
+.sommario { color: var(--testo-tenue); font-size: 12.5px; margin: 0 0 12px; }
+
+/* ---------- accesso ---------- */
+
+.accesso {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scheda-accesso { width: 100%; max-width: 340px; }
+
+.scheda-accesso label {
+  display: block;
+  margin: 14px 0 5px;
+  font-size: 12.5px;
+  color: var(--testo-tenue);
+}
+
+.scheda-accesso input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--bordo);
+  border-radius: 7px;
+  background: var(--fondo);
+  color: var(--testo);
+  font: inherit;
+}
+
+.scheda-accesso input:focus-visible {
+  outline: 2px solid var(--accento);
+  outline-offset: 1px;
+}
+
+.scheda-accesso button[type="submit"] {
+  width: 100%;
+  margin-top: 18px;
+  padding: 10px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--accento);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.scheda-accesso button[type="submit"]:disabled { opacity: .6; cursor: progress; }
+
+.errore {
+  margin: 14px 0 0;
+  padding: 9px 11px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--guasto) 14%, transparent);
+  color: var(--guasto);
+  font-size: 12.5px;
+}
+
+/* ---------- testa ---------- */
+
+.testa {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0 12px;
+  border-bottom: 1px solid var(--bordo);
+  margin-bottom: 16px;
+}
+
+.testa-sinistra, .testa-destra {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sottile { color: var(--testo-tenue); font-size: 12.5px; }
+
+.interruttore {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--testo-tenue);
+  cursor: pointer;
+}
+
+.minuto {
+  padding: 5px 10px;
+  border: 1px solid var(--bordo);
+  border-radius: 6px;
+  background: var(--fondo-scheda);
+  color: var(--testo);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.minuto:hover { border-color: var(--accento); }
+
+.avviso {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--guasto) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--guasto) 40%, transparent);
+  color: var(--guasto);
+  font-size: 13px;
+}
+
+/* ---------- linguette ---------- */
+
+.linguette {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.linguetta {
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--testo-tenue);
+  font: inherit;
+  cursor: pointer;
+}
+
+.linguetta:hover { background: var(--fondo-tenue); }
+
+.linguetta.attiva {
+  background: var(--fondo-scheda);
+  border-color: var(--bordo);
+  color: var(--testo);
+  font-weight: 600;
+}
+
+/* ---------- schede e griglie ---------- */
+
+.scheda {
+  background: var(--fondo-scheda);
+  border: 1px solid var(--bordo);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.griglia {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.colonne {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.colonne > .scheda { margin-bottom: 0; }
+
+/* ---------- riquadri ---------- */
+
+.riquadro {
+  background: var(--fondo-scheda);
+  border: 1px solid var(--bordo);
+  border-radius: 10px;
+  padding: 13px 14px;
+}
+
+.riquadro-titolo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--testo-tenue);
+  margin-bottom: 7px;
+}
+
+.riquadro-valore {
+  font-family: var(--mono);
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.riquadro-nota { font-size: 11.5px; color: var(--testo-tenue); margin-top: 5px; }
+
+.riquadro.stato-guasto { border-color: color-mix(in srgb, var(--guasto) 55%, var(--bordo)); }
+.riquadro.stato-attenzione { border-color: color-mix(in srgb, var(--attenzione) 55%, var(--bordo)); }
+
+.stato-ok .riquadro-valore { color: var(--ok); }
+.stato-attenzione .riquadro-valore { color: var(--attenzione); }
+.stato-guasto .riquadro-valore { color: var(--guasto); }
+.stato-ignoto .riquadro-valore { color: var(--ignoto); }
+
+/* ---------- pallini ---------- */
+
+.pallino {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.pallino-ok { background: var(--ok); }
+.pallino-attenzione { background: var(--attenzione); }
+.pallino-guasto { background: var(--guasto); }
+.pallino-ignoto { background: var(--ignoto); }
+
+/* ---------- tabelle ---------- */
+
+.tabella { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+.tabella th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--testo-tenue);
+  font-weight: 600;
+  padding: 0 8px 7px 0;
+  border-bottom: 1px solid var(--bordo);
+}
+
+.tabella td {
+  padding: 6px 8px 6px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--bordo) 55%, transparent);
+  vertical-align: top;
+}
+
+.tabella tr:last-child td { border-bottom: 0; }
+
+.tabella td:first-child { color: var(--testo-tenue); white-space: nowrap; }
+.tabella-larga td:first-child { color: var(--testo); }
+
+.numero { font-family: var(--mono); text-align: right; white-space: nowrap; }
+.tabella th.numero { text-align: right; }
+
+/* ---------- nuclei della cpu ---------- */
+
+.nuclei { display: grid; gap: 5px; }
+
+.nucleo { display: grid; grid-template-columns: 34px 1fr 48px; gap: 8px; align-items: center; }
+.nucleo-etichetta { font-family: var(--mono); font-size: 11.5px; color: var(--testo-tenue); }
+.nucleo-valore { font-family: var(--mono); font-size: 11.5px; text-align: right; }
+
+.barra { height: 7px; border-radius: 4px; background: var(--fondo-tenue); overflow: hidden; }
+.barra-piena { height: 100%; background: var(--accento); border-radius: 4px; }
+.barra-piena.alta { background: var(--attenzione); }
+.barra-piena.altissima { background: var(--guasto); }
+
+/* ---------- istogramma del registro ---------- */
+
+.istogramma { display: grid; gap: 4px; }
+
+.istogramma-riga { display: grid; grid-template-columns: 78px 1fr 58px; gap: 8px; align-items: center; }
+.istogramma-giorno { font-family: var(--mono); font-size: 11.5px; color: var(--testo-tenue); }
+.istogramma-numero { font-family: var(--mono); font-size: 11.5px; text-align: right; }
+
+.vuoto { color: var(--testo-tenue); font-size: 12.5px; font-style: italic; }

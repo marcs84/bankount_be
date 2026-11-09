@@ -1,6 +1,11 @@
+const path = require("path");
 const express = require("express");
 const bodyParser = require("body-parser");
 
+const metricheSistema = require("./metricheSistema");
+const metricheDatabase = require("./metricheDatabase");
+const fattiSalute = require("./fattiSalute");
+const { SOGLIE } = require("./salute");
 const { adminLoginLimiter } = require("../server/rateLimit");
 const { registraAccesso, registraAzione } = require("./auditTrail");
 const { revoca } = require("./revoche");
@@ -117,6 +122,95 @@ const costruisciRouter = (configurazione) => {
     registraAzione("admin.ping", req);
     res.json({ result: true, data: { pong: true } });
   });
+
+  // ------------------------------------------------------------------
+  // le viste di sola lettura
+  // ------------------------------------------------------------------
+  //
+  // Nessuna di queste rotte lascia una traccia di controllo: sono letture, il
+  // pannello le chiama da se' ogni pochi secondi, e registrarle vorrebbe dire
+  // riempire il registro di righe che dicono "qualcuno sta guardando". Cio'
+  // che l'amministratore *fa* passa da `registraAzione`; cio' che guarda, no.
+  //
+  // Un guasto dentro un raccoglitore non deve svuotare la schermata: si
+  // risponde 503 con il motivo, e la pagina mostra il riquadro in rosso
+  // lasciando leggibili gli altri.
+  const vista = (nome, raccogli) => async (req, res) => {
+    try {
+      res.json({ result: true, data: await raccogli() });
+    } catch (errore) {
+      registraAzione(
+        `admin.vista.${nome}.guasto`,
+        req,
+        { error: errore && errore.message ? errore.message : String(errore) },
+        "ERROR"
+      );
+      res.status(503).json({
+        result: false,
+        message: errore && errore.message ? errore.message : "lettura non riuscita",
+      });
+    }
+  };
+
+  router.get("/api/system", richiedeAmministratore,
+    vista("system", () => metricheSistema.raccogli()));
+
+  router.get("/api/database", richiedeAmministratore,
+    vista("database", () => metricheDatabase.raccogli()));
+
+  router.get("/api/health", richiedeAmministratore,
+    vista("health", () => fattiSalute.raccogli()));
+
+  // Le soglie con cui si accendono i semafori. La pagina le mostra accanto ai
+  // valori: un semaforo giallo senza la soglia accanto costringe a cercarla
+  // nel codice.
+  router.get("/api/thresholds", richiedeAmministratore, (req, res) => {
+    res.json({ result: true, data: SOGLIE });
+  });
+
+  // ------------------------------------------------------------------
+  // la pagina
+  // ------------------------------------------------------------------
+  //
+  // Serviti come file a se', non incorporati: `helmet` imposta una politica
+  // dei contenuti con `script-src 'self'`, e uno `<script>` dentro la pagina
+  // non verrebbe eseguito. Tenerli separati e' anche piu' ordinato.
+  //
+  // `index: false` perche' la radice la serve la rotta qui sotto, che e'
+  // l'unica cosa a cui si arriva senza token: il modulo di accesso.
+  // La barra finale non e' una finezza.
+  //
+  // Il browser risolve gli indirizzi relativi rispetto a quello che ha nella
+  // barra. Con `/admin` la base e' `/`, quindi `admin.css` diventa
+  // `/admin.css` e - molto peggio - `api/login` diventa `/api/login`, che e'
+  // lo spazio delle rotte dell'applicazione: la pagina arriverebbe senza
+  // stile e il modulo di accesso parlerebbe al posto sbagliato. Verificato:
+  // senza barra quei due file danno 404.
+  //
+  // Sta **prima** di `express.static` per una ragione precisa. Messo dopo, il
+  // reindirizzamento lo fa comunque `serve-static`, che redirige le directory
+  // per conto suo, e questo codice non viene mai eseguito: si era visto dalla
+  // risposta, 301 invece del 302 scritto qui. Dipendere di quell'effetto
+  // collaterale vorrebbe dire che spostare o togliere lo static rimette il
+  // guasto senza che niente lo dica.
+  //
+  // 302 e non 301: un reindirizzamento permanente resta nella cache del
+  // browser e si porterebbe dietro questo punto di innesto anche dopo averlo
+  // cambiato.
+  router.get("/", (req, res, next) => {
+    const pezzi = req.originalUrl.split("?");
+    if (pezzi[0].endsWith("/")) return next();
+    const query = pezzi.length > 1 ? `?${pezzi.slice(1).join("?")}` : "";
+    res.redirect(302, `${pezzi[0]}/${query}`);
+  });
+
+  router.use(
+    express.static(path.join(__dirname, "public"), { index: false, maxAge: 0 })
+  );
+
+  router.get("/", (req, res) =>
+    res.sendFile(path.join(__dirname, "public", "index.html"))
+  );
 
   // Qualunque altra cosa sotto /admin, autenticata o no, e' un 404 sobrio: il
   // pannello non elenca cio' che non ha.

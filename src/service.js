@@ -483,4 +483,9 @@ module.exports = {
   storeAddressInQuicknode,
   fetchLookupUrls,
   syncTokenMetaDataInDB,
+
+  // Il pannello di monitoraggio legge lo stato di *questa* connessione. Una
+  // aperta per l'occasione potrebbe rispondere benissimo mentre quella che
+  // l'applicazione usa davvero e' caduta.
+  redisClient,
 };
