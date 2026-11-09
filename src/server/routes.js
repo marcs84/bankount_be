@@ -10,6 +10,7 @@ const { redact } = require("./redact");
 const { loginLimiter } = require("./rateLimit");
 const { resolveDevice } = require("./deviceContext");
 const { webhookVerifier, captureRawBody } = require("./webhookAuth");
+const { daRegistrare } = require("./requestLog");
 
 // create application/json parser
 var jsonParser = bodyParser.json();
@@ -31,6 +32,11 @@ var urlencodedParser = bodyParser.urlencoded({ extended: false });
 
 // Middleware per il logging delle richieste API
 router.use((req, res, next) => {
+  // La sonda sulla radice e il pannello di monitoraggio non entrano nel
+  // registro: vedi `requestLog.js` per il perche'. Si esce prima di sostituire
+  // `send` e `json`, cosi' quelle richieste non pagano nemmeno l'intercettazione.
+  if (!daRegistrare(req.method, req.path)) return next();
+
   const start = Date.now();
   const originalSend = res.send;
   const originalJson = res.json;
@@ -65,7 +71,10 @@ router.use((req, res, next) => {
     const status = res.statusCode >= 400 ? 'ERROR' : 'INFO';
     const action = `${req.method} ${req.originalUrl}`;
 
-    sysLogger.logToDb('API_REQUEST', action, logDetails, status);
+    // La durata va anche nella sua colonna: dentro `details` e' una stringa
+    // con l'unita', e calcolarci medie e massimi vorrebbe dire estrarla riga
+    // per riga da una colonna di testo.
+    sysLogger.logToDb('API_REQUEST', action, logDetails, status, duration);
   });
 
   next();

@@ -31,8 +31,30 @@ const writeFallbackLog = (payload) => {
   }
 };
 
-const logToDb = (type, action, details, status = 'INFO') => {
-  const payload = { log_type: type, action, details, status };
+const CON_DURATA =
+  'INSERT INTO system_logs (log_type, action, details, status, duration_ms) VALUES (?, ?, ?, ?, ?)';
+const SENZA_DURATA =
+  'INSERT INTO system_logs (log_type, action, details, status) VALUES (?, ?, ?, ?)';
+
+// `duration_ms` arriva con la migrazione 008, che si lancia a mano. Se questo
+// codice entrasse in servizio prima, ogni riga di registro fallirebbe con
+// ER_BAD_FIELD_ERROR e finirebbe nel file di scorta: il registro tacerebbe
+// tutto in una volta, e proprio mentre si sta mettendo mano al server. Quindi
+// si tenta con la colonna e, al primo rifiuto per colonna assente, si passa
+// alla forma di prima e non si riprova piu'.
+//
+// Il verso e' solo questo: una volta scesi alla forma senza durata non si
+// risale. Dopo aver lanciato la migrazione serve un riavvio perche' le durate
+// tornino a essere registrate.
+let colonnaDurata = true;
+
+const logToDb = (type, action, details, status = 'INFO', durationMs = null) => {
+  const durata =
+    typeof durationMs === 'number' && Number.isFinite(durationMs)
+      ? Math.round(durationMs)
+      : null;
+
+  const payload = { log_type: type, action, details, status, duration_ms: durata };
 
   if (!global.connection) {
     console.error('Database connection not available for logging');
@@ -43,8 +65,6 @@ const logToDb = (type, action, details, status = 'INFO') => {
     return;
   }
 
-  const query = 'INSERT INTO system_logs (log_type, action, details, status) VALUES (?, ?, ?, ?)';
-
   let detailsStr = details;
   try {
     if (typeof details === 'object') {
@@ -54,15 +74,35 @@ const logToDb = (type, action, details, status = 'INFO') => {
     detailsStr = String(details);
   }
 
-  global.connection.query(query, [type, action, detailsStr, status], (err) => {
-    if (err) {
+  const scrivi = (conDurata) => {
+    const query = conDurata ? CON_DURATA : SENZA_DURATA;
+    const valori = conDurata
+      ? [type, action, detailsStr, status, durata]
+      : [type, action, detailsStr, status];
+
+    global.connection.query(query, valori, (err) => {
+      if (!err) return;
+
+      if (conDurata && err.code === 'ER_BAD_FIELD_ERROR') {
+        colonnaDurata = false;
+        scrivi(false);
+        return;
+      }
+
       console.error('Failed to write to system_logs', err);
       writeFallbackLog({
         ...payload,
         db_error: err && err.message ? err.message : String(err),
       });
-    }
-  });
+    });
+  };
+
+  scrivi(colonnaDurata);
 };
 
-module.exports = { logToDb };
+// Solo per le prove: riporta il rilevamento della colonna allo stato iniziale.
+const reimpostaColonnaDurata = () => {
+  colonnaDurata = true;
+};
+
+module.exports = { logToDb, reimpostaColonnaDurata };
