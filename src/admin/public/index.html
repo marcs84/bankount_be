@@ -19,7 +19,28 @@
     <input id="utente" name="username" type="text" autocomplete="username" required>
 
     <label for="password">Password</label>
-    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <div class="campo-password">
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <!-- Il disegno sta qui e non in un carattere tipografico o in una
+           libreria di icone: la pagina deve comparire intera anche su una
+           rete lenta, e un occhiolino che arriva dopo non serve a niente.
+           Il bottone e' `type="button"`, o premendolo si manderebbe il
+           modulo. -->
+      <button type="button" id="mostra-password" class="occhiolino"
+              aria-label="Mostra la password" aria-pressed="false" title="Mostra la password">
+        <svg id="occhio-aperto" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false">
+          <path d="M1.8 12S5.2 5.8 12 5.8 22.2 12 22.2 12 18.8 18.2 12 18.2 1.8 12 1.8 12Z"/>
+          <circle cx="12" cy="12" r="3.1"/>
+        </svg>
+        <svg id="occhio-chiuso" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false" hidden>
+          <path d="M1.8 12S5.2 5.8 12 5.8 22.2 12 22.2 12 18.8 18.2 12 18.2 1.8 12 1.8 12Z"/>
+          <circle cx="12" cy="12" r="3.1"/>
+          <line x1="3.5" y1="20.5" x2="20.5" y2="3.5"/>
+        </svg>
+      </button>
+    </div>
 
     <button type="submit" id="bottone-accesso">Entra</button>
     <p id="errore-accesso" class="errore" role="alert" hidden></p>

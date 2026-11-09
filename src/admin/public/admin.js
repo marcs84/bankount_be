@@ -1383,6 +1383,7 @@
 
   function esci(scaduta) {
     token = null;
+    richiudiPassword();
     scriviMemoria(CHIAVE_TOKEN, null);
     if (cadenza) { clearInterval(cadenza); cadenza = null; }
     el("pannello").hidden = true;
@@ -1395,6 +1396,57 @@
     } else {
       errore.hidden = true;
     }
+  }
+
+  // ------------------------------------------------------------- occhiolino
+  //
+  // Mostra la password battuta. Serve soprattutto su una password lunga
+  // presa da un gestore o copiata da un foglio: senza, l'unico modo di
+  // capire perche' l'accesso non passa e' ribatterla.
+  //
+  // Il mestiere e' tutto nel tipo del campo: `password` o `text`. Cambiarlo
+  // sposta il cursore in fondo nella maggior parte dei browser, quindi si
+  // tiene da parte la selezione e si rimette dov'era - altrimenti scoprire la
+  // password nel mezzo di una correzione la manderebbe a capo.
+
+  function scambia(nodo, visibile) {
+    if (visibile) nodo.removeAttribute("hidden");
+    else nodo.setAttribute("hidden", "");
+  }
+
+  function mostraPassword(mostrare) {
+    var campo = el("password");
+    var bottone = el("mostra-password");
+    var inizio = null;
+    var fine = null;
+
+    try {
+      inizio = campo.selectionStart;
+      fine = campo.selectionEnd;
+    } catch (e) { /* non tutti i browser danno la selezione di un campo password */ }
+
+    campo.type = mostrare ? "text" : "password";
+    bottone.setAttribute("aria-pressed", mostrare ? "true" : "false");
+
+    var etichetta = mostrare ? "Nascondi la password" : "Mostra la password";
+    bottone.setAttribute("aria-label", etichetta);
+    bottone.title = etichetta;
+
+    // Con l'attributo e non con la proprieta': `hidden` come proprieta' sta
+    // su HTMLElement, e questi sono due SVG. `svg.hidden = true` creerebbe
+    // una proprieta' che non fa niente, e si vedrebbero entrambi gli occhi.
+    scambia(el("occhio-aperto"), !mostrare);
+    scambia(el("occhio-chiuso"), mostrare);
+
+    if (inizio !== null) {
+      try { campo.setSelectionRange(inizio, fine); } catch (e) { /* pazienza */ }
+    }
+  }
+
+  // Chiudendo la sessione il campo torna coperto: la schermata di accesso
+  // resta a volte aperta su uno schermo che guardano in due.
+  function richiudiPassword() {
+    if (el("password").type === "text") mostraPassword(false);
   }
 
   // ------------------------------------------------------------------ eventi
@@ -1413,6 +1465,7 @@
     }).then(function (risposta) {
       if (risposta.ok && risposta.dati && risposta.dati.data) {
         el("password").value = "";
+        richiudiPassword();
         ricordaChiSono(risposta.dati.data);
         entra(risposta.dati.data.token);
         return;
@@ -1428,6 +1481,13 @@
       bottone.disabled = false;
       bottone.textContent = "Entra";
     });
+  });
+
+  el("mostra-password").addEventListener("click", function () {
+    mostraPassword(el("password").type === "password");
+    // Il fuoco torna dove si stava scrivendo: l'occhiolino si preme per
+    // guardare, non per smettere di battere.
+    el("password").focus();
   });
 
   el("bottone-uscita").addEventListener("click", function () {

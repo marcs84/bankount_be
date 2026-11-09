@@ -95,6 +95,35 @@ h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
   outline-offset: 1px;
 }
 
+/* L'occhiolino sta dentro il campo, e il campo si restringe per lasciargli
+   posto: sovrapposto al testo coprirebbe le ultime lettere proprio mentre le
+   si vuole leggere. */
+.campo-password { position: relative; }
+.campo-password input { padding-right: 42px; }
+
+.occhiolino {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--testo-tenue);
+  cursor: pointer;
+}
+
+.occhiolino:hover { color: var(--testo); background: var(--fondo-tenue); }
+.occhiolino:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
+.occhiolino svg { width: 19px; height: 19px; display: block; }
+.occhiolino svg[hidden] { display: none; }
+
 .scheda-accesso button[type="submit"] {
   width: 100%;
   margin-top: 18px;
