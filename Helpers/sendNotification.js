@@ -16,28 +16,47 @@ async function sendNotification(deviceToken, { notificationTitle, notificationBo
     return { success: false, tokenInvalid: false, error: 'Device token is null' };
   }
 
-  // Usa DATA-ONLY: sposta title/body in data e aggiungi configurazioni per bg
+  // Il messaggio porta un blocco `notification`, cosi' l'avviso lo disegna il
+  // sistema operativo. Con un carico di soli dati compariva in primo piano e
+  // in sottofondo ma non ad applicazione chiusa: iOS non riavvia
+  // un'applicazione terminata dall'utente per un messaggio di soli dati, e
+  // senza processo non c'e' nessuno che possa mostrare qualcosa.
+  //
+  // `title` e `body` restano anche in `data`, dove l'applicazione li legge
+  // come data['title'] ?? message.notification?.title: regge entrambe le
+  // forme, e un carico vecchio ancora in volo continua a funzionare.
   const message = {
-    data: {
-      id: String(Date.now()),        // usa un id univoco (o un requestId se ne hai uno)
+    notification: {
       title: notificationTitle,
       body: notificationBody,
-      type: 'generic'                // opzionale: tipo notifica
+    },
+    data: {
+      id: String(Date.now()),
+      type: 'generic',
+      title: notificationTitle,
+      body: notificationBody,
     },
     token: deviceToken,
     android: {
-      priority: 'high',              // consegna rapida su Android
+      priority: 'high',
+      notification: {
+        // Il canale lo crea l'applicazione con importanza massima. Senza
+        // questo campo Android ricade sul canale di riserva: l'avviso non
+        // salta in primo piano e non suona.
+        channel_id: 'high_importance_channel',
+      },
     },
     apns: {
       headers: {
-        'apns-priority': '5',        // background su iOS
+        'apns-priority': '10',
+        'apns-push-type': 'alert',
       },
       payload: {
         aps: {
-          'content-available': 1     // consegna al bg handler iOS
-        }
-      }
-    }
+          sound: 'default',
+        },
+      },
+    },
   };
 
   try {
