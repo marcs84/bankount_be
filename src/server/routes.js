@@ -418,8 +418,20 @@ router.get("/api/filter-transactions", urlencodedParser, auth.authenticateToken,
 
 // Define the route for the assetlinks.json file
 router.get("/.well-known/assetlinks.json", (req, res) => {
-  // Costruisci il percorso completo al file assetlinks.json
-  const assetlinksPath = path.join(__dirname, "..", "..", "assetlinks.json");
+  // Il file sta sotto `deploy`, accanto alla copia di quanto e' pubblicato su
+  // app.bankount.com, e non alla radice: due copie delle stesse impronte si
+  // allontanano l'una dall'altra senza che nessuno se ne accorga, perche' un
+  // elenco di impronte sbagliate non da' errore da nessuna parte -- i
+  // collegamenti semplicemente non si attivano.
+  const assetlinksPath = path.join(
+    __dirname,
+    "..",
+    "..",
+    "deploy",
+    "app.bankount.com",
+    ".well-known",
+    "assetlinks.json"
+  );
 
   // Leggi il file JSON da disco
   fs.readFile(assetlinksPath, "utf8", (err, data) => {

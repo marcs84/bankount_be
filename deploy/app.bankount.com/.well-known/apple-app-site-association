@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [ "Q969RRV44D.com.bankount.wallet" ],
+        "components": [
+          { "/": "/.well-known/*", "exclude": true },
+          { "/": "/brand/*",       "exclude": true },
+          { "/": "/api/*",         "exclude": true },
+          { "/": "*" }
+        ]
+      }
+    ]
+  }
+}

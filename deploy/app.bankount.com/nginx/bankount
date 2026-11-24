@@ -1,0 +1,16 @@
+server {
+    listen 80;
+    listen [::]:80;
+    server_name app.bankount.com;
+    root /var/www/bankount;
+
+    # I due file sotto `.well-known` non hanno un'estensione che nginx
+    # riconosca -- quello di Apple non ne ha nessuna -- e senza queste due
+    # righe partirebbero come `application/octet-stream`. Apple e Google
+    # scartano in silenzio un tipo che non sia JSON: nessun errore da nessuna
+    # parte, soltanto collegamenti che non si attivano mai.
+    location = /.well-known/apple-app-site-association { default_type application/json; }
+    location = /.well-known/assetlinks.json           { default_type application/json; }
+
+    location / { try_files $uri =404; }
+}

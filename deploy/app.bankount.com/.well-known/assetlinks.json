@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [ "delegate_permission/common.handle_all_urls" ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.bankount.wallet",
+      "sha256_cert_fingerprints": [
+        "41:8A:3F:BF:FB:2D:D7:5E:5B:62:7B:CE:90:A7:DF:62:B9:FC:85:2A:3E:32:AD:59:C9:8B:2C:C7:9F:B9:35:BC",
+        "6E:CE:47:BC:61:83:8A:2E:0E:9F:AD:BF:89:E6:C5:98:7B:44:AB:0F:69:B3:9F:87:D1:F8:67:4A:D5:8E:8E:51",
+        "BA:7C:07:1B:AF:4E:A5:06:D0:40:6B:0C:3F:53:E3:F3:C3:8B:05:87:30:AA:9A:52:32:C3:CF:97:56:19:CB:82"
+      ]
+    }
+  }
+]
