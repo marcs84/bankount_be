@@ -17,6 +17,7 @@ const morgan = require("morgan");
 const { apiLimiter } = require("./src/server/rateLimit");
 const { interpretaFiducia } = require("./src/server/trustProxy");
 const { PERCORSO_ICONA, CACHE_ICONA } = require("./src/server/icona");
+const { CACHE_ICONA_TOKEN, trovaIcona } = require("./src/server/iconaToken");
 const { hideInternalErrors } = require("./src/server/errorResponse");
 const routes = require("./src/server/routes");
 const swaggerUi = require("swagger-ui-express");
@@ -118,6 +119,38 @@ app.get("/favicon.ico", (req, res) => {
     // Se il file non c'e' si risponde 404 senza rumore: un'icona mancante non
     // e' un guasto del server, e sollevare qui farebbe cadere la richiesta in
     // un gestore di errori che non ha niente da dire.
+    if (errore && !res.headersSent) res.status(404).end();
+  });
+});
+
+// L'icona di un token, dalla cache che la sincronizzazione notturna riempie.
+//
+// Non e' servita come file statico sotto `/public/token` perche' il nome del
+// file non si puo' ricostruire da fuori: estensione e maiuscole li decide chi
+// ha scaricato l'immagine. Vedi `src/server/iconaToken.js`.
+//
+// Sta **prima** di `app.use("/", routes)`, come la favicon e per lo stesso
+// motivo: un'icona chiesta decine di volte per schermata non deve scrivere
+// altrettante righe nel registro delle richieste. Resta pero' **dopo**
+// `apiLimiter`: trecento richieste al minuto bastano a una lista di icone, e
+// una rotta che legge dal disco senza freno sarebbe un invito.
+app.get("/api/token-image/:indirizzo", (req, res) => {
+  const icona = trovaIcona(req.params.indirizzo);
+
+  // Un'icona che manca non e' un guasto: il catalogo cambia, la cache insegue,
+  // e l'applicazione disegna gia' un segnaposto quando l'immagine non arriva.
+  if (!icona) return res.status(404).end();
+
+  // Il tipo lo dichiariamo noi e non lo si lascia indovinare: fra le icone ci
+  // sono SVG, che sono documenti e non immagini. Serviti dal nostro dominio e
+  // aperti in un browser eseguirebbero cio' che contengono, e il contenuto
+  // arriva da terzi. Le due intestazioni qui sotto tolgono quella possibilita'
+  // senza togliere l'icona a chi la disegna.
+  res.type(icona.tipo);
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
+
+  res.sendFile(icona.percorso, { maxAge: CACHE_ICONA_TOKEN }, (errore) => {
     if (errore && !res.headersSent) res.status(404).end();
   });
 });
