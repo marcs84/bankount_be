@@ -1,0 +1,33 @@
+[Unit]
+Description=Bankount backend
+After=network-online.target mariadb.service redis-server.service
+# `Wants` e non `Requires`: se MariaDB si ferma un istante non deve
+# portarsi dietro anche il backend, che da solo riprova e si riaggancia.
+Wants=network-online.target mariadb.service redis-server.service
+
+[Service]
+Type=simple
+User=debian
+Group=debian
+# Obbligatoria: GOOGLE_APPLICATION_CREDENTIALS e' un percorso relativo e la
+# cartella /public viene servita a partire dalla directory di lavoro. Senza
+# questa riga il processo parte dalla radice e non trova ne' le credenziali
+# Firebase ne' i file statici.
+WorkingDirectory=/home/debian/crypto-wallet-backend
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node index.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bankount
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target

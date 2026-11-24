@@ -1,0 +1,13 @@
+[Unit]
+Description=Salvataggio notturno del database Bankount
+
+[Timer]
+# Alle 3:10, cioe' prima della pulizia dei registri delle 3:30: cosi' il
+# salvataggio contiene anche le righe che quella sta per cancellare.
+OnCalendar=*-*-* 03:10:00
+# Se la macchina era spenta all'ora prevista, si recupera alla riaccensione.
+Persistent=true
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target

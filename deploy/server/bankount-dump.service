@@ -1,0 +1,13 @@
+[Unit]
+Description=Salvataggio del database Bankount
+After=mariadb.service
+Wants=mariadb.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/bankount-dump.sh
+# L'esito finisce nel giornale: `journalctl -u bankount-dump` dice se la
+# notte scorsa e' andata bene, e quanto pesava il file.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bankount-dump
