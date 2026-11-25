@@ -79,6 +79,32 @@ const nomeCatena = (catena) => {
   return CATENA_AMMESSA.test(pulito) ? pulito : null;
 };
 
+// Gli altri nomi con cui la stessa catena si chiama in giro.
+//
+// Le cartelle portano i nomi di Rango, che sono quelli con cui il catalogo
+// arriva, ma l'applicazione chiama le catene come le chiama lei -- `BNB` per
+// la BSC, a volte il nome lungo -- e quel valore passa per le mani
+// dell'utente, del database locale e di `normalizeCoinTypeInput`. Tradurre
+// qui, dove le cartelle si decidono, costa una tabella; tradurre nell'app
+// vorrebbe dire aspettare che tutti aggiornino.
+const ALIAS_CATENE = {
+  ethereum: "eth",
+  bnb: "bsc",
+  bnbchain: "bsc",
+  binance: "bsc",
+  binancesmartchain: "bsc",
+  smartchain: "bsc",
+  sol: "solana",
+  bitcoin: "btc",
+};
+
+/// La cartella in cui cercare l'icona di una catena chiamata come capita.
+const cartellaDiCatena = (catena) => {
+  if (typeof catena !== "string") return null;
+  const senzaSpazi = catena.trim().toLowerCase().replace(/[\s_-]/g, "");
+  return nomeCatena(ALIAS_CATENE[senzaSpazi] || catena);
+};
+
 /// Il nome con cui si archivia un token, o `null` se non e' archiviabile.
 ///
 /// Le monete native non hanno indirizzo: dentro la cartella della loro catena
@@ -166,6 +192,7 @@ module.exports = {
   TIPI,
   INDIRIZZO_AMMESSO,
   nomeCatena,
+  cartellaDiCatena,
   identificatore,
   estensioneDaUrl,
   estensioneDaTipo,

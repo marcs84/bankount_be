@@ -182,3 +182,25 @@ test("l'estensione si prende anche dal tipo dichiarato", () => {
 test("le catene frugate sono quelle del catalogo", () => {
   assert.deepEqual(CATENE, ["eth", "bsc", "solana", "btc"]);
 });
+
+test("la catena si riconosce anche col nome che usa l'applicazione", () => {
+  // L'app chiama BNB la catena che nel catalogo si chiama BSC, e a volte usa
+  // il nome lungo. Le cartelle portano i nomi del catalogo.
+  const { cartellaDiCatena } = require("../src/server/iconaToken");
+
+  assert.equal(cartellaDiCatena("BNB"), "bsc");
+  assert.equal(cartellaDiCatena("BNB CHAIN"), "bsc");
+  assert.equal(cartellaDiCatena("Binance Smart Chain"), "bsc");
+  assert.equal(cartellaDiCatena("smartchain"), "bsc");
+  assert.equal(cartellaDiCatena("Ethereum"), "eth");
+  assert.equal(cartellaDiCatena("ETH"), "eth");
+  assert.equal(cartellaDiCatena("SOL"), "solana");
+  assert.equal(cartellaDiCatena("SOLANA"), "solana");
+  assert.equal(cartellaDiCatena("Bitcoin"), "btc");
+
+  // Quello che non si riconosce resta quello che e', se puo' essere una
+  // cartella; e se non puo', non lo e'.
+  assert.equal(cartellaDiCatena("polygon"), "polygon");
+  assert.equal(cartellaDiCatena("../etc"), null);
+  assert.equal(cartellaDiCatena(null), null);
+});

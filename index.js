@@ -17,7 +17,7 @@ const morgan = require("morgan");
 const { apiLimiter } = require("./src/server/rateLimit");
 const { interpretaFiducia } = require("./src/server/trustProxy");
 const { PERCORSO_ICONA, CACHE_ICONA } = require("./src/server/icona");
-const { CACHE_ICONA_TOKEN, trovaIcona } = require("./src/server/iconaToken");
+const { CACHE_ICONA_TOKEN, trovaIcona, cartellaDiCatena } = require("./src/server/iconaToken");
 const { hideInternalErrors } = require("./src/server/errorResponse");
 const routes = require("./src/server/routes");
 const swaggerUi = require("swagger-ui-express");
@@ -163,9 +163,17 @@ const serviIcona = (icona, res) => {
 
 // Con la catena: e' la forma giusta, perche' lo stesso indirizzo su due catene
 // sono due token diversi con due loghi.
-app.get("/api/token-image/:catena/:indirizzo", (req, res) =>
-  serviIcona(trovaIcona(req.params.indirizzo, { catena: req.params.catena }), res)
-);
+//
+// Se quella catena non ha l'icona -- o se il nome con cui e' stata chiesta non
+// corrisponde a nessuna cartella -- si cerca comunque altrove: questa rotta
+// non deve poter rispondere peggio di quella senza catena.
+app.get("/api/token-image/:catena/:indirizzo", (req, res) => {
+  const catena = cartellaDiCatena(req.params.catena);
+  const icona =
+    (catena ? trovaIcona(req.params.indirizzo, { catena }) : null) || trovaIcona(req.params.indirizzo);
+
+  serviIcona(icona, res);
+});
 
 // Senza la catena: la chiedono cosi' le versioni dell'applicazione gia'
 // installate. Si frugano le cartelle delle catene in ordine fisso e per
