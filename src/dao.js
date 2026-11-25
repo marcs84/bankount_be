@@ -1740,12 +1740,6 @@ const cacheTokenImages = async (tokens, opzioni = {}) => {
       return;
     }
 
-    if (hostSpenti.has(host)) {
-      conto.saltatePerHostSpento++;
-      if (rimandati) rimandati.push(t);
-      return;
-    }
-
     const estensioneAttesa = icone.estensioneDaUrl(url);
     const presente = icone.trovaIcona(identificatore, { catena, cartella, esiste: disco.esiste });
 
@@ -1753,8 +1747,23 @@ const cacheTokenImages = async (tokens, opzioni = {}) => {
     // dichiara l'estensione ci si tiene quella che c'e': non si riscarica
     // ogni notte un'immagine solo perche' il suo indirizzo non finisce con un
     // punto e tre lettere.
+    //
+    // Questo viene prima dell'host spento, e l'ordine conta per chi legge il
+    // registro. Prima era il contrario: appena un host si spegneva, tutte le
+    // sue immagini finivano in `saltatePerHostSpento`, comprese quelle che
+    // stavano gia' sul disco. Una corsa ha scritto 4992 e il numero sembrava
+    // il conto di cio' che mancava, mentre era il conto dei token di
+    // quell'host -- due cose che si somigliano e portano a conclusioni
+    // diverse. Cosi' invece quel campo dice una cosa sola: le immagini che
+    // avremmo scaricato e non abbiamo scaricato.
     if (presente && (estensioneAttesa === null || presente.percorso.endsWith(estensioneAttesa))) {
       conto.presenti++;
+      return;
+    }
+
+    if (hostSpenti.has(host)) {
+      conto.saltatePerHostSpento++;
+      if (rimandati) rimandati.push(t);
       return;
     }
 

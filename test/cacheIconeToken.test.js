@@ -346,6 +346,29 @@ test("la seconda passata ripesca cio' che l'host aveva fatto saltare", async () 
   assert.ok(disco.esiste(dentro("eth", "0x9.png")));
 });
 
+test("un host spento non fa saltare cio' che e' gia' sul disco", async () => {
+  // L'ordine dei due controlli decide cosa vuol dire un numero nel registro.
+  // Prima bastava che l'host si spegnesse perche' tutte le sue immagini
+  // andassero in `saltatePerHostSpento`, comprese quelle gia' in archivio: la
+  // corsa che ha scritto 4992 sembrava dire quante ne mancavano.
+  const rete = reteAScatti(() => ({ errore: errore("ECONNRESET") }));
+  const disco = discoFinto(
+    ...Array.from({ length: 4 }, (_, i) => dentro("eth", `0x${i + 6}.png`))
+  );
+
+  const conto = await dao.cacheTokenImages(quantiToken(10, "cdn.example"), {
+    cartella: CARTELLA,
+    scarica: rete.scarica,
+    disco,
+    parallele: 1,
+    ripesca: false,
+  });
+
+  assert.equal(conto.fallite, 5, "le prime cinque spengono l'host");
+  assert.equal(conto.presenti, 4, "0x6..0x9 ci sono gia': non sono saltate");
+  assert.equal(conto.saltatePerHostSpento, 1, "ne mancava davvero una sola");
+});
+
 test("la ripescata si puo' spegnere, e allora non si riprova niente", async () => {
   const rete = reteAScatti(() => ({ errore: errore("ECONNRESET") }));
   const disco = discoFinto();
