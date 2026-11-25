@@ -22,7 +22,6 @@ const { hideInternalErrors } = require("./src/server/errorResponse");
 const routes = require("./src/server/routes");
 const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./src/config/swagger");
-const { Redis } = require("ioredis");
 const sysLogger = require("./src/sysLogger");
 const { leggiConfigurazione, leggiRitenzione } = require("./src/admin/adminConfig");
 const { costruisciRouter } = require("./src/admin/routes");

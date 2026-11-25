@@ -1965,6 +1965,14 @@ const syncTokenMetaDataInDB = async (tokens, opzioni = {}) => {
   }
 };
 
+// L'ordine ha bisogno di un criterio di spareggio.
+//
+// `isPopular` divide il catalogo in due mucchi, e il primo e' minuscolo: 32
+// token popolari su 29.689. Dentro il mucchio grande l'ordine lo decideva il
+// motore, cioe' poteva cambiare fra una pagina e l'altra: scorrendo l'elenco
+// si vedevano righe ripetute e righe mai viste. Simbolo, indirizzo e catena
+// insieme sono unici -- lo stesso indirizzo compare su due catene -- e non
+// dipendono dagli `id`, che la sincronizzazione rigenera ogni notte.
 const fetchTokenMetadata = ({ chains, search, limit, offset }) => {
   return new Promise((resolve, reject) => {
     const params = [];
@@ -1994,7 +2002,7 @@ const fetchTokenMetadata = ({ chains, search, limit, offset }) => {
         supportedSwappers
       FROM token_metadata
       ${where}
-      ORDER BY isPopular DESC
+      ORDER BY isPopular DESC, symbol ASC, address ASC, blockchain ASC
       LIMIT ? OFFSET ?
     `;
     params.push(limit, offset);

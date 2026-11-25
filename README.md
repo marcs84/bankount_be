@@ -10,3 +10,40 @@
  - Visualizzare ora che Gli address che useProva fornisce siano conformi a quelli generati per il Login. Se sono uguali, allora lo standard BIP32 è a tutti gli effetti funzionante e deterministico per le blockchain. 
 
  *N.B* Per Monero si genera un mnemonic a parte in quanto per sua logica by design non permette di usare lo stesso mnemonic dello standard BIP32, quindi attraverso un codice coperto da copyright in monero_core.js è possibile derivare comunque gli address generando in background un'altro mnemonic attraverso la chiave privata del nodo foglio dell'albero riferito alla blockchain Monero.
+## Sincronizzazione del catalogo dei token
+
+```
+npm run sync-metadata            # rifa' il catalogo adesso
+npm run sync-metadata -- --prune # e toglie dalla cache le icone non piu' riferite
+npm run sync-metadata -- --force # sostituisce anche un catalogo molto piu' piccolo
+```
+
+Il catalogo dei token -- quello che l'applicazione sfoglia per scegliere cosa
+scambiare -- vive nella tabella `token_metadata` e si rifa' da Rango. La cron
+lo rifa' ogni giorno a mezzanotte (`CRON_TIMEZONE` per dichiarare il fuso);
+questo comando fa la stessa cosa subito, senza avviare il server.
+
+Come lavora, perche' quello che stampa si possa leggere:
+
+ - chiede a Rango i token di ETH, BSC, SOLANA e BTC: circa trentamila, una
+   quindicina di megabyte;
+ - prende un lucchetto nel database, cosi' due corse non si pestano i piedi.
+   Se un'altra e' in corso non fa niente e lo dice;
+ - rifiuta di sostituire il catalogo in servizio con uno che abbia meno di
+   sette decimi dei suoi token (`TOKEN_METADATA_MIN_RATIO` per cambiare la
+   soglia, `--force` per il giorno in cui il calo e' vero);
+ - riempie una tabella di scorta a lotti da 500 e poi la scambia con quella in
+   servizio in un colpo solo: chi legge non vede mai il catalogo a meta'. Una
+   riga che il database rifiuta viene saltata e contata, non butta via la
+   corsa;
+ - scarica le icone che mancano in `public/token/<catena>/<indirizzo>.<est>`,
+   otto per volta. Non e' un passaggio critico: un'icona che manca si riprende
+   la notte dopo.
+
+Esce 0 se ha sincronizzato o se ha trovato il lucchetto occupato, 1 se e'
+fallito, e in entrambi i casi stampa il motivo. Nel pannello: il semaforo
+*Sincronizzazione metadati* nella pagina Salute, e nel visore del registro
+filtrando l'azione per `syncTokenMetaDataInDB` o `manualSync`.
+
+Serve `RANGO_API_KEY` nel `.env`: senza quella chiave il fornitore risponde
+401 a tutto, e il server non parte nemmeno.
