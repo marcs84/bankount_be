@@ -7,6 +7,21 @@ const sysLogger = require("./sysLogger");
 const TOKEN_METADATA_BATCH_SIZE = 500;
 const TOKEN_IMAGE_TIMEOUT_MS = 5000;
 
+const SQL_INSERIMENTO_STAGING = `INSERT INTO token_metadata_staging
+  (blockchain, symbol, name, isPopular, chainId, address, decimals, image, blockchainImage, usdPrice, supportedSwappers)
+  VALUES ?`;
+
+// Quanto puo' dimagrire il catalogo in una sola corsa prima che si rifiuti di
+// sostituire quello in servizio. Sette decimi lasciano passare un giorno in
+// cui il fornitore sfoltisce, e fermano la risposta mutilata.
+const RAPPORTO_MINIMO_CATALOGO = 0.7;
+
+const rapportoMinimoCatalogo = () => {
+  const scelto = Number.parseFloat(process.env.TOKEN_METADATA_MIN_RATIO);
+  if (!Number.isFinite(scelto) || scelto < 0 || scelto > 1) return RAPPORTO_MINIMO_CATALOGO;
+  return scelto;
+};
+
 const passkeyMatches = (stored, provided) => {
   if (typeof stored !== "string" || typeof provided !== "string") return false;
 
@@ -1500,7 +1515,7 @@ const cacheTokenImages = async (tokens) => {
   );
 };
 
-const syncTokenMetaDataInDB = (tokens) => {
+const syncTokenMetaDataInDB = async (tokens, opzioni = {}) => {
   function has4ByteUnicode(str) {
     return /[\u{10000}-\u{10FFFF}]/u.test(str || "");
   }
@@ -1509,100 +1524,196 @@ const syncTokenMetaDataInDB = (tokens) => {
     return str.replace(/[\u{10000}-\u{10FFFF}]/gu, "");
   }
 
-  return new Promise(async (resolve, reject) => {
-    if (!tokens || tokens.length === 0) {
-      return resolve("No tokens to sync");
+  if (!tokens || tokens.length === 0) {
+    return "No tokens to sync";
+  }
+
+  let rows = [];
+
+  // -----------------------------------
+  // 1️⃣ FIRST — Prepare rows
+  // -----------------------------------
+  for (const t of tokens) {
+    try {
+      if (has4ByteUnicode(t.name) || has4ByteUnicode(t.symbol)) {
+        t.symbol = strip4ByteChars(t.symbol);
+        t.name = strip4ByteChars(t.name);
+      }
+
+      rows.push([
+        t.blockchain || null,
+        t.symbol || null,
+        t.name || null,
+        t.isPopular ? 1 : 0,
+        t.chainId || null,
+        t.address || null,
+        t.decimals ?? null,
+        t.image || null,
+        t.blockchainImage || null,
+        t.usdPrice ?? null,
+        JSON.stringify(t.supportedSwappers || []),
+      ]);
+    } catch (errLoop) {
+      sysLogger.logToDb(
+        "SYSTEM_ERROR",
+        "dao.syncTokenMetaDataInDB.tokenLoopError",
+        {
+          tokenAddress: t && t.address ? t.address : null,
+          chainId: t && t.chainId ? t.chainId : null,
+          error: errLoop && errLoop.message ? errLoop.message : String(errLoop),
+        },
+        "ERROR"
+      );
     }
+  }
 
-    let rows = [];
+  if (rows.length === 0) return "No valid tokens to insert";
 
-    // -----------------------------------
-    // 1️⃣ FIRST — Prepare rows
-    // -----------------------------------
-    for (const t of tokens) {
-      try {
-        if (has4ByteUnicode(t.name) || has4ByteUnicode(t.symbol)) {
-          t.symbol = strip4ByteChars(t.symbol);
-          t.name = strip4ByteChars(t.name);
+  const run = (sql, params) =>
+    new Promise((res, rej) => connection.query(sql, params, (err, result) => (err ? rej(err) : res(result))));
+
+  // Quanti token ha il catalogo in servizio. `null` vuol dire che non si e'
+  // potuto sapere -- tabella assente alla prima corsa -- e allora non c'e'
+  // niente con cui confrontarsi.
+  const quantiAdesso = async () => {
+    try {
+      const righe = await run(`SELECT COUNT(*) AS n FROM token_metadata`);
+      const n = righe && righe[0] ? Number(righe[0].n) : NaN;
+      return Number.isFinite(n) ? n : null;
+    } catch (errore) {
+      return null;
+    }
+  };
+
+  // Un lotto per volta, e se il database rifiuta il lotto si riprova riga per
+  // riga.
+  //
+  // Un `INSERT` da cinquecento righe cade tutto intero per colpa di una sola:
+  // un simbolo piu' lungo della colonna, un prezzo fuori scala, un carattere
+  // che la connessione non sa portare. Con `STRICT_TRANS_TABLES` -- e il
+  // server ce l'ha -- non c'e' troncamento silenzioso, c'e' il rifiuto. Senza
+  // il secondo tentativo una riga malata buttava via l'intera corsa e il
+  // catalogo restava quello del giorno prima.
+  //
+  // Se invece il lotto cade per un motivo che non e' la singola riga -- la
+  // connessione che si chiude, il pacchetto troppo grande -- a cadere sono
+  // tutte le righe: oltre un decimo del lotto si smette, perche' proseguire
+  // vorrebbe dire scambiare un catalogo con cinquecento token in meno senza
+  // che nessuno se ne accorga. Il decimo ha un minimo di una riga, altrimenti
+  // su un lotto piccolo la regola non direbbe niente.
+  const inserisciLotto = async (lotto) => {
+    try {
+      await run(SQL_INSERIMENTO_STAGING, [lotto]);
+      return 0;
+    } catch (errore) {
+      const tetto = Math.max(1, Math.floor(lotto.length / 10));
+      let scartate = 0;
+      const motivi = [];
+
+      for (const riga of lotto) {
+        try {
+          await run(SQL_INSERIMENTO_STAGING, [[riga]]);
+        } catch (errorePerRiga) {
+          scartate++;
+          if (motivi.length < 5) {
+            motivi.push({
+              blockchain: riga[0],
+              symbol: riga[1],
+              address: riga[5],
+              error: errorePerRiga && errorePerRiga.message ? errorePerRiga.message : String(errorePerRiga),
+            });
+          }
+          if (scartate > tetto) {
+            throw new Error(
+              `batch rifiutato in blocco (${scartate} righe su ${lotto.length}): ` +
+                (errore && errore.message ? errore.message : String(errore))
+            );
+          }
         }
+      }
 
-        rows.push([
-          t.blockchain || null,
-          t.symbol || null,
-          t.name || null,
-          t.isPopular ? 1 : 0,
-          t.chainId || null,
-          t.address || null,
-          t.decimals ?? null,
-          t.image || t.logo || null,
-          t.blockchainImage || null,
-          t.usdPrice ?? null,
-          JSON.stringify(t.supportedSwappers || []),
-        ]);
-      } catch (errLoop) {
-        sysLogger.logToDb(
-          "SYSTEM_ERROR",
-          "dao.syncTokenMetaDataInDB.tokenLoopError",
-          {
-            tokenAddress: t && t.address ? t.address : null,
-            chainId: t && t.chainId ? t.chainId : null,
-            error: errLoop && errLoop.message ? errLoop.message : String(errLoop),
-          },
-          "ERROR"
+      sysLogger.logToDb(
+        "SYSTEM_ERROR",
+        "dao.syncTokenMetaDataInDB.rowRejected",
+        {
+          scartate,
+          nelLotto: lotto.length,
+          motivoDelLotto: errore && errore.message ? errore.message : String(errore),
+          esempi: motivi,
+        },
+        "WARN"
+      );
+
+      return scartate;
+    }
+  };
+
+  // -----------------------------------
+  // 2️⃣ SECOND — Fill a staging table in batches
+  // -----------------------------------
+  try {
+    // La guardia sul dimagrimento, prima di toccare qualunque cosa.
+    //
+    // Fino a ieri l'unico controllo era "almeno un token". Una risposta
+    // degradata del fornitore -- una catena che non risponde, un guasto a
+    // monte -- sostituiva trentamila righe con poche centinaia, e la ricerca
+    // dei token restava mezza vuota fino alla notte dopo. Non e' un caso di
+    // scuola: BTC in quel catalogo ha esattamente un token, quindi una
+    // risposta con la sola BTC passava il controllo di prima.
+    const inServizio = await quantiAdesso();
+    const soglia = inServizio === null ? 0 : Math.floor(inServizio * rapportoMinimoCatalogo());
+
+    if (inServizio !== null && rows.length < soglia) {
+      if (opzioni.forza !== true) {
+        throw new Error(
+          `catalogo troppo piccolo: ${rows.length} token contro i ${inServizio} in servizio ` +
+            `(minimo ${soglia}). Se il calo e' vero, rilancia con --force.`
         );
       }
+      sysLogger.logToDb(
+        "SYSTEM_EVENT",
+        "dao.syncTokenMetaDataInDB.forced",
+        { nuovi: rows.length, inServizio, soglia },
+        "WARN"
+      );
     }
 
-    if (rows.length === 0) return resolve("No valid tokens to insert");
+    await run(`DROP TABLE IF EXISTS token_metadata_staging`);
+    await run(`CREATE TABLE token_metadata_staging LIKE token_metadata`);
 
-    const run = (sql, params) =>
-      new Promise((res, rej) => connection.query(sql, params, (err, result) => (err ? rej(err) : res(result))));
+    let scartate = 0;
+    for (let i = 0; i < rows.length; i += TOKEN_METADATA_BATCH_SIZE) {
+      scartate += await inserisciLotto(rows.slice(i, i + TOKEN_METADATA_BATCH_SIZE));
+    }
 
     // -----------------------------------
-    // 2️⃣ SECOND — Fill a staging table in batches
+    // 3️⃣ THIRD — Swap it in atomically
     // -----------------------------------
+    await run(`DROP TABLE IF EXISTS token_metadata_previous`);
+    await run(
+      `RENAME TABLE token_metadata TO token_metadata_previous, token_metadata_staging TO token_metadata`
+    );
+    await run(`DROP TABLE token_metadata_previous`);
+
+    // -----------------------------------
+    // 4️⃣ FOURTH — Cache the token images, best effort
+    // -----------------------------------
+    await cacheTokenImages(tokens);
+
+    return { affectedRows: rows.length - scartate, scartate, inServizioPrima: inServizio };
+  } catch (err) {
     try {
       await run(`DROP TABLE IF EXISTS token_metadata_staging`);
-      await run(`CREATE TABLE token_metadata_staging LIKE token_metadata`);
-
-      for (let i = 0; i < rows.length; i += TOKEN_METADATA_BATCH_SIZE) {
-        await run(
-          `INSERT INTO token_metadata_staging
-          (blockchain, symbol, name, isPopular, chainId, address, decimals, image, blockchainImage, usdPrice, supportedSwappers)
-          VALUES ?`,
-          [rows.slice(i, i + TOKEN_METADATA_BATCH_SIZE)]
-        );
-      }
-
-      // -----------------------------------
-      // 3️⃣ THIRD — Swap it in atomically
-      // -----------------------------------
-      await run(`DROP TABLE IF EXISTS token_metadata_previous`);
-      await run(
-        `RENAME TABLE token_metadata TO token_metadata_previous, token_metadata_staging TO token_metadata`
+    } catch (cleanupErr) {
+      sysLogger.logToDb(
+        "SYSTEM_ERROR",
+        "dao.syncTokenMetaDataInDB.stagingCleanupFailed",
+        { error: cleanupErr && cleanupErr.message ? cleanupErr.message : String(cleanupErr) },
+        "ERROR"
       );
-      await run(`DROP TABLE token_metadata_previous`);
-
-      // -----------------------------------
-      // 4️⃣ FOURTH — Cache the token images, best effort
-      // -----------------------------------
-      await cacheTokenImages(tokens);
-
-      resolve({ affectedRows: rows.length });
-    } catch (err) {
-      try {
-        await run(`DROP TABLE IF EXISTS token_metadata_staging`);
-      } catch (cleanupErr) {
-        sysLogger.logToDb(
-          "SYSTEM_ERROR",
-          "dao.syncTokenMetaDataInDB.stagingCleanupFailed",
-          { error: cleanupErr && cleanupErr.message ? cleanupErr.message : String(cleanupErr) },
-          "ERROR"
-        );
-      }
-      reject(new Error("Error inserting token metadata: " + err.message));
     }
-  });
+    throw new Error("Error inserting token metadata: " + err.message);
+  }
 };
 
 const fetchTokenMetadata = ({ chains, search, limit, offset }) => {
