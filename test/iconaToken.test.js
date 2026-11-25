@@ -90,3 +90,95 @@ test("al chiamante si dice di tenersi l'icona", () => {
   // Non cambia mai, e la lista ne chiede decine per schermata.
   assert.equal(CACHE_ICONA_TOKEN, "7d");
 });
+
+// ---------------------------------------------------------------------------
+// Una cartella per catena.
+// ---------------------------------------------------------------------------
+
+const {
+  CATENE,
+  nomeCatena,
+  identificatore,
+  estensioneDaUrl,
+  estensioneDaTipo,
+} = require("../src/server/iconaToken");
+
+test("con la catena si cerca solo nella sua cartella", () => {
+  const disco = (...presenti) => {
+    const insieme = new Set(presenti.map((n) => path.join("/cache", n)));
+    return { cartella: "/cache", esiste: (p) => insieme.has(p) };
+  };
+
+  const trovata = trovaIcona("0xAAA", { ...disco(path.join("bsc", "0xaaa.png")), catena: "BSC" });
+  assert.ok(trovata, "l'icona della catena giusta");
+  assert.ok(trovata.percorso.includes(path.join("bsc", "0xaaa.png")));
+
+  assert.equal(
+    trovaIcona("0xAAA", { ...disco(path.join("bsc", "0xaaa.png")), catena: "eth" }),
+    null,
+    "non si pesca dalla cartella di un'altra catena"
+  );
+});
+
+test("senza la catena si frugano le cartelle e poi l'archivio piatto", () => {
+  const disco = (...presenti) => {
+    const insieme = new Set(presenti.map((n) => path.join("/cache", n)));
+    return { cartella: "/cache", esiste: (p) => insieme.has(p) };
+  };
+
+  // Le versioni dell'applicazione gia' installate chiedono cosi'.
+  const dallaCartella = trovaIcona("0xaaa", disco(path.join("solana", "0xaaa.jpg")));
+  assert.ok(dallaCartella.percorso.includes("solana"));
+
+  const dalPiatto = trovaIcona("0xaaa", disco("0xaaa.png"));
+  assert.ok(dalPiatto, "l'archivio di prima resta leggibile finche' non lo si pota");
+});
+
+test("il nome della catena non puo' uscire dalla cartella", () => {
+  // Una catena dichiarata male non produce nessun nome da cercare. Il caso
+  // "nessuna catena" e' un'altra cosa, ed e' la prova qui sopra: li' si
+  // frugano tutte.
+  for (const tentativo of ["../etc", "a/b", "a.b", "", 42, "x".repeat(33)]) {
+    assert.equal(nomeCatena(tentativo), null, `accettato: ${tentativo}`);
+    assert.deepEqual(nomiPossibili("0xaaa", tentativo), [], `accettato: ${tentativo}`);
+  }
+
+  assert.equal(nomeCatena(null), null);
+  assert.equal(nomeCatena(undefined), null);
+  assert.equal(nomeCatena("SOLANA"), "solana");
+  assert.equal(nomeCatena(" Eth "), "eth");
+});
+
+test("la moneta nativa si chiama native, l'indirizzo malformato niente", () => {
+  assert.equal(identificatore(null), "native");
+  assert.equal(identificatore(""), "native");
+  assert.equal(identificatore("0xAbC"), "0xabc");
+  assert.equal(identificatore("facet_0x26231ad9"), "facet_0x26231ad9");
+  assert.equal(identificatore("../../x"), null);
+  assert.equal(identificatore(42), null);
+});
+
+test("la forma facet_0x… ora si puo' servire", () => {
+  // Cinque token del catalogo hanno il trattino basso nell'indirizzo: i loro
+  // file venivano scritti e poi non si trovavano.
+  assert.ok(nomiPossibili("facet_0x26231ad975456d53682e1b6364e9e005886281e7").length > 0);
+});
+
+test("l'estensione si prende dall'indirizzo solo se la sapremmo servire", () => {
+  assert.equal(estensioneDaUrl("https://a/b/logo.PNG"), ".png");
+  assert.equal(estensioneDaUrl("https://a/b/logo.jpg?x=1"), ".jpg");
+  assert.equal(estensioneDaUrl("https://a/b/logo"), null);
+  assert.equal(estensioneDaUrl("https://a/b/logo.infra_icon"), null);
+  assert.equal(estensioneDaUrl("non un indirizzo"), null);
+});
+
+test("l'estensione si prende anche dal tipo dichiarato", () => {
+  assert.equal(estensioneDaTipo("image/webp"), ".webp");
+  assert.equal(estensioneDaTipo("image/svg+xml; charset=utf-8"), ".svg");
+  assert.equal(estensioneDaTipo("application/octet-stream"), null);
+  assert.equal(estensioneDaTipo(null), null);
+});
+
+test("le catene frugate sono quelle del catalogo", () => {
+  assert.deepEqual(CATENE, ["eth", "bsc", "solana", "btc"]);
+});

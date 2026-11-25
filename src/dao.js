@@ -5,8 +5,20 @@ const fetch = require("node-fetch");
 const sysLogger = require("./sysLogger");
 const { conLucchetto, LucchettoOccupato } = require("./lucchetto");
 
+// Le regole sui nomi dei file delle icone stanno tutte da una parte: le usa
+// chi scrive la cache e chi la serve, e devono essere le stesse.
+const icone = require("./server/iconaToken");
+
 const TOKEN_METADATA_BATCH_SIZE = 500;
 const TOKEN_IMAGE_TIMEOUT_MS = 5000;
+
+// Quante immagini si scaricano insieme. Una per volta, su trentamila token,
+// voleva dire ore: la prima passata non arrivava in fondo in una notte.
+const ICONE_IN_PARALLELO = 8;
+
+// Quanti fallimenti di fila prima di smettere con un host. Uno solo non basta:
+// un 404 e' una risposta sulla singola immagine, non un giudizio sull'host.
+const FALLIMENTI_PER_SPEGNERE_HOST = 5;
 
 // Il nome del lucchetto che impedisce due sincronizzazioni insieme. Lo
 // conosce solo questo file: chi altro lo prendesse si bloccherebbe a vicenda
@@ -1472,53 +1484,255 @@ const removeDeviceTokenByToken = (deviceToken) => {
   });
 };
 
-const cacheTokenImages = async (tokens) => {
-  const folderPath = path.join(process.cwd(), "public", "token");
-  if (!fs.existsSync(folderPath)) {
-    fs.mkdirSync(folderPath, { recursive: true });
-  }
+// Il disco, dietro cinque verbi. Le prove ne passano un altro, cosi' non
+// dipendono da cosa c'e' davvero in public/token ne' lasciano file in giro.
+const DISCO = {
+  esiste: (percorso) => fs.existsSync(percorso),
+  creaCartella: (percorso) => fs.mkdirSync(percorso, { recursive: true }),
+  scrivi: (percorso, dati) => fs.writeFileSync(percorso, dati),
+  elimina: (percorso) => fs.unlinkSync(percorso),
+  elenca: (percorso) => (fs.existsSync(percorso) ? fs.readdirSync(percorso) : []),
+};
 
-  const unreachableHosts = new Set();
-  let stored = 0;
-  let failed = 0;
+/// Un guasto della rete, distinto da una risposta che dice no.
+///
+/// La differenza decide se vale la pena insistere con quell'host: un 404 e'
+/// una risposta -- quell'immagine non c'e', le altre sullo stesso host si --
+/// mentre un nome che non si risolve riguarda tutto l'host.
+const erroreDiRete = (errore) => {
+  if (!errore) return false;
+  if (errore.name === "AbortError" || errore.name === "TimeoutError") return true;
+  if (errore.type === "request-timeout" || errore.type === "system") return true;
+  return typeof errore.code === "string" && errore.code !== "";
+};
 
-  for (const t of tokens) {
-    const imgUrl = t.image ?? t.logo;
-    if (!imgUrl) continue;
+/// Un host che non esiste o non si risolve: non esistera' per i prossimi
+/// dodicimila token, quindi si spegne al primo tentativo.
+const nomeNonRisolto = (errore) =>
+  !!errore && (errore.code === "ENOTFOUND" || errore.code === "EAI_AGAIN");
+
+/// Scarica nella cache le icone dei token, per quanto riesce.
+///
+/// Non solleva mai: un'icona che manca non e' un guasto del catalogo, e il
+/// catalogo e' gia' stato scambiato quando questa parte. Restituisce il
+/// conto di cio' che ha fatto e lo scrive nel registro.
+const cacheTokenImages = async (tokens, opzioni = {}) => {
+  const cartella = opzioni.cartella || icone.CARTELLA_ICONE;
+  const scarica = opzioni.scarica || fetch;
+  const disco = opzioni.disco || DISCO;
+  const parallele = Number.isFinite(opzioni.parallele) ? opzioni.parallele : ICONE_IN_PARALLELO;
+  const pota = opzioni.pota === true;
+
+  disco.creaCartella(cartella);
+
+  // Gli host spenti e, per ciascuno, i fallimenti di fila.
+  //
+  // Prima bastava un fallimento qualunque -- anche un 404 su una singola
+  // immagine -- per spegnere l'host per il resto della corsa. Le immagini
+  // sono concentrate: tre host ne servono il 90%, e il piu' grande ne ha
+  // dodicimila. Un 404 fra le prime le spegneva tutte, ed e' cio' che era
+  // accaduto: delle immagini che mancavano, la grande maggioranza stava su
+  // un host che aveva risposto 429 una volta.
+  const hostSpenti = new Set();
+  const fallimentiDiFila = new Map();
+
+  const conto = {
+    scaricate: 0,
+    presenti: 0,
+    sostituite: 0,
+    senzaUrl: 0,
+    nonArchiviabili: 0,
+    tipoIgnoto: 0,
+    fallite: 0,
+    saltatePerHostSpento: 0,
+  };
+
+  const segnaFallimento = (host, errore) => {
+    conto.fallite++;
+    if (!host) return;
+
+    if (nomeNonRisolto(errore)) {
+      hostSpenti.add(host);
+      return;
+    }
+
+    const quanti = (fallimentiDiFila.get(host) || 0) + 1;
+    fallimentiDiFila.set(host, quanti);
+    if (quanti >= FALLIMENTI_PER_SPEGNERE_HOST) hostSpenti.add(host);
+  };
+
+  const perToken = async (t) => {
+    const url = t.image;
+    if (!url) {
+      conto.senzaUrl++;
+      return;
+    }
+
+    const catena = icone.nomeCatena(t.blockchain);
+    const identificatore = icone.identificatore(t.address);
+    if (catena === null || identificatore === null) {
+      // Un nome che non puo' diventare un pezzo di percorso non diventa un
+      // file: prima questi venivano scritti e poi non si potevano servire.
+      conto.nonArchiviabili++;
+      return;
+    }
+
+    let host = null;
+    try {
+      host = new URL(url).host;
+    } catch (errore) {
+      conto.nonArchiviabili++;
+      return;
+    }
+
+    if (hostSpenti.has(host)) {
+      conto.saltatePerHostSpento++;
+      return;
+    }
+
+    const estensioneAttesa = icone.estensioneDaUrl(url);
+    const presente = icone.trovaIcona(identificatore, { catena, cartella, esiste: disco.esiste });
+
+    // Ce l'abbiamo gia', e con l'estensione giusta. Se la sorgente non
+    // dichiara l'estensione ci si tiene quella che c'e': non si riscarica
+    // ogni notte un'immagine solo perche' il suo indirizzo non finisce con un
+    // punto e tre lettere.
+    if (presente && (estensioneAttesa === null || presente.percorso.endsWith(estensioneAttesa))) {
+      conto.presenti++;
+      return;
+    }
 
     try {
-      const parsedUrl = new URL(imgUrl);
-      if (unreachableHosts.has(parsedUrl.host)) {
-        failed++;
-        continue;
+      const risposta = await scarica(url, { signal: AbortSignal.timeout(TOKEN_IMAGE_TIMEOUT_MS) });
+      if (!risposta.ok) throw new Error(`HTTP ${risposta.status}`);
+
+      const estensione =
+        estensioneAttesa ||
+        icone.estensioneDaTipo(risposta.headers && risposta.headers.get ? risposta.headers.get("content-type") : null);
+
+      // L'host ha risposto: qualunque cosa sia quel file, non e' colpa sua.
+      fallimentiDiFila.delete(host);
+
+      if (!estensione) {
+        // Non sappiamo che cos'e'. Prima si salvava `.png` per tutto, e cio'
+        // che non era un'immagine finiva in archivio con un nome che nessuno
+        // avrebbe potuto servire.
+        conto.tipoIgnoto++;
+        return;
       }
 
-      let ext = path.extname(parsedUrl.pathname).toLowerCase();
-      if (!ext) ext = ".png";
+      const cartellaCatena = path.join(cartella, catena);
+      disco.creaCartella(cartellaCatena);
+      disco.scrivi(path.join(cartellaCatena, `${identificatore}${estensione}`), Buffer.from(await risposta.arrayBuffer()));
+      conto.scaricate++;
 
-      const fileIdentifier = t.address ? t.address.toLowerCase() : `native-${t.chainId}`;
-      const filePath = path.join(folderPath, `${fileIdentifier}${ext}`);
-      if (fs.existsSync(filePath)) continue;
-
-      const response = await fetch(imgUrl, { signal: AbortSignal.timeout(TOKEN_IMAGE_TIMEOUT_MS) });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      fs.writeFileSync(filePath, Buffer.from(await response.arrayBuffer()));
-      stored++;
-    } catch (e) {
-      failed++;
-      try {
-        unreachableHosts.add(new URL(imgUrl).host);
-      } catch (parseErr) {}
+      // Il doppione con l'altra estensione. La sorgente cambia formato -- lo
+      // stesso indirizzo serviva `.png` e poi `.jpg` -- e prima il nuovo si
+      // salvava accanto al vecchio: diecimila indirizzi avevano due file, e
+      // chi legge prova `.png` per prima, quindi serviva per sempre il
+      // vecchio.
+      for (const altra of icone.ESTENSIONI) {
+        if (altra === estensione) continue;
+        const vecchio = path.join(cartellaCatena, `${identificatore}${altra}`);
+        if (disco.esiste(vecchio)) {
+          disco.elimina(vecchio);
+          conto.sostituite++;
+        }
+      }
+    } catch (errore) {
+      segnaFallimento(host, erroreDiRete(errore) ? errore : null);
     }
-  }
+  };
+
+  // Otto per volta. Una per volta voleva dire, alla prima passata su
+  // trentamila token, ore -- e ogni fallimento costa i cinque secondi della
+  // scadenza.
+  let prossimo = 0;
+  const operaio = async () => {
+    for (;;) {
+      const indice = prossimo++;
+      if (indice >= tokens.length) return;
+      await perToken(tokens[indice]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(parallele, tokens.length)) }, operaio));
+
+  const potatura = pota ? potaIconeOrfane(tokens, { cartella, disco }) : null;
 
   sysLogger.logToDb(
     "SYSTEM_EVENT",
     "dao.cacheTokenImages.completed",
-    { stored, failed, unreachableHosts: unreachableHosts.size },
-    failed > 0 ? "WARN" : "INFO"
+    {
+      ...conto,
+      hostSpenti: [...hostSpenti],
+      ...(potatura ? { potatura } : {}),
+    },
+    conto.fallite > 0 ? "WARN" : "INFO"
   );
+
+  return conto;
+};
+
+/// Toglie dalla cache i file che il catalogo appena scambiato non riferisce.
+///
+/// Si lancia solo a richiesta (`--prune`) e solo a scambio riuscito: una
+/// potatura che partisse dopo una corsa a meta' cancellerebbe le icone dei
+/// token che non ha fatto in tempo a rileggere.
+const potaIconeOrfane = (tokens, { cartella, disco }) => {
+  const attesi = new Map();
+  for (const t of tokens) {
+    const catena = icone.nomeCatena(t.blockchain);
+    const identificatore = icone.identificatore(t.address);
+    if (catena === null || identificatore === null) continue;
+    if (!attesi.has(catena)) attesi.set(catena, new Set());
+    attesi.get(catena).add(identificatore);
+  }
+
+  const conto = { orfane: 0, estraneeAlFormato: 0, pianoVecchio: 0, errori: 0 };
+
+  const togli = (percorso, voce) => {
+    try {
+      disco.elimina(percorso);
+      conto[voce]++;
+    } catch (errore) {
+      conto.errori++;
+    }
+  };
+
+  for (const [catena, identificatori] of attesi) {
+    const cartellaCatena = path.join(cartella, catena);
+    for (const nome of disco.elenca(cartellaCatena)) {
+      const estensione = path.extname(nome).toLowerCase();
+      const base = nome.slice(0, nome.length - estensione.length).toLowerCase();
+
+      if (!icone.ESTENSIONI.includes(estensione)) {
+        // Un file con un'estensione che non serviremmo mai: arrivava
+        // dall'indirizzo della sorgente, copiato cosi' com'era.
+        togli(path.join(cartellaCatena, nome), "estraneeAlFormato");
+        continue;
+      }
+      if (!identificatori.has(base)) {
+        togli(path.join(cartellaCatena, nome), "orfane");
+      }
+    }
+  }
+
+  // L'archivio piatto di prima, dove il nome del file era il solo indirizzo.
+  // Si toglie un file solo quando la sua icona esiste gia' nella cartella di
+  // una catena: finche' non c'e', quel file e' cio' che le versioni
+  // dell'applicazione gia' installate stanno leggendo.
+  for (const nome of disco.elenca(cartella)) {
+    const estensione = path.extname(nome).toLowerCase();
+    if (estensione === "") continue; // le cartelle delle catene
+    const base = nome.slice(0, nome.length - estensione.length).toLowerCase();
+
+    const sostituito = icone.CATENE.some((catena) =>
+      icone.ESTENSIONI.some((e) => disco.esiste(path.join(cartella, catena, `${base}${e}`)))
+    );
+    if (sostituito) togli(path.join(cartella, nome), "pianoVecchio");
+  }
+
+  return conto;
 };
 
 const syncTokenMetaDataInDB = async (tokens, opzioni = {}) => {
@@ -1709,9 +1923,14 @@ const syncTokenMetaDataInDB = async (tokens, opzioni = {}) => {
       // -----------------------------------
       // 4️⃣ FOURTH — Cache the token images, best effort
       // -----------------------------------
-      await cacheTokenImages(tokens);
+      const esitoIcone = await cacheTokenImages(tokens, { pota: opzioni.pota === true });
 
-      return { affectedRows: rows.length - scartate, scartate, inServizioPrima: inServizio };
+      return {
+        affectedRows: rows.length - scartate,
+        scartate,
+        inServizioPrima: inServizio,
+        icone: esitoIcone,
+      };
     } catch (err) {
       try {
         await run(`DROP TABLE IF EXISTS token_metadata_staging`);
@@ -1863,5 +2082,10 @@ module.exports = {
   removeInvalidDeviceToken,
   removeDeviceTokenByToken,
   syncTokenMetaDataInDB,
+
+  // Esportate per le prove: la cache delle icone si verifica con un disco e
+  // una rete finti, senza toccare public/token ne' uscire sulla rete.
+  cacheTokenImages,
+  potaIconeOrfane,
   fetchTokenMetadata,
 };

@@ -74,6 +74,15 @@ sysLogger.logToDb(
 // Top-level: rileva modalità manual sync
 const RUN_SYNC = process.argv.includes('--run-sync');
 
+// `--force` sostituisce il catalogo anche se e' molto piu' piccolo di quello
+// in servizio: serve il giorno in cui il calo e' vero.
+//
+// `--prune` toglie dalla cache le icone che il catalogo nuovo non riferisce.
+// Non e' il comportamento predefinito di proposito: cancellare file e' il
+// genere di cosa che si chiede, non che si subisce.
+const FORZA_SYNC = process.argv.includes('--force');
+const POTA_ICONE = process.argv.includes('--prune');
+
 // Configurazione dell'applicazione Express
 const app = express();
 const port = process.env.PORT || 3000;
@@ -134,9 +143,7 @@ app.get("/favicon.ico", (req, res) => {
 // altrettante righe nel registro delle richieste. Resta pero' **dopo**
 // `apiLimiter`: trecento richieste al minuto bastano a una lista di icone, e
 // una rotta che legge dal disco senza freno sarebbe un invito.
-app.get("/api/token-image/:indirizzo", (req, res) => {
-  const icona = trovaIcona(req.params.indirizzo);
-
+const serviIcona = (icona, res) => {
   // Un'icona che manca non e' un guasto: il catalogo cambia, la cache insegue,
   // e l'applicazione disegna gia' un segnaposto quando l'immagine non arriva.
   if (!icona) return res.status(404).end();
@@ -153,7 +160,22 @@ app.get("/api/token-image/:indirizzo", (req, res) => {
   res.sendFile(icona.percorso, { maxAge: CACHE_ICONA_TOKEN }, (errore) => {
     if (errore && !res.headersSent) res.status(404).end();
   });
-});
+};
+
+// Con la catena: e' la forma giusta, perche' lo stesso indirizzo su due catene
+// sono due token diversi con due loghi.
+app.get("/api/token-image/:catena/:indirizzo", (req, res) =>
+  serviIcona(trovaIcona(req.params.indirizzo, { catena: req.params.catena }), res)
+);
+
+// Senza la catena: la chiedono cosi' le versioni dell'applicazione gia'
+// installate. Si frugano le cartelle delle catene in ordine fisso e per
+// ultimo l'archivio piatto di prima, che e' esattamente la risposta che
+// davano prima -- una delle due, sempre la stessa -- quindi aggiornare il
+// server non lascia nessuno senza icone.
+app.get("/api/token-image/:indirizzo", (req, res) =>
+  serviIcona(trovaIcona(req.params.indirizzo), res)
+);
 
 // Importa le rotte dal file routes.js
 app.use("/", routes);
@@ -350,7 +372,7 @@ if (RUN_SYNC) {
     );
 
     try {
-      const esito = await syncTokenMetaDataInDB();
+      const esito = await syncTokenMetaDataInDB({ forza: FORZA_SYNC, pota: POTA_ICONE });
 
       // Saltata vuol dire che un'altra corsa era gia' dentro: non e' un
       // guasto, ma chi ha lanciato il comando deve sapere che non ha fatto
