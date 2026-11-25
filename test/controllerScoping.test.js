@@ -9,7 +9,7 @@ const stub = (relativo, exports) => {
   require.cache[risolto] = { id: risolto, filename: risolto, loaded: true, exports };
 };
 
-const chiamate = { getBalance: [], filterAddresses: [], fetchBookmarkedTokens: [] };
+const chiamate = { leggiSaldo: [], filterAddresses: [], fetchBookmarkedTokens: [] };
 
 stub("src/dao.js", {
   filterAddresses: async (filtri) => {
@@ -27,9 +27,12 @@ stub("src/dao.js", {
 
 stub("src/service.js", {
   getLatestCoinRates: async () => ({ ethereum: { usd: 3000 } }),
-  getBalance: async (coin_type, address, network, user_id, wallet_id) => {
-    chiamate.getBalance.push({ coin_type, address, network, user_id, wallet_id });
-    return 1.5;
+  // I controller leggono il saldo da `leggiSaldo`, che porta il numero e
+  // accanto le unita' base intere: con diciotto decimali il numero da solo
+  // perde le ultime cifre.
+  leggiSaldo: async (coin_type, address, network, user_id, wallet_id) => {
+    chiamate.leggiSaldo.push({ coin_type, address, network, user_id, wallet_id });
+    return { balance: 1.5, unitaBase: "1500000000000000000", decimali: 18 };
   },
   convertCoinsToAmount: () => 4500,
 });
@@ -56,7 +59,7 @@ const fintaRisposta = () => {
 
 test("fetches the addresses of the device in the token, not of the one asked for", async () => {
   chiamate.filterAddresses.length = 0;
-  chiamate.getBalance.length = 0;
+  chiamate.leggiSaldo.length = 0;
   const res = fintaRisposta();
 
   await controllers.filterAddresses(
@@ -66,12 +69,12 @@ test("fetches the addresses of the device in the token, not of the one asked for
 
   assert.equal(res.statusCode, 200, `risposta inattesa: ${JSON.stringify(res.payload)}`);
   assert.equal(chiamate.filterAddresses[0].id_utente, 42, "l'utente deve venire dal token");
-  assert.equal(chiamate.getBalance[0].user_id, 42, "anche i nodi personalizzati vanno risolti sul chiamante");
+  assert.equal(chiamate.leggiSaldo[0].user_id, 42, "anche i nodi personalizzati vanno risolti sul chiamante");
 });
 
 test("fetches the assets of the device in the token, not of the one asked for", async () => {
   chiamate.filterAddresses.length = 0;
-  chiamate.getBalance.length = 0;
+  chiamate.leggiSaldo.length = 0;
   chiamate.fetchBookmarkedTokens.length = 0;
   const res = fintaRisposta();
 
@@ -82,7 +85,7 @@ test("fetches the assets of the device in the token, not of the one asked for", 
 
   assert.equal(res.statusCode, 200, `risposta inattesa: ${JSON.stringify(res.payload)}`);
   assert.equal(chiamate.filterAddresses[0].id_utente, 42);
-  assert.equal(chiamate.getBalance[0].user_id, 42);
+  assert.equal(chiamate.leggiSaldo[0].user_id, 42);
   assert.equal(chiamate.fetchBookmarkedTokens[0].user_id, 42, "i preferiti sono quelli del chiamante");
 });
 

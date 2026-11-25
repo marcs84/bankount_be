@@ -1016,8 +1016,15 @@ const filterAddresses = async (req, res) => {
     // cadere l'intera richiesta nasconderebbe anche gli indirizzi sani.
     for (const address of addresses) {
       try {
-        const balance = await service.getBalance(address.coin_type, address.address, network, user_id, wallet_id);
-        address.balance = balance?.balance ?? balance;
+        const saldo = await service.leggiSaldo(address.coin_type, address.address, network, user_id, wallet_id);
+        address.balance = saldo?.balance ?? saldo;
+        // Le unita' base intere accanto al numero. Con diciotto decimali il
+        // numero perde le ultime cifre -- un double non le regge -- mentre
+        // questa stringa e' cio' che il nodo ha davvero risposto. Si
+        // aggiunge, non sostituisce: le applicazioni installate leggono
+        // ancora `balance`.
+        address.balance_units = saldo?.unitaBase ?? null;
+        address.balance_decimals = saldo?.decimali ?? null;
       } catch (error) {
         sysLogger.logToDb(
           "SYSTEM_ERROR",
@@ -1091,7 +1098,7 @@ const fetchAssets = async (req, res) => {
     for (const index in addresses) {
       let balance;
       try {
-        balance = await service.getBalance(addresses[index].coin_type, addresses[index].address, network, user_id, wallet_id);
+        balance = await service.leggiSaldo(addresses[index].coin_type, addresses[index].address, network, user_id, wallet_id);
       } catch (error) {
         sysLogger.logToDb(
           "SYSTEM_ERROR",
@@ -1107,6 +1114,9 @@ const fetchAssets = async (req, res) => {
         continue;
       }
       addresses[index].balance = balance?.balance ?? balance;
+      // Vedi `filterAddresses`: il valore esatto viaggia accanto al numero.
+      addresses[index].balance_units = balance?.unitaBase ?? null;
+      addresses[index].balance_decimals = balance?.decimali ?? null;
       if (addresses[index].coin_type === "ETH") {
         if (!assets["Ethereum"]) {
           assets["Ethereum"] = { addresses: [] };

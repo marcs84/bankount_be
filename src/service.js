@@ -38,7 +38,16 @@ const logServiceDbError = (action, error, meta = {}) => {
   } catch (e) {}
 };
 
-const getBalance = (cointype, address, network, user_id, wallet_id) => {
+/// Il saldo come lo danno i nodi: il numero, e accanto le **unita' base**
+/// intere -- wei, lamport, satoshi -- che non passano da una virgola
+/// mobile.
+///
+/// Serve perche' con diciotto decimali un double non basta: un saldo di
+/// 54147802024792520 wei sta sei volte oltre 2^53, e lo stesso double si
+/// scrive in due modi diversi a seconda di come lo si stampa. Il numero
+/// resta per chi gia' lo legge; chi vuole il valore esatto ha
+/// `unitaBase`.
+const leggiSaldo = (cointype, address, network, user_id, wallet_id) => {
   const result = {};
   return new Promise(async (resolve, reject) => {
     let balance = 0;
@@ -221,6 +230,17 @@ const scriviPrezziInCache = async (chiave, prezzi) => {
       error: error && error.message ? error.message : String(error),
     });
   }
+};
+
+/// Il saldo nella forma che le applicazioni **gia' installate** leggono:
+/// un oggetto per Bitcoin, un numero per le altre catene.
+///
+/// I core restituiscono ormai tutti un oggetto, e quella forma si
+/// ricompone qui. Cambiarla significherebbe rompere ogni telefono gia' in
+/// giro, che da `/api/getBalance` si aspetta ancora un numero.
+const getBalance = async (cointype, address, network, user_id, wallet_id) => {
+  const saldo = await leggiSaldo(cointype, address, network, user_id, wallet_id);
+  return cointype === "BTC" ? saldo : saldo.balance;
 };
 
 const getLatestCoinRates = async (currency) => {
@@ -472,6 +492,7 @@ module.exports = {
   txUtilsForExchangeCoinBetweenSameBc,
 
   getBalance,
+  leggiSaldo,
 
   devicelogin,
   insertAddress,
