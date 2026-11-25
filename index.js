@@ -218,7 +218,9 @@ if (configurazionePannello.attivo) {
 async function bootstrapServer() {
   // Pianifica cron solo in modalità normale
   if (!RUN_SYNC) {
-    // Runs every day at 23:59
+    // Ogni giorno a mezzanotte. Il fuso e' quello della macchina se non lo si
+    // dichiara: `CRON_TIMEZONE` serve dove la macchina sta a UTC e si vuole
+    // l'ora locale.
     cron.schedule(
       "0 0 * * *",
       async () => {
@@ -230,8 +232,25 @@ async function bootstrapServer() {
           },
           "INFO"
         );
-        await syncTokenMetaDataInDB();
-      }
+        try {
+          await syncTokenMetaDataInDB();
+        } catch (errore) {
+          // La sincronizzazione registra da se' il motivo e poi solleva, per
+          // il comando a mano che deve poter uscire con esito diverso da
+          // zero. Qui non c'e' nessuno ad aspettarla: senza questo blocco il
+          // rilancio finirebbe fra i rifiuti non raccolti, cioe' in una riga
+          // di registro che dice molto meno di quella scritta a monte.
+          sysLogger.logToDb(
+            "SYSTEM_EVENT",
+            "cron.syncTokenMetaDataInDB.aborted",
+            {
+              error: errore && errore.message ? errore.message : String(errore),
+            },
+            "WARN"
+          );
+        }
+      },
+      process.env.CRON_TIMEZONE ? { timezone: process.env.CRON_TIMEZONE } : undefined
     );
 
     // La scadenza del registro. Esiste solo se qualcuno l'ha accesa: senza
@@ -306,9 +325,22 @@ async function bootstrapServer() {
 }
 
 // Esecuzione manuale (isolata) e uscita
+//
+// Le righe di registro di inizio e fine si **aspettano**: `process.exit` non
+// svuota cio' che e' in volo verso il database, e la riga finale e' quella che
+// dice com'e' andata. Quella di riuscita e' anche cio' che il pannello legge
+// per il semaforo della sincronizzazione.
+//
+// Su stdout va un resoconto breve, perche' questo comando lo lancia una
+// persona: prima non stampava niente, e per sapere se era andato bene si
+// doveva andare a leggere `system_logs`.
 if (RUN_SYNC) {
   (async () => {
-    sysLogger.logToDb(
+    const inizio = Date.now();
+    const durata = () => Math.round((Date.now() - inizio) / 1000);
+
+    console.log("Sincronizzazione del catalogo dei token: avvio.");
+    await sysLogger.registraEAttendi(
       "SYSTEM_EVENT",
       "manualSync.start",
       {
@@ -316,34 +348,40 @@ if (RUN_SYNC) {
       },
       "INFO"
     );
-    sysLogger.logToDb(
-      "SYSTEM_EVENT",
-      "manualSync.progress",
-      {
-        message: "Manual sync start.",
-      },
-      "INFO"
-    );
+
     try {
-      await syncTokenMetaDataInDB();
-      sysLogger.logToDb(
+      const esito = await syncTokenMetaDataInDB();
+
+      console.log(
+        `Sincronizzazione riuscita in ${durata()}s: ` +
+          `${esito && esito.tokenCount ? esito.tokenCount : "?"} token nel catalogo.`
+      );
+      await sysLogger.registraEAttendi(
         "SYSTEM_EVENT",
         "manualSync.completed",
         {
           message: "Manual sync completed successfully.",
+          ...(esito && typeof esito === "object" ? esito : {}),
         },
-        "INFO"
+        "INFO",
+        Date.now() - inizio
       );
       process.exit(0);
     } catch (err) {
       const errorDetails = err && err.stack ? err.stack : String(err);
-      sysLogger.logToDb(
+
+      console.error(
+        `Sincronizzazione FALLITA dopo ${durata()}s: ` +
+          `${err && err.message ? err.message : String(err)}`
+      );
+      await sysLogger.registraEAttendi(
         "SYSTEM_ERROR",
         "manualSync.failed",
         {
           error: errorDetails,
         },
-        "ERROR"
+        "ERROR",
+        Date.now() - inizio
       );
       process.exit(1);
     }

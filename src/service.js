@@ -391,34 +391,61 @@ const fetchLookupUrls = async (user_id, wallet_id, coin_type, data) => {
   }
 };
 
-const syncTokenMetaDataInDB = async () => {
+// Le catene di cui si tiene il catalogo. Sono i nomi di Rango, e sono gli
+// stessi che l'applicazione rimanda indietro quando chiede i token di una
+// catena: `rango_blockchains` li conserva cosi' come sono.
+const CATENE_CATALOGO = ["ETH", "BSC", "SOLANA", "BTC"];
+
+// L'axios dentro la SDK di Rango e' creato senza scadenza. Senza questo numero
+// una connessione che resta appesa tiene appesa la sincronizzazione per sempre,
+// e la corsa della notte dopo le si siede accanto. La risposta e' grande --
+// una quindicina di megabyte per queste quattro catene -- quindi la scadenza
+// deve stare larga: misura l'intera risposta, non il tempo di collegarsi.
+const SCADENZA_META_MS = 120000;
+
+/// Rifa' il catalogo dei token da Rango.
+///
+/// Solleva quando non ce l'ha fatta, **dopo** aver registrato il motivo: chi
+/// la chiama deve poter distinguere una corsa riuscita da una fallita. Prima
+/// inghiottiva tutto, e il comando a mano usciva con esito zero anche quando
+/// non aveva sincronizzato niente.
+const syncTokenMetaDataInDB = async (opzioni = {}) => {
+  const inizio = Date.now();
   try {
-    const response = await rango.meta({
-      blockchains: ["ETH", "BSC", "SOLANA", "BTC"],
-      excludeNonPopulars: false,
-    });
+    const response = await rango.meta(
+      {
+        blockchains: CATENE_CATALOGO,
+        excludeNonPopulars: false,
+      },
+      { timeout: SCADENZA_META_MS }
+    );
 
     if (!response.tokens || response.tokens.length === 0) {
       throw new Error("No tokens found in Rango response");
     }
-    await dao.syncTokenMetaDataInDB(response.tokens);
-    sysLogger.logToDb(
+    const esito = await dao.syncTokenMetaDataInDB(response.tokens, opzioni);
+    await sysLogger.registraEAttendi(
       "SYSTEM_EVENT",
       "service.syncTokenMetaDataInDB.success",
       {
         tokenCount: response.tokens.length,
+        ...(esito && typeof esito === "object" ? esito : { esito }),
       },
-      "INFO"
+      "INFO",
+      Date.now() - inizio
     );
+    return { tokenCount: response.tokens.length, ...(esito && typeof esito === "object" ? esito : {}) };
   } catch (error) {
-    sysLogger.logToDb(
+    await sysLogger.registraEAttendi(
       "SYSTEM_ERROR",
       "service.syncTokenMetaDataInDB.failed",
       {
         error: error && error.message ? error.message : String(error),
       },
-      "ERROR"
+      "ERROR",
+      Date.now() - inizio
     );
+    throw error;
   }
 };
 

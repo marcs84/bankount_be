@@ -3,6 +3,13 @@ const REQUIRED_VARS = [
   "DB_USERNAME",
   "DB_DATABASE",
   "JWT_SECRET",
+
+  // Senza questa chiave il fornitore degli scambi risponde 401 a tutto:
+  // preventivi, avvii, saldi dei token e il catalogo che la sincronizzazione
+  // notturna rifa'. Non era nell'elenco, e l'assenza non si vedeva da nessuna
+  // parte -- il catalogo restava quello del giorno prima e il comando a mano
+  // usciva senza dire niente.
+  "RANGO_API_KEY",
 ];
 
 const HTTPS_VARS = ["HTTPS_PRIVATEKEY", "HTTPS_CERTIFICATE"];

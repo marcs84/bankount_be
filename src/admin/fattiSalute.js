@@ -106,8 +106,12 @@ const segniDiVita = async () => {
     unValore(
       "SELECT MAX(created_at) AS v FROM system_logs WHERE action = 'service.syncTokenMetaDataInDB.success'"
     ),
+    // Le due partenze possibili. Guardando solo quella della cron, una
+    // sincronizzazione lanciata a mano e rimasta a meta' non accendeva il
+    // semaforo "non conclusa": l'avvio a mano si chiama `manualSync.start`.
     unValore(
-      "SELECT MAX(created_at) AS v FROM system_logs WHERE action = 'cron.syncTokenMetaDataInDB.start'"
+      `SELECT MAX(created_at) AS v FROM system_logs
+        WHERE action IN ('cron.syncTokenMetaDataInDB.start', 'manualSync.start')`
     ),
     unValore("SELECT MAX(created_at) AS v FROM system_logs"),
   ]);

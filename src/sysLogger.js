@@ -48,7 +48,12 @@ const SENZA_DURATA =
 // tornino a essere registrate.
 let colonnaDurata = true;
 
-const logToDb = (type, action, details, status = 'INFO', durationMs = null) => {
+// Il corpo vero, che dice quando ha finito.
+//
+// La promessa non viene mai rifiutata: una riga di registro che non si scrive
+// non deve poter interrompere cio' che la stava scrivendo. Si risolve `true`
+// se la riga e' nel database e `false` se e' finita nel file di scorta.
+const scriviRiga = (type, action, details, status, durationMs) => {
   const durata =
     typeof durationMs === 'number' && Number.isFinite(durationMs)
       ? Math.round(durationMs)
@@ -62,7 +67,7 @@ const logToDb = (type, action, details, status = 'INFO', durationMs = null) => {
       ...payload,
       db_error: 'NO_GLOBAL_CONNECTION',
     });
-    return;
+    return Promise.resolve(false);
   }
 
   let detailsStr = details;
@@ -74,35 +79,53 @@ const logToDb = (type, action, details, status = 'INFO', durationMs = null) => {
     detailsStr = String(details);
   }
 
-  const scrivi = (conDurata) => {
-    const query = conDurata ? CON_DURATA : SENZA_DURATA;
-    const valori = conDurata
-      ? [type, action, detailsStr, status, durata]
-      : [type, action, detailsStr, status];
+  return new Promise((finita) => {
+    const scrivi = (conDurata) => {
+      const query = conDurata ? CON_DURATA : SENZA_DURATA;
+      const valori = conDurata
+        ? [type, action, detailsStr, status, durata]
+        : [type, action, detailsStr, status];
 
-    global.connection.query(query, valori, (err) => {
-      if (!err) return;
+      global.connection.query(query, valori, (err) => {
+        if (!err) return finita(true);
 
-      if (conDurata && err.code === 'ER_BAD_FIELD_ERROR') {
-        colonnaDurata = false;
-        scrivi(false);
-        return;
-      }
+        if (conDurata && err.code === 'ER_BAD_FIELD_ERROR') {
+          colonnaDurata = false;
+          scrivi(false);
+          return;
+        }
 
-      console.error('Failed to write to system_logs', err);
-      writeFallbackLog({
-        ...payload,
-        db_error: err && err.message ? err.message : String(err),
+        console.error('Failed to write to system_logs', err);
+        writeFallbackLog({
+          ...payload,
+          db_error: err && err.message ? err.message : String(err),
+        });
+        finita(false);
       });
-    });
-  };
+    };
 
-  scrivi(colonnaDurata);
+    scrivi(colonnaDurata);
+  });
 };
+
+const logToDb = (type, action, details, status = 'INFO', durationMs = null) => {
+  scriviRiga(type, action, details, status, durationMs);
+};
+
+/// Come `logToDb`, ma si puo' aspettare.
+///
+/// Serve dove il processo finisce subito dopo: `process.exit` non svuota cio'
+/// che e' in volo verso il database, quindi l'ultima riga di una corsa --
+/// proprio quella che dice com'e' andata, e che il pannello legge per il
+/// semaforo della sincronizzazione -- si perderebbe senza che nessuno lo
+/// sappia. Nel resto del codice resta giusta `logToDb`: registrare non deve
+/// far aspettare chi sta servendo una richiesta.
+const registraEAttendi = (type, action, details, status = 'INFO', durationMs = null) =>
+  scriviRiga(type, action, details, status, durationMs);
 
 // Solo per le prove: riporta il rilevamento della colonna allo stato iniziale.
 const reimpostaColonnaDurata = () => {
   colonnaDurata = true;
 };
 
-module.exports = { logToDb, reimpostaColonnaDurata };
+module.exports = { logToDb, registraEAttendi, reimpostaColonnaDurata };

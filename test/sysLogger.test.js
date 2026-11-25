@@ -116,3 +116,51 @@ test("serialises an object detail and leaves a string alone", () => {
   assert.equal(conn.eseguite[0].valori[2], '{"a":1,"b":"due"}');
   assert.equal(conn.eseguite[1].valori[2], "testo semplice");
 });
+
+// ---------------------------------------------------------------------------
+// La forma che si puo' aspettare.
+//
+// Serve dove il processo esce subito dopo: `process.exit` non svuota cio' che
+// e' in volo verso il database, e l'ultima riga di una corsa e' proprio quella
+// che dice com'e' andata.
+// ---------------------------------------------------------------------------
+
+const { registraEAttendi } = require("../src/sysLogger");
+
+test("la forma attendibile si risolve quando la riga e' scritta", async () => {
+  const conn = fintaConnessione();
+  global.connection = conn;
+
+  const esito = await registraEAttendi("SYSTEM_EVENT", "manualSync.completed", { a: 1 }, "INFO", 1200);
+
+  assert.equal(esito, true, "true vuol dire che la riga e' nel database");
+  assert.equal(conn.eseguite.length, 1);
+  assert.equal(conn.eseguite[0].valori[1], "manualSync.completed");
+  assert.equal(conn.eseguite[0].valori[4], 1200);
+});
+
+test("la forma attendibile si risolve anche quando la riga non si scrive", async () => {
+  // Non rifiuta mai: una riga di registro che non si scrive non deve poter
+  // interrompere cio' che la stava scrivendo -- qui, l'uscita del comando.
+  const conn = fintaConnessione(new Error("ER_LOCK_WAIT_TIMEOUT"));
+  global.connection = conn;
+
+  const esito = await registraEAttendi("SYSTEM_ERROR", "manualSync.failed", { b: 2 }, "ERROR");
+
+  assert.equal(esito, false, "false vuol dire finita nel file di scorta");
+});
+
+test("senza connessione si risolve subito, senza restare appesa", async () => {
+  delete global.connection;
+
+  assert.equal(await registraEAttendi("SYSTEM_EVENT", "x", {}, "INFO"), false);
+});
+
+test("anche la forma attendibile ripiega quando la colonna della durata manca", async () => {
+  const conn = fintaConnessione(colonnaAssente());
+  global.connection = conn;
+
+  assert.equal(await registraEAttendi("API_REQUEST", "y", {}, "INFO", 10), true);
+  assert.equal(conn.eseguite.length, 2);
+  assert.doesNotMatch(conn.eseguite[1].sql, /duration_ms/);
+});
