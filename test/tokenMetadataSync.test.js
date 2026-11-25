@@ -12,28 +12,48 @@ const dao = require("../src/dao");
 // `inServizio` e' la risposta al conteggio del catalogo in servizio, cioe'
 // cio' su cui la guardia del dimagrimento si pronuncia. `null` significa che
 // il conteggio non risponde: la tabella non c'e' ancora.
-function fakeConnection(script, { inServizio = null } = {}) {
+function fakeConnection(script, { inServizio = null, lucchettoOccupato = false } = {}) {
   const executed = [];
+
+  const query = (sql, params, cb) => {
+    if (typeof params === "function") {
+      cb = params;
+      params = undefined;
+    }
+    executed.push({ sql: sql.replace(/\s+/g, " ").trim(), rows: params && params[0] ? params[0].length : 0 });
+
+    const failure = script.find(
+      (s) => sql.includes(s.match) && (typeof s.quando !== "function" || s.quando(sql, params))
+    );
+    if (failure) return cb(new Error(failure.error));
+
+    // Il lucchetto vive sulla connessione tenuta ferma, non sulla riserva.
+    if (/GET_LOCK/.test(sql)) return cb(null, [{ preso: lucchettoOccupato ? 0 : 1 }]);
+    if (/RELEASE_LOCK/.test(sql)) return cb(null, [{ liberato: 1 }]);
+
+    if (/SELECT COUNT\(\*\) AS n FROM token_metadata\b/.test(sql)) {
+      if (inServizio === null) return cb(new Error("Table 'token_metadata' doesn't exist"));
+      return cb(null, [{ n: inServizio }]);
+    }
+
+    cb(null, {});
+  };
+
+  let rilasci = 0;
+
   return {
     executed,
-    query(sql, params, cb) {
-      if (typeof params === "function") {
-        cb = params;
-        params = undefined;
-      }
-      executed.push({ sql: sql.replace(/\s+/g, " ").trim(), rows: params && params[0] ? params[0].length : 0 });
-
-      const failure = script.find(
-        (s) => sql.includes(s.match) && (typeof s.quando !== "function" || s.quando(sql, params))
-      );
-      if (failure) return cb(new Error(failure.error));
-
-      if (/SELECT COUNT\(\*\) AS n FROM token_metadata\b/.test(sql)) {
-        if (inServizio === null) return cb(new Error("Table 'token_metadata' doesn't exist"));
-        return cb(null, [{ n: inServizio }]);
-      }
-
-      cb(null, {});
+    query,
+    get rilasci() {
+      return rilasci;
+    },
+    getConnection(cb) {
+      cb(null, {
+        query,
+        release() {
+          rilasci++;
+        },
+      });
     },
   };
 }
@@ -222,4 +242,56 @@ test("se cade tutto il lotto si ferma invece di scambiare un catalogo mutilato",
 
   await assert.rejects(() => dao.syncTokenMetaDataInDB(tokens(600)), /batch rifiutato in blocco/);
   assert.ok(!conn.executed.some((e) => /RENAME TABLE/i.test(e.sql)));
+});
+
+// ---------------------------------------------------------------------------
+// Il lucchetto.
+//
+// La tabella di scorta ha un nome fisso e la prima cosa che ogni corsa fa e'
+// buttarla giu': due corse insieme -- la cron di mezzanotte e un lancio a
+// mano -- si guastano a vicenda.
+// ---------------------------------------------------------------------------
+
+test("prende il lucchetto prima di toccare le tabelle e lo rilascia dopo", async () => {
+  const conn = fakeConnection([], { inServizio: 3 });
+  global.connection = conn;
+
+  await dao.syncTokenMetaDataInDB(tokens(3));
+
+  const sqls = conn.executed.map((e) => e.sql);
+  const iLucchetto = sqls.findIndex((s) => /GET_LOCK/.test(s));
+  const iCreazione = sqls.findIndex((s) => /CREATE TABLE token_metadata_staging/i.test(s));
+
+  assert.ok(iLucchetto >= 0, "deve chiedere il lucchetto");
+  assert.ok(iCreazione > iLucchetto, "prima il lucchetto, poi le tabelle");
+  assert.ok(sqls.some((s) => /RELEASE_LOCK/.test(s)), "deve rilasciarlo");
+  assert.equal(conn.rilasci, 1, "deve restituire la connessione alla riserva");
+});
+
+test("col lucchetto occupato non fa niente e non pulisce niente", async () => {
+  // La tabella di scorta che si vede e' quella che l'altra corsa sta
+  // riempiendo: buttarla giu' sarebbe il guasto che il lucchetto evita.
+  const conn = fakeConnection([], { inServizio: 3, lucchettoOccupato: true });
+  global.connection = conn;
+
+  const esito = await dao.syncTokenMetaDataInDB(tokens(3));
+
+  assert.equal(esito.saltata, true);
+  const sqls = conn.executed.map((e) => e.sql);
+  assert.ok(!sqls.some((s) => /DROP TABLE/i.test(s)), "non deve buttare giu' nessuna tabella");
+  assert.ok(!sqls.some((s) => /RENAME TABLE/i.test(s)));
+  assert.ok(!sqls.some((s) => /RELEASE_LOCK/.test(s)), "non si rilascia un lucchetto che non si ha");
+  assert.equal(conn.rilasci, 1, "la connessione torna alla riserva comunque");
+});
+
+test("il lucchetto si rilascia anche se il lavoro cade", async () => {
+  const conn = fakeConnection([{ match: "CREATE TABLE token_metadata_staging", error: "ER_TABLEACCESS_DENIED" }], {
+    inServizio: 3,
+  });
+  global.connection = conn;
+
+  await assert.rejects(() => dao.syncTokenMetaDataInDB(tokens(3)), /Error inserting token metadata/);
+
+  assert.ok(conn.executed.some((e) => /RELEASE_LOCK/.test(e.sql)), "mai lasciarlo chiuso");
+  assert.equal(conn.rilasci, 1);
 });

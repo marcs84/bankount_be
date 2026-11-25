@@ -3,9 +3,15 @@ const path = require("path");
 const crypto = require("crypto");
 const fetch = require("node-fetch");
 const sysLogger = require("./sysLogger");
+const { conLucchetto, LucchettoOccupato } = require("./lucchetto");
 
 const TOKEN_METADATA_BATCH_SIZE = 500;
 const TOKEN_IMAGE_TIMEOUT_MS = 5000;
+
+// Il nome del lucchetto che impedisce due sincronizzazioni insieme. Lo
+// conosce solo questo file: chi altro lo prendesse si bloccherebbe a vicenda
+// senza che si capisca perche'.
+const LUCCHETTO_CATALOGO = "bankount:sync_token_metadata";
 
 const SQL_INSERIMENTO_STAGING = `INSERT INTO token_metadata_staging
   (blockchain, symbol, name, isPopular, chainId, address, decimals, image, blockchainImage, usdPrice, supportedSwappers)
@@ -1651,68 +1657,92 @@ const syncTokenMetaDataInDB = async (tokens, opzioni = {}) => {
   // -----------------------------------
   // 2️⃣ SECOND — Fill a staging table in batches
   // -----------------------------------
-  try {
-    // La guardia sul dimagrimento, prima di toccare qualunque cosa.
-    //
-    // Fino a ieri l'unico controllo era "almeno un token". Una risposta
-    // degradata del fornitore -- una catena che non risponde, un guasto a
-    // monte -- sostituiva trentamila righe con poche centinaia, e la ricerca
-    // dei token restava mezza vuota fino alla notte dopo. Non e' un caso di
-    // scuola: BTC in quel catalogo ha esattamente un token, quindi una
-    // risposta con la sola BTC passava il controllo di prima.
-    const inServizio = await quantiAdesso();
-    const soglia = inServizio === null ? 0 : Math.floor(inServizio * rapportoMinimoCatalogo());
+  //
+  // Da qui in fondo si lavora con il lucchetto in mano: la tabella di scorta
+  // ha un nome fisso, e due corse insieme -- la cron di mezzanotte e un
+  // lancio a mano -- si butterebbero giu' la tabella a vicenda.
+  const lavoro = async () => {
+    try {
+      // La guardia sul dimagrimento, prima di toccare qualunque cosa.
+      //
+      // Fino a ieri l'unico controllo era "almeno un token". Una risposta
+      // degradata del fornitore -- una catena che non risponde, un guasto a
+      // monte -- sostituiva trentamila righe con poche centinaia, e la ricerca
+      // dei token restava mezza vuota fino alla notte dopo. Non e' un caso di
+      // scuola: BTC in quel catalogo ha esattamente un token, quindi una
+      // risposta con la sola BTC passava il controllo di prima.
+      const inServizio = await quantiAdesso();
+      const soglia = inServizio === null ? 0 : Math.floor(inServizio * rapportoMinimoCatalogo());
 
-    if (inServizio !== null && rows.length < soglia) {
-      if (opzioni.forza !== true) {
-        throw new Error(
-          `catalogo troppo piccolo: ${rows.length} token contro i ${inServizio} in servizio ` +
-            `(minimo ${soglia}). Se il calo e' vero, rilancia con --force.`
+      if (inServizio !== null && rows.length < soglia) {
+        if (opzioni.forza !== true) {
+          throw new Error(
+            `catalogo troppo piccolo: ${rows.length} token contro i ${inServizio} in servizio ` +
+              `(minimo ${soglia}). Se il calo e' vero, rilancia con --force.`
+          );
+        }
+        sysLogger.logToDb(
+          "SYSTEM_EVENT",
+          "dao.syncTokenMetaDataInDB.forced",
+          { nuovi: rows.length, inServizio, soglia },
+          "WARN"
         );
       }
+
+      await run(`DROP TABLE IF EXISTS token_metadata_staging`);
+      await run(`CREATE TABLE token_metadata_staging LIKE token_metadata`);
+
+      let scartate = 0;
+      for (let i = 0; i < rows.length; i += TOKEN_METADATA_BATCH_SIZE) {
+        scartate += await inserisciLotto(rows.slice(i, i + TOKEN_METADATA_BATCH_SIZE));
+      }
+
+      // -----------------------------------
+      // 3️⃣ THIRD — Swap it in atomically
+      // -----------------------------------
+      await run(`DROP TABLE IF EXISTS token_metadata_previous`);
+      await run(
+        `RENAME TABLE token_metadata TO token_metadata_previous, token_metadata_staging TO token_metadata`
+      );
+      await run(`DROP TABLE token_metadata_previous`);
+
+      // -----------------------------------
+      // 4️⃣ FOURTH — Cache the token images, best effort
+      // -----------------------------------
+      await cacheTokenImages(tokens);
+
+      return { affectedRows: rows.length - scartate, scartate, inServizioPrima: inServizio };
+    } catch (err) {
+      try {
+        await run(`DROP TABLE IF EXISTS token_metadata_staging`);
+      } catch (cleanupErr) {
+        sysLogger.logToDb(
+          "SYSTEM_ERROR",
+          "dao.syncTokenMetaDataInDB.stagingCleanupFailed",
+          { error: cleanupErr && cleanupErr.message ? cleanupErr.message : String(cleanupErr) },
+          "ERROR"
+        );
+      }
+      throw new Error("Error inserting token metadata: " + err.message);
+    }
+  };
+
+  try {
+    return await conLucchetto(LUCCHETTO_CATALOGO, lavoro);
+  } catch (errore) {
+    // Lucchetto in mano a un'altra corsa: non e' un guasto, e soprattutto non
+    // si pulisce niente -- la tabella di scorta che si vede e' quella che
+    // l'altra corsa sta riempiendo.
+    if (errore instanceof LucchettoOccupato) {
       sysLogger.logToDb(
         "SYSTEM_EVENT",
-        "dao.syncTokenMetaDataInDB.forced",
-        { nuovi: rows.length, inServizio, soglia },
+        "dao.syncTokenMetaDataInDB.skipped",
+        { reason: errore.message },
         "WARN"
       );
+      return { saltata: true, motivo: errore.message };
     }
-
-    await run(`DROP TABLE IF EXISTS token_metadata_staging`);
-    await run(`CREATE TABLE token_metadata_staging LIKE token_metadata`);
-
-    let scartate = 0;
-    for (let i = 0; i < rows.length; i += TOKEN_METADATA_BATCH_SIZE) {
-      scartate += await inserisciLotto(rows.slice(i, i + TOKEN_METADATA_BATCH_SIZE));
-    }
-
-    // -----------------------------------
-    // 3️⃣ THIRD — Swap it in atomically
-    // -----------------------------------
-    await run(`DROP TABLE IF EXISTS token_metadata_previous`);
-    await run(
-      `RENAME TABLE token_metadata TO token_metadata_previous, token_metadata_staging TO token_metadata`
-    );
-    await run(`DROP TABLE token_metadata_previous`);
-
-    // -----------------------------------
-    // 4️⃣ FOURTH — Cache the token images, best effort
-    // -----------------------------------
-    await cacheTokenImages(tokens);
-
-    return { affectedRows: rows.length - scartate, scartate, inServizioPrima: inServizio };
-  } catch (err) {
-    try {
-      await run(`DROP TABLE IF EXISTS token_metadata_staging`);
-    } catch (cleanupErr) {
-      sysLogger.logToDb(
-        "SYSTEM_ERROR",
-        "dao.syncTokenMetaDataInDB.stagingCleanupFailed",
-        { error: cleanupErr && cleanupErr.message ? cleanupErr.message : String(cleanupErr) },
-        "ERROR"
-      );
-    }
-    throw new Error("Error inserting token metadata: " + err.message);
+    throw errore;
   }
 };
 

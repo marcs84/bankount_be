@@ -424,6 +424,22 @@ const syncTokenMetaDataInDB = async (opzioni = {}) => {
       throw new Error("No tokens found in Rango response");
     }
     const esito = await dao.syncTokenMetaDataInDB(response.tokens, opzioni);
+
+    // Una corsa saltata perche' un'altra era in corso non e' una corsa
+    // riuscita: scrivendo qui la riga di successo, il semaforo del pannello
+    // direbbe "sincronizzato adesso" per una sincronizzazione che non e'
+    // avvenuta.
+    if (esito && esito.saltata === true) {
+      await sysLogger.registraEAttendi(
+        "SYSTEM_EVENT",
+        "service.syncTokenMetaDataInDB.skipped",
+        { reason: esito.motivo },
+        "WARN",
+        Date.now() - inizio
+      );
+      return esito;
+    }
+
     await sysLogger.registraEAttendi(
       "SYSTEM_EVENT",
       "service.syncTokenMetaDataInDB.success",

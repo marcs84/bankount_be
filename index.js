@@ -352,9 +352,25 @@ if (RUN_SYNC) {
     try {
       const esito = await syncTokenMetaDataInDB();
 
+      // Saltata vuol dire che un'altra corsa era gia' dentro: non e' un
+      // guasto, ma chi ha lanciato il comando deve sapere che non ha fatto
+      // niente, altrimenti crede di avere un catalogo nuovo.
+      if (esito && esito.saltata === true) {
+        console.log(`Sincronizzazione saltata: ${esito.motivo}`);
+        await sysLogger.registraEAttendi(
+          "SYSTEM_EVENT",
+          "manualSync.skipped",
+          { reason: esito.motivo },
+          "WARN",
+          Date.now() - inizio
+        );
+        process.exit(0);
+      }
+
       console.log(
         `Sincronizzazione riuscita in ${durata()}s: ` +
-          `${esito && esito.tokenCount ? esito.tokenCount : "?"} token nel catalogo.`
+          `${esito && esito.tokenCount ? esito.tokenCount : "?"} token nel catalogo` +
+          `${esito && esito.scartate ? `, ${esito.scartate} righe scartate` : ""}.`
       );
       await sysLogger.registraEAttendi(
         "SYSTEM_EVENT",
