@@ -1518,6 +1518,13 @@ const DISCO = {
   scrivi: (percorso, dati) => fs.writeFileSync(percorso, dati),
   elimina: (percorso) => fs.unlinkSync(percorso),
   elenca: (percorso) => (fs.existsSync(percorso) ? fs.readdirSync(percorso) : []),
+  dimensione: (percorso) => {
+    try {
+      return fs.statSync(percorso).size;
+    } catch (errore) {
+      return 0;
+    }
+  },
 };
 
 /// Un guasto della rete, distinto da una risposta che dice no.
@@ -1641,6 +1648,8 @@ const cacheTokenImages = async (tokens, opzioni = {}) => {
     senzaUrl: 0,
     nonArchiviabili: 0,
     tipoIgnoto: 0,
+    vuote: 0,
+    vuoteRiprese: 0,
     fallite: 0,
     rallentate: 0,
     saltatePerHostSpento: 0,
@@ -1756,10 +1765,21 @@ const cacheTokenImages = async (tokens, opzioni = {}) => {
     // quell'host -- due cose che si somigliano e portano a conclusioni
     // diverse. Cosi' invece quel campo dice una cosa sola: le immagini che
     // avremmo scaricato e non abbiamo scaricato.
-    if (presente && (estensioneAttesa === null || presente.percorso.endsWith(estensioneAttesa))) {
+    // Un file vuoto non vale come icona. Se ne e' trovato uno in archivio:
+    // la sorgente aveva risposto 200 con un corpo di zero byte, e quei zero
+    // byte erano stati scritti come se fossero un'immagine. Da li' in poi il
+    // file esiste, quindi vale come "ce l'abbiamo gia'" e non si riscarica
+    // mai piu': un'icona bianca per sempre, che non si ripara da sola.
+    const vuoto =
+      presente &&
+      typeof disco.dimensione === "function" &&
+      disco.dimensione(presente.percorso) === 0;
+
+    if (presente && !vuoto && (estensioneAttesa === null || presente.percorso.endsWith(estensioneAttesa))) {
       conto.presenti++;
       return;
     }
+    if (vuoto) conto.vuoteRiprese++;
 
     if (hostSpenti.has(host)) {
       conto.saltatePerHostSpento++;
@@ -1785,9 +1805,18 @@ const cacheTokenImages = async (tokens, opzioni = {}) => {
         return;
       }
 
+      const corpo = Buffer.from(await risposta.arrayBuffer());
+
+      // Zero byte non sono un'immagine. Scriverli vorrebbe dire creare il
+      // file bianco che non si ripara da solo.
+      if (corpo.length === 0) {
+        conto.vuote++;
+        return;
+      }
+
       const cartellaCatena = path.join(cartella, catena);
       disco.creaCartella(cartellaCatena);
-      disco.scrivi(path.join(cartellaCatena, `${identificatore}${estensione}`), Buffer.from(await risposta.arrayBuffer()));
+      disco.scrivi(path.join(cartellaCatena, `${identificatore}${estensione}`), corpo);
       conto.scaricate++;
 
       // Il doppione con l'altra estensione. La sorgente cambia formato -- lo

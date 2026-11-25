@@ -20,6 +20,10 @@ const discoFinto = (...presenti) => {
     elimina: (p) => {
       if (!file.delete(path.normalize(p))) throw new Error("ENOENT");
     },
+    dimensione: (p) => {
+      const dati = file.get(path.normalize(p));
+      return dati ? dati.length : 0;
+    },
     elenca: (p) => {
       const prefisso = path.normalize(p) + path.sep;
       const dentro = new Set();
@@ -74,7 +78,9 @@ const reteAScatti = (esiti) => {
             return null;
           },
         },
-        arrayBuffer: async () => Buffer.from(esito.corpo || "immagine"),
+        // `corpo: ""` vuol dire un corpo vuoto, non "non l'ho detto": e'
+        // proprio il caso che serve provare.
+        arrayBuffer: async () => Buffer.from(esito.corpo === undefined ? "immagine" : esito.corpo),
       };
     },
   };
@@ -344,6 +350,40 @@ test("la seconda passata ripesca cio' che l'host aveva fatto saltare", async () 
   assert.equal(conto.ripesca.scaricate, 5, "le cinque rimaste fuori rientrano tutte");
   assert.deepEqual(conto.ripesca.hostSpentiPrima, ["cdn.example"]);
   assert.ok(disco.esiste(dentro("eth", "0x9.png")));
+});
+
+test("zero byte non sono un'icona e non si scrivono", async () => {
+  const rete = reteAScatti(() => ({ corpo: "" }));
+  const disco = discoFinto();
+
+  const conto = await dao.cacheTokenImages([token("ETH", "0xa", "https://cdn.example/a.png")], {
+    cartella: CARTELLA,
+    scarica: rete.scarica,
+    disco,
+  });
+
+  assert.equal(conto.vuote, 1);
+  assert.equal(conto.scaricate, 0);
+  assert.ok(!disco.esiste(dentro("eth", "0xa.png")), "niente file bianco");
+});
+
+test("un'icona vuota gia' in archivio si riscarica", async () => {
+  // Ne e' stata trovata una vera: il file c'e', quindi valeva come "ce
+  // l'abbiamo gia'" e non si sarebbe riscaricata mai piu'.
+  const disco = discoFinto();
+  disco.file.set(path.normalize(dentro("eth", "0xa.png")), Buffer.alloc(0));
+  const rete = reteAScatti(() => ({ corpo: "immagine vera" }));
+
+  const conto = await dao.cacheTokenImages([token("ETH", "0xa", "https://cdn.example/a.png")], {
+    cartella: CARTELLA,
+    scarica: rete.scarica,
+    disco,
+  });
+
+  assert.equal(conto.presenti, 0, "vuota non vuol dire presente");
+  assert.equal(conto.vuoteRiprese, 1);
+  assert.equal(conto.scaricate, 1);
+  assert.equal(disco.file.get(path.normalize(dentro("eth", "0xa.png"))).toString(), "immagine vera");
 });
 
 test("un host spento non fa saltare cio' che e' gia' sul disco", async () => {
