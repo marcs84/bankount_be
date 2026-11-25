@@ -26,6 +26,24 @@ const pool = mysql.createPool({
   user: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
+
+  // La connessione parla la stessa lingua delle tabelle.
+  //
+  // Il driver, se non gli si dice niente, apre la connessione in `utf8`, che
+  // in MySQL vuol dire tre byte per carattere. Le tabelle sono tutte
+  // `utf8mb4_general_ci`, cioe' quattro: emoji, ideogrammi oltre il piano
+  // base, e in generale tutto cio' che sta sopra U+FFFF.
+  //
+  // La differenza non si vede come un errore. Misurato su questo server: una
+  // stringa con un'emoji passa, il server alza l'avviso 1300 "Invalid utf8
+  // character string" e scrive **quattro punti di domanda** al posto del
+  // carattere. Un dato perduto senza che niente si fermi, che e' il modo
+  // peggiore di perderlo.
+  //
+  // `utf8mb4` qui vale 45, lo stesso numero della collazione con cui le
+  // tabelle sono dichiarate: la conversione in mezzo smette di esistere.
+  charset: "utf8mb4",
+
   connectTimeout: 60000,
   connectionLimit: 10,
   waitForConnections: true,

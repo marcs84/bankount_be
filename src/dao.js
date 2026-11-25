@@ -1736,14 +1736,6 @@ const potaIconeOrfane = (tokens, { cartella, disco }) => {
 };
 
 const syncTokenMetaDataInDB = async (tokens, opzioni = {}) => {
-  function has4ByteUnicode(str) {
-    return /[\u{10000}-\u{10FFFF}]/u.test(str || "");
-  }
-  function strip4ByteChars(str) {
-    if (!str) return str;
-    return str.replace(/[\u{10000}-\u{10FFFF}]/gu, "");
-  }
-
   if (!tokens || tokens.length === 0) {
     return "No tokens to sync";
   }
@@ -1755,11 +1747,13 @@ const syncTokenMetaDataInDB = async (tokens, opzioni = {}) => {
   // -----------------------------------
   for (const t of tokens) {
     try {
-      if (has4ByteUnicode(t.name) || has4ByteUnicode(t.symbol)) {
-        t.symbol = strip4ByteChars(t.symbol);
-        t.name = strip4ByteChars(t.name);
-      }
-
+      // Qui i caratteri oltre il piano base -- le emoji nei simboli e nei
+      // nomi, 32 token del catalogo -- venivano tolti prima di scrivere. Era
+      // il meno peggio finche' la connessione parlava `utf8` a tre byte: il
+      // server avrebbe scritto quattro punti di domanda al posto di ciascuno.
+      // Ora la connessione e' `utf8mb4`, come le colonne, e il simbolo arriva
+      // come il fornitore l'ha dato. Se qualche colonna restasse indietro, la
+      // riga verrebbe rifiutata, saltata e contata, non mescolata in silenzio.
       rows.push([
         t.blockchain || null,
         t.symbol || null,

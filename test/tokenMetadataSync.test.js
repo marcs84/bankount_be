@@ -20,7 +20,11 @@ function fakeConnection(script, { inServizio = null, lucchettoOccupato = false }
       cb = params;
       params = undefined;
     }
-    executed.push({ sql: sql.replace(/\s+/g, " ").trim(), rows: params && params[0] ? params[0].length : 0 });
+    executed.push({
+      sql: sql.replace(/\s+/g, " ").trim(),
+      rows: params && params[0] ? params[0].length : 0,
+      valori: params,
+    });
 
     const failure = script.find(
       (s) => sql.includes(s.match) && (typeof s.quando !== "function" || s.quando(sql, params))
@@ -294,4 +298,25 @@ test("il lucchetto si rilascia anche se il lavoro cade", async () => {
 
   assert.ok(conn.executed.some((e) => /RELEASE_LOCK/.test(e.sql)), "mai lasciarlo chiuso");
   assert.equal(conn.rilasci, 1);
+});
+
+test("il simbolo con l'emoji arriva intero", async () => {
+  // Prima le emoji venivano tolte dal simbolo e dal nome, perche' la
+  // connessione parlava utf8 a tre byte e il server avrebbe scritto quattro
+  // punti di domanda al posto di ciascuna. Ora la connessione e' utf8mb4,
+  // come le colonne.
+  const conn = fakeConnection([], { inServizio: 1 });
+  global.connection = conn;
+
+  const rana = "PEPE \u{1F438}";
+  await dao.syncTokenMetaDataInDB([
+    { blockchain: "ETH", symbol: rana, name: "Pepe \u{1F438} Token", address: "0xaaa", decimals: 18 },
+  ]);
+
+  const inserimento = conn.executed.find(
+    (e) => /INSERT INTO token_metadata_staging/i.test(e.sql) && e.rows === 1
+  );
+  assert.ok(inserimento, "l'inserimento c'e'");
+  assert.equal(inserimento.valori[0][0][1], rana, "il simbolo non si tocca");
+  assert.equal(inserimento.valori[0][0][2], "Pepe \u{1F438} Token");
 });
