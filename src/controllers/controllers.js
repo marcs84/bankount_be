@@ -1191,8 +1191,14 @@ const fetchAssets = async (req, res) => {
         if (token.balance && token.balance.balance) {
           const tokenDetails = await rango.token({ blockchain, address: token.address });
           if (tokenDetails) {
+            // Le unita' base, intere, come Rango le ha risposte. La divisione
+            // qui sotto le porta in virgola mobile, e con i diciotto decimali
+            // di molti token le ultime cifre non ci stanno: si conservano
+            // prima di dividere, non dopo, perche' dopo non esistono piu'.
+            token.balance.balance_units = String(token.balance.balance);
+            token.balance.balance_decimals = tokenDetails.token.decimals;
+
             token.balance.balance = token.balance.balance / Math.pow(10, tokenDetails.token.decimals);
-            console.log("token.balance", token.balance);
           }
           if (selected_currency === "USD" || selected_currency === "usd") {
             token.balance.converted_balance = tokenDetails.token.usdPrice ? tokenDetails.token.usdPrice * token.balance.balance : null;
