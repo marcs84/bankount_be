@@ -40,6 +40,29 @@ Come lavora, perche' quello che stampa si possa leggere:
    otto per volta. Non e' un passaggio critico: un'icona che manca si riprende
    la notte dopo.
 
+Sulle icone c'e' una cosa da sapere, perche' e' costata cinquemila immagini.
+Sono concentrate su pochi host -- tre ne servono il novanta per cento, il piu'
+grande dodicimila -- quindi smettere con un host e' una decisione pesante, e
+si prende cosi':
+
+ - un 404, un 403 o un 410 riguardano quell'indirizzo e non l'host: non
+   contano, e azzerano i fallimenti accumulati prima. Il tredici per cento
+   degli indirizzi di `raw.githubusercontent.com` risponde 404, misurato: sono
+   loghi di token che non esistono piu';
+ - un 429 o un 503 vogliono dire "non adesso": si aspetta quanto chiede
+   `Retry-After` (al massimo quindici secondi) e si riprova, fino a tre volte;
+ - si smette solo per un guasto di rete, o per uno di quegli stati che dopo
+   tre tentativi dice ancora no, e dopo un numero di volte che pesa quanto
+   l'host: l'uno per cento delle sue immagini, fra cinque e sessanta. Un nome
+   che non si risolve basta da solo;
+ - in coda alla corsa, cio' che era rimasto fuori per un host spento si
+   riprova una seconda volta, piu' piano. Se l'host aveva solo fretta rientra
+   tutto; se e' morto muore di nuovo in pochi secondi.
+
+La riga `dao.cacheTokenImages.completed` nel registro porta il campo `motivi`:
+per ciascun host, quali stati HTTP e quali codici di errore ha risposto. Serve
+per non dover sondare la produzione a mano quando mancano delle immagini.
+
 Esce 0 se ha sincronizzato o se ha trovato il lucchetto occupato, 1 se e'
 fallito, e in entrambi i casi stampa il motivo. Nel pannello: il semaforo
 *Sincronizzazione metadati* nella pagina Salute, e nel visore del registro

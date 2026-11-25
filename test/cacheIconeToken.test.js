@@ -53,7 +53,59 @@ const reteFinta = (risposte) => {
   };
 };
 
+// Una rete finta che risponde in modo diverso alla prima e alla seconda
+// occasione: serve per le prove sulla pazienza, dove cio' che conta e' il
+// numero del tentativo e non l'indirizzo.
+const reteAScatti = (esiti) => {
+  const chieste = [];
+  return {
+    chieste,
+    scarica: async (url) => {
+      chieste.push(url);
+      const esito = esiti(chieste.length);
+      if (esito.errore) throw esito.errore;
+      return {
+        ok: esito.stato === undefined || (esito.stato >= 200 && esito.stato < 300),
+        status: esito.stato || 200,
+        headers: {
+          get: (nome) => {
+            if (nome === "content-type") return esito.tipo || "image/png";
+            if (nome === "retry-after") return esito.riprovaFra === undefined ? null : String(esito.riprovaFra);
+            return null;
+          },
+        },
+        arrayBuffer: async () => Buffer.from(esito.corpo || "immagine"),
+      };
+    },
+  };
+};
+
+// Un orologio finto: le prove sulla pazienza non devono aspettare davvero.
+const orologioFinto = () => {
+  const attese = [];
+  return { attese, attendi: async (ms) => void attese.push(ms) };
+};
+
+// Il registro, raccolto. `sysLogger` scrive attraverso `global.connection`.
+const registroFinto = () => {
+  const righe = [];
+  global.connection = {
+    query: (sql, valori, fine) => {
+      if (Array.isArray(valori) && valori.length >= 3) {
+        righe.push({ azione: valori[1], dettagli: JSON.parse(valori[2]) });
+      }
+      if (fine) fine(null, {});
+    },
+  };
+  return righe;
+};
+
 const token = (blockchain, address, image) => ({ blockchain, address, image });
+
+const quantiToken = (quanti, host) =>
+  Array.from({ length: quanti }, (_, i) => token("ETH", `0x${i}`, `https://${host}/x${i}.png`));
+
+const errore = (code) => Object.assign(new Error(code), { code });
 
 const CARTELLA = path.join("/cache", "token");
 const dentro = (...pezzi) => path.join(CARTELLA, ...pezzi);
@@ -87,18 +139,20 @@ test("ogni catena ha la sua cartella", async () => {
   assert.equal(disco.file.get(dentro("bsc", `${indirizzo.toLowerCase()}.png`)).toString(), "mynth");
 });
 
-test("un 404 non spegne l'host, cinque di fila si'", async () => {
-  // Le immagini sono concentrate su pochi host: il piu' grande ne serve
-  // dodicimila. Spegnere al primo fallimento voleva dire perderle tutte per
-  // un'immagine mancante -- ed e' quello che accadeva.
+test("nessuna quantita' di 404 spegne l'host", async () => {
+  // Il difetto, e il suo costo misurato: le immagini sono concentrate su
+  // pochi host -- il piu' grande ne serve dodicimila -- e un 404 arrivava al
+  // contatore dei guasti come se fosse stata la rete. Cinque indirizzi morti
+  // di fila, che su GitHub stanno a grappoli perche' il catalogo e' ordinato
+  // per repository, e l'host spariva: una corsa in produzione ne ha saltate
+  // 4992 dopo 58 tentativi.
   const risposte = { "https://cdn.example/buona.png": { corpo: "ok" } };
-  for (let i = 0; i < 8; i++) risposte[`https://cdn.example/x${i}.png`] = { stato: 404 };
+  for (let i = 0; i < 10; i++) risposte[`https://cdn.example/x${i}.png`] = { stato: 404 };
 
   const rete = reteFinta(risposte);
   const disco = discoFinto();
 
-  const elenco = [];
-  for (let i = 0; i < 4; i++) elenco.push(token("ETH", `0x${i}`, `https://cdn.example/x${i}.png`));
+  const elenco = quantiToken(10, "cdn.example");
   elenco.push(token("ETH", "0xbuona", "https://cdn.example/buona.png"));
 
   const conto = await dao.cacheTokenImages(elenco, {
@@ -108,30 +162,34 @@ test("un 404 non spegne l'host, cinque di fila si'", async () => {
     parallele: 1,
   });
 
-  assert.equal(conto.fallite, 4);
-  assert.equal(conto.scaricate, 1, "la quinta immagine si scarica ancora");
-  assert.equal(conto.saltatePerHostSpento, 0);
+  assert.equal(conto.fallite, 10);
+  assert.equal(conto.scaricate, 1, "l'undicesima immagine si scarica ancora");
+  assert.equal(conto.saltatePerHostSpento, 0, "nessun 404 ha spento l'host");
 });
 
-test("dopo cinque fallimenti di fila l'host si spegne", async () => {
+test("un host che insiste a dire no dopo i tentativi si spegne", async () => {
+  // Il verso opposto: 500 e 429 si riprovano, ma se resistono ai tentativi
+  // non e' quell'immagine che non c'e', e' l'host. Senza questo, un host
+  // rotto si riprova tre volte per ciascuna delle sue dodicimila immagini.
   const risposte = {};
   for (let i = 0; i < 8; i++) risposte[`https://cdn.example/x${i}.png`] = { stato: 500 };
   const rete = reteFinta(risposte);
   const disco = discoFinto();
+  const orologio = orologioFinto();
 
-  const elenco = [];
-  for (let i = 0; i < 8; i++) elenco.push(token("ETH", `0x${i}`, `https://cdn.example/x${i}.png`));
-
-  const conto = await dao.cacheTokenImages(elenco, {
+  const conto = await dao.cacheTokenImages(quantiToken(8, "cdn.example"), {
     cartella: CARTELLA,
     scarica: rete.scarica,
     disco,
     parallele: 1,
+    attendi: orologio.attendi,
+    ripesca: false,
   });
 
   assert.equal(conto.fallite, 5);
   assert.equal(conto.saltatePerHostSpento, 3, "le ultime tre non si provano nemmeno");
-  assert.equal(rete.chieste.length, 5);
+  assert.equal(rete.chieste.length, 15, "tre tentativi per ciascuna delle cinque");
+  assert.equal(conto.rallentate, 10, "due pause per ciascuna");
 });
 
 test("un nome che non si risolve spegne l'host al primo colpo", async () => {
@@ -139,18 +197,193 @@ test("un nome che non si risolve spegne l'host al primo colpo", async () => {
   const rete = reteFinta({});
   const disco = discoFinto();
 
-  const elenco = [];
-  for (let i = 0; i < 5; i++) elenco.push(token("ETH", `0x${i}`, `https://morto.example/x${i}.png`));
-
-  const conto = await dao.cacheTokenImages(elenco, {
+  const conto = await dao.cacheTokenImages(quantiToken(5, "morto.example"), {
     cartella: CARTELLA,
     scarica: rete.scarica,
     disco,
     parallele: 1,
   });
 
-  assert.equal(rete.chieste.length, 1, "un solo tentativo");
   assert.equal(conto.saltatePerHostSpento, 4);
+  // Uno nella prima passata, due nella seconda: la ripescata ha due operai e
+  // il secondo e' gia' partito quando il primo scopre che l'host e' morto.
+  // Tre richieste per un host che non esiste e' il prezzo della seconda
+  // occasione, ed e' quello che si paga -- non cresce coi token.
+  assert.equal(rete.chieste.length, 3);
+  assert.equal(conto.ripesca.saltatePerHostSpento, 2);
+});
+
+test("un 429 si aspetta e si riprova", async () => {
+  // 429 non e' un no: e' un no *adesso*. Contarlo come fallimento vuol dire
+  // spegnere l'host proprio quando dice che basta andare piu' piano.
+  const rete = reteAScatti((n) => (n === 1 ? { stato: 429, riprovaFra: 2 } : { corpo: "ok" }));
+  const disco = discoFinto();
+  const orologio = orologioFinto();
+
+  const conto = await dao.cacheTokenImages([token("ETH", "0xa", "https://cdn.example/a.png")], {
+    cartella: CARTELLA,
+    scarica: rete.scarica,
+    disco,
+    attendi: orologio.attendi,
+  });
+
+  assert.equal(conto.scaricate, 1);
+  assert.equal(conto.fallite, 0);
+  assert.equal(conto.rallentate, 1);
+  assert.deepEqual(orologio.attese, [2000], "i due secondi che ha chiesto");
+});
+
+test("senza Retry-After l'attesa raddoppia, e con un tetto", async () => {
+  const rete = reteAScatti(() => ({ stato: 429 }));
+  const disco = discoFinto();
+  const orologio = orologioFinto();
+
+  const conto = await dao.cacheTokenImages([token("ETH", "0xa", "https://cdn.example/a.png")], {
+    cartella: CARTELLA,
+    scarica: rete.scarica,
+    disco,
+    attendi: orologio.attendi,
+    ripesca: false,
+  });
+
+  assert.deepEqual(orologio.attese, [1000, 2000]);
+  assert.equal(rete.chieste.length, 3, "tre tentativi, poi basta");
+  assert.equal(conto.fallite, 1);
+});
+
+test("un Retry-After esagerato si tronca", async () => {
+  // Dieci minuti, per un'icona, con trentamila token in fila dietro: no.
+  const rete = reteAScatti((n) => (n === 1 ? { stato: 503, riprovaFra: 600 } : { corpo: "ok" }));
+  const disco = discoFinto();
+  const orologio = orologioFinto();
+
+  await dao.cacheTokenImages([token("ETH", "0xa", "https://cdn.example/a.png")], {
+    cartella: CARTELLA,
+    scarica: rete.scarica,
+    disco,
+    attendi: orologio.attendi,
+  });
+
+  assert.deepEqual(orologio.attese, [15000]);
+});
+
+test("una data al posto dei secondi, e una data illeggibile", async () => {
+  const fra = new Date(Date.now() + 3000).toUTCString();
+  const rete = reteAScatti((n) => {
+    if (n === 1) return { stato: 429, riprovaFra: fra };
+    if (n === 2) return { stato: 429, riprovaFra: "domani forse" };
+    return { corpo: "ok" };
+  });
+  const disco = discoFinto();
+  const orologio = orologioFinto();
+
+  const conto = await dao.cacheTokenImages([token("ETH", "0xa", "https://cdn.example/a.png")], {
+    cartella: CARTELLA,
+    scarica: rete.scarica,
+    disco,
+    attendi: orologio.attendi,
+  });
+
+  assert.equal(conto.scaricate, 1);
+  assert.equal(orologio.attese.length, 2);
+  assert.ok(orologio.attese[0] >= 2000 && orologio.attese[0] <= 3000, "la data letta come attesa");
+  assert.equal(orologio.attese[1], 2000, "illeggibile vale come assente: raddoppia e basta");
+});
+
+test("la soglia pesa quanto l'host", async () => {
+  // Cinque guasti vanno bene per un host che serve dieci immagini. Per uno
+  // che ne serve tremila, cinque sono un minuto sfortunato e spegnerlo costa
+  // le altre 2995.
+  const rete = reteAScatti(() => ({ errore: errore("ECONNRESET") }));
+  const disco = discoFinto();
+
+  const conto = await dao.cacheTokenImages(quantiToken(3000, "grande.example"), {
+    cartella: CARTELLA,
+    scarica: rete.scarica,
+    disco,
+    parallele: 1,
+    ripesca: false,
+  });
+
+  assert.equal(conto.fallite, 30, "l'uno per cento delle sue immagini");
+  assert.equal(conto.saltatePerHostSpento, 2970);
+});
+
+test("la soglia ha un tetto: nemmeno il piu' grande merita trecento tentativi", async () => {
+  const rete = reteAScatti(() => ({ errore: errore("ECONNRESET") }));
+  const disco = discoFinto();
+
+  const conto = await dao.cacheTokenImages(quantiToken(12000, "enorme.example"), {
+    cartella: CARTELLA,
+    scarica: rete.scarica,
+    disco,
+    parallele: 1,
+    ripesca: false,
+  });
+
+  assert.equal(conto.fallite, 60);
+});
+
+test("la seconda passata ripesca cio' che l'host aveva fatto saltare", async () => {
+  // Un host spento si porta dietro tutte le sue immagini, e mentre corre non
+  // c'e' modo di sapere se l'ha spento un guasto vero o un minuto
+  // sfortunato. Qui il guasto passa dopo cinque richieste.
+  const rete = reteAScatti((n) => (n <= 5 ? { errore: errore("ECONNRESET") } : { corpo: "ok" }));
+  const disco = discoFinto();
+
+  const conto = await dao.cacheTokenImages(quantiToken(10, "cdn.example"), {
+    cartella: CARTELLA,
+    scarica: rete.scarica,
+    disco,
+    parallele: 1,
+  });
+
+  assert.equal(conto.fallite, 5);
+  assert.equal(conto.saltatePerHostSpento, 5);
+  assert.equal(conto.ripesca.provate, 5);
+  assert.equal(conto.ripesca.scaricate, 5, "le cinque rimaste fuori rientrano tutte");
+  assert.deepEqual(conto.ripesca.hostSpentiPrima, ["cdn.example"]);
+  assert.ok(disco.esiste(dentro("eth", "0x9.png")));
+});
+
+test("la ripescata si puo' spegnere, e allora non si riprova niente", async () => {
+  const rete = reteAScatti(() => ({ errore: errore("ECONNRESET") }));
+  const disco = discoFinto();
+
+  const conto = await dao.cacheTokenImages(quantiToken(10, "cdn.example"), {
+    cartella: CARTELLA,
+    scarica: rete.scarica,
+    disco,
+    parallele: 1,
+    ripesca: false,
+  });
+
+  assert.equal(conto.ripesca, undefined);
+  assert.equal(rete.chieste.length, 5);
+});
+
+test("il registro dice perche' sono fallite", async () => {
+  // Senza questo, una corsa che salta cinquemila immagini lascia detto
+  // soltanto *che* le ha saltate, e il motivo si va a cercare sondando la
+  // produzione a mano con quarantotto richieste parallele.
+  const righe = registroFinto();
+  const risposte = {
+    "https://a.example/x0.png": { stato: 404 },
+    "https://a.example/x1.png": { stato: 404 },
+    "https://a.example/x2.png": { stato: 403 },
+  };
+  const rete = reteFinta(risposte);
+  const disco = discoFinto();
+
+  await dao.cacheTokenImages(
+    [...quantiToken(3, "a.example"), token("ETH", "0xz", "https://b.example/z.png")],
+    { cartella: CARTELLA, scarica: rete.scarica, disco, parallele: 1 }
+  );
+
+  const riga = righe.find((r) => r.azione === "dao.cacheTokenImages.completed");
+  assert.ok(riga, "la riga c'e'");
+  assert.deepEqual(riga.dettagli.motivi["a.example"], { "HTTP 404": 2, "HTTP 403": 1 });
+  assert.deepEqual(riga.dettagli.motivi["b.example"], { ENOTFOUND: 1 });
 });
 
 test("l'estensione viene dall'indirizzo e, se non c'e', dal tipo dichiarato", async () => {

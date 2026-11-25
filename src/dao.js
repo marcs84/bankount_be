@@ -16,9 +16,35 @@ const TOKEN_IMAGE_TIMEOUT_MS = 5000;
 // voleva dire ore: la prima passata non arrivava in fondo in una notte.
 const ICONE_IN_PARALLELO = 8;
 
-// Quanti fallimenti di fila prima di smettere con un host. Uno solo non basta:
-// un 404 e' una risposta sulla singola immagine, non un giudizio sull'host.
+// Quanti fallimenti di fila prima di smettere con un host.
+//
+// Qui entra cio' che riguarda l'host: un guasto di rete, o uno di quegli
+// stati che dopo tre tentativi dice ancora no. Una risposta definitiva --
+// 404, 403, 410 -- riguarda la singola immagine e non entra.
+//
+// La soglia pesa quanto l'host. Cinque va bene per uno che serve dieci
+// immagini; per uno che ne serve cinquemila cinque sono un minuto sfortunato,
+// e spegnerlo costa le altre 4995. Quindi l'uno per cento delle sue immagini,
+// fra un minimo di cinque e un tetto, perche' nemmeno il piu' grande merita
+// trecento tentativi a vuoto.
 const FALLIMENTI_PER_SPEGNERE_HOST = 5;
+const FALLIMENTI_MASSIMI_PER_SPEGNERE_HOST = 60;
+const QUOTA_PER_SPEGNERE_HOST = 0.01;
+
+// Gli stati che non sono un no, ma un "non adesso": l'host risponde e chiede
+// tempo. Si riprova la stessa immagine, con una pausa che raddoppia.
+const STATI_DA_RIPROVARE = new Set([408, 425, 429, 500, 502, 503, 504]);
+const TENTATIVI_SE_RALLENTA = 3;
+const ATTESA_BASE_SE_RALLENTA_MS = 1000;
+const ATTESA_MASSIMA_SE_RALLENTA_MS = 15000;
+
+// La seconda passata va piano per scelta: quello che riprova e' esattamente
+// cio' che era andato male in fretta.
+const PARALLELE_IN_RIPESCA = 2;
+
+// Quanti host e quanti motivi per host finiscono nel registro.
+const MOTIVI_PER_REGISTRO = 15;
+const MOTIVI_PER_HOST = 6;
 
 // Il nome del lucchetto che impedisce due sincronizzazioni insieme. Lo
 // conosce solo questo file: chi altro lo prendesse si bloccherebbe a vicenda
@@ -1511,6 +1537,52 @@ const erroreDiRete = (errore) => {
 const nomeNonRisolto = (errore) =>
   !!errore && (errore.code === "ENOTFOUND" || errore.code === "EAI_AGAIN");
 
+/// L'host di un indirizzo, o null se non e' un indirizzo.
+const hostDiUrl = (url) => {
+  if (!url) return null;
+  try {
+    return new URL(url).host;
+  } catch (errore) {
+    return null;
+  }
+};
+
+/// Quanto aspettare quando l'host chiede di rallentare.
+///
+/// `Retry-After` arriva in secondi oppure come data. Di qualunque forma sia,
+/// qui si legge solo per decidere una pausa: una data illeggibile vale come
+/// assente invece di far saltare la richiesta.
+const attesaRichiesta = (risposta) => {
+  const intestazioni = risposta && risposta.headers;
+  if (!intestazioni || typeof intestazioni.get !== "function") return null;
+  const valore = intestazioni.get("retry-after");
+  if (!valore) return null;
+
+  const secondi = Number.parseInt(String(valore).trim(), 10);
+  if (Number.isFinite(secondi) && secondi >= 0) return secondi * 1000;
+
+  const quando = new Date(String(valore));
+  if (Number.isNaN(quando.getTime())) return null;
+  return Math.max(0, quando.getTime() - Date.now());
+};
+
+const attendiDavvero = (ms) => new Promise((risolvi) => setTimeout(risolvi, ms));
+
+/// Il motivo di un fallimento, in una parola, per il registro.
+const motivoDi = (errore) => {
+  if (!errore) return "ignoto";
+  if (Number.isFinite(errore.stato)) return `HTTP ${errore.stato}`;
+  if (typeof errore.code === "string" && errore.code !== "") return errore.code;
+  if (errore.name === "AbortError" || errore.name === "TimeoutError") return "scaduta";
+  return "altro";
+};
+
+const sommaValori = (mappa) => {
+  let totale = 0;
+  for (const valore of mappa.values()) totale += valore;
+  return totale;
+};
+
 /// Scarica nella cache le icone dei token, per quanto riesce.
 ///
 /// Non solleva mai: un'icona che manca non e' un guasto del catalogo, e il
@@ -1521,22 +1593,48 @@ const cacheTokenImages = async (tokens, opzioni = {}) => {
   const scarica = opzioni.scarica || fetch;
   const disco = opzioni.disco || DISCO;
   const parallele = Number.isFinite(opzioni.parallele) ? opzioni.parallele : ICONE_IN_PARALLELO;
+  const attendi = opzioni.attendi || attendiDavvero;
   const pota = opzioni.pota === true;
+  const ripesca = opzioni.ripesca !== false;
 
   disco.creaCartella(cartella);
 
+  // Quante immagini serve ciascun host. Serve per la soglia: spegnere un host
+  // dopo cinque guasti ha senso se ne serve dieci, non se ne serve cinquemila.
+  const immaginiPerHost = new Map();
+  for (const t of tokens) {
+    const host = hostDiUrl(t && t.image);
+    if (host) immaginiPerHost.set(host, (immaginiPerHost.get(host) || 0) + 1);
+  }
+
+  const sogliaDiHost = (host) => {
+    const quante = immaginiPerHost.get(host) || 0;
+    return Math.max(
+      FALLIMENTI_PER_SPEGNERE_HOST,
+      Math.min(FALLIMENTI_MASSIMI_PER_SPEGNERE_HOST, Math.round(quante * QUOTA_PER_SPEGNERE_HOST))
+    );
+  };
+
   // Gli host spenti e, per ciascuno, i fallimenti di fila.
   //
-  // Prima bastava un fallimento qualunque -- anche un 404 su una singola
-  // immagine -- per spegnere l'host per il resto della corsa. Le immagini
-  // sono concentrate: tre host ne servono il 90%, e il piu' grande ne ha
-  // dodicimila. Un 404 fra le prime le spegneva tutte, ed e' cio' che era
-  // accaduto: delle immagini che mancavano, la grande maggioranza stava su
-  // un host che aveva risposto 429 una volta.
+  // Quel che conta e' cosa entra in questo contatore. Prima ci entrava
+  // qualunque fallimento: un 404 diventava un errore senza `code`, arrivava
+  // qui come se fosse stata la rete, e cinque indirizzi morti di fila su un
+  // host che ne serve cinquemila bastavano a spegnerlo. E' cio' che e'
+  // accaduto -- una corsa ne ha saltate 4992 dopo 58 tentativi.
+  //
+  // Ora la distinzione e' fra cio' che l'host dice di se' e cio' che dice di
+  // un indirizzo: un 404 azzera il contatore, un 429 che resiste a tre
+  // tentativi lo incrementa.
   const hostSpenti = new Set();
   const fallimentiDiFila = new Map();
 
-  const conto = {
+  // Perche' sono fallite, per host. Senza questo, una corsa che salta
+  // cinquemila immagini lascia detto soltanto *che* le ha saltate, e il
+  // motivo si va a cercare sondando la produzione a mano.
+  const motiviPerHost = new Map();
+
+  const nuovoConto = () => ({
     scaricate: 0,
     presenti: 0,
     sostituite: 0,
@@ -1544,24 +1642,83 @@ const cacheTokenImages = async (tokens, opzioni = {}) => {
     nonArchiviabili: 0,
     tipoIgnoto: 0,
     fallite: 0,
+    rallentate: 0,
     saltatePerHostSpento: 0,
+  });
+
+  const annotaMotivo = (host, errore) => {
+    if (!host) return;
+    if (!motiviPerHost.has(host)) motiviPerHost.set(host, new Map());
+    const motivi = motiviPerHost.get(host);
+    const motivo = motivoDi(errore);
+    motivi.set(motivo, (motivi.get(motivo) || 0) + 1);
   };
 
-  const segnaFallimento = (host, errore) => {
+  const segnaFallimento = (host, errore, conto) => {
     conto.fallite++;
     if (!host) return;
+    annotaMotivo(host, errore);
 
-    if (nomeNonRisolto(errore)) {
-      hostSpenti.add(host);
-      return;
+    const stato = errore && errore.stato;
+
+    if (Number.isFinite(stato)) {
+      // Una risposta definitiva -- 404, 403, 410 -- riguarda quell'indirizzo
+      // e non l'host: quell'immagine non c'e', le altre cinquemila si.
+      // Quindi non solo non conta: azzera anche cio' che si era accumulato
+      // prima. E' qui che stava il difetto -- un 404 arrivava come se fosse
+      // stata la rete.
+      if (!STATI_DA_RIPROVARE.has(stato)) {
+        fallimentiDiFila.delete(host);
+        return;
+      }
+      // Uno stato da riprovare, invece, e' arrivato fin qui *dopo* i
+      // tentativi: non e' questa immagine che non c'e', e' l'host che
+      // continua a dire no. Quello conta, altrimenti un host rotto si
+      // riprova tre volte per ciascuna delle sue dodicimila immagini.
+    } else {
+      // Non ha risposto. Se non e' nemmeno la rete -- un disco pieno, un
+      // corpo che non si legge -- non e' colpa dell'host e non lo spegne.
+      if (!erroreDiRete(errore)) return;
+
+      if (nomeNonRisolto(errore)) {
+        hostSpenti.add(host);
+        return;
+      }
     }
 
     const quanti = (fallimentiDiFila.get(host) || 0) + 1;
     fallimentiDiFila.set(host, quanti);
-    if (quanti >= FALLIMENTI_PER_SPEGNERE_HOST) hostSpenti.add(host);
+    if (quanti >= sogliaDiHost(host)) hostSpenti.add(host);
   };
 
-  const perToken = async (t) => {
+  /// Una richiesta, con la pazienza di aspettare chi dice "non ora".
+  ///
+  /// 429 e 503 non sono un no: sono un no *adesso*. Contarli come fallimenti
+  /// vuol dire spegnere l'host proprio quando sta dicendo che basta andare
+  /// piu' piano.
+  const scaricaConPazienza = async (url, conto) => {
+    let attesa = ATTESA_BASE_SE_RALLENTA_MS;
+
+    for (let tentativo = 1; ; tentativo++) {
+      const risposta = await scarica(url, { signal: AbortSignal.timeout(TOKEN_IMAGE_TIMEOUT_MS) });
+      if (risposta && risposta.ok) return risposta;
+
+      const stato = risposta ? risposta.status : null;
+      if (!STATI_DA_RIPROVARE.has(stato) || tentativo >= TENTATIVI_SE_RALLENTA) {
+        const errore = new Error(`HTTP ${stato}`);
+        errore.stato = stato;
+        throw errore;
+      }
+
+      const chiesta = attesaRichiesta(risposta);
+      const quanto = Math.min(chiesta === null ? attesa : chiesta, ATTESA_MASSIMA_SE_RALLENTA_MS);
+      conto.rallentate++;
+      await attendi(quanto);
+      attesa *= 2;
+    }
+  };
+
+  const perToken = async (t, conto, rimandati) => {
     const url = t.image;
     if (!url) {
       conto.senzaUrl++;
@@ -1577,16 +1734,15 @@ const cacheTokenImages = async (tokens, opzioni = {}) => {
       return;
     }
 
-    let host = null;
-    try {
-      host = new URL(url).host;
-    } catch (errore) {
+    const host = hostDiUrl(url);
+    if (host === null) {
       conto.nonArchiviabili++;
       return;
     }
 
     if (hostSpenti.has(host)) {
       conto.saltatePerHostSpento++;
+      if (rimandati) rimandati.push(t);
       return;
     }
 
@@ -1603,8 +1759,7 @@ const cacheTokenImages = async (tokens, opzioni = {}) => {
     }
 
     try {
-      const risposta = await scarica(url, { signal: AbortSignal.timeout(TOKEN_IMAGE_TIMEOUT_MS) });
-      if (!risposta.ok) throw new Error(`HTTP ${risposta.status}`);
+      const risposta = await scaricaConPazienza(url, conto);
 
       const estensione =
         estensioneAttesa ||
@@ -1640,24 +1795,61 @@ const cacheTokenImages = async (tokens, opzioni = {}) => {
         }
       }
     } catch (errore) {
-      segnaFallimento(host, erroreDiRete(errore) ? errore : null);
+      segnaFallimento(host, errore, conto);
     }
   };
 
   // Otto per volta. Una per volta voleva dire, alla prima passata su
   // trentamila token, ore -- e ogni fallimento costa i cinque secondi della
   // scadenza.
-  let prossimo = 0;
-  const operaio = async () => {
-    for (;;) {
-      const indice = prossimo++;
-      if (indice >= tokens.length) return;
-      await perToken(tokens[indice]);
-    }
+  const passata = async (lista, conto, quante, rimandati = null) => {
+    let prossimo = 0;
+    const operaio = async () => {
+      for (;;) {
+        const indice = prossimo++;
+        if (indice >= lista.length) return;
+        await perToken(lista[indice], conto, rimandati);
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.max(1, Math.min(quante, lista.length || 1)) }, operaio)
+    );
   };
-  await Promise.all(Array.from({ length: Math.max(1, Math.min(parallele, tokens.length)) }, operaio));
+
+  const conto = nuovoConto();
+  const rimandati = [];
+  await passata(tokens, conto, parallele, rimandati);
+
+  // La seconda occasione.
+  //
+  // Un host spento si porta dietro tutte le sue immagini, e mentre corre non
+  // c'e' modo di sapere se l'ha spento un guasto vero o un minuto sfortunato.
+  // Qui si riprova cio' che e' rimasto fuori, coi contatori azzerati e due
+  // operai invece di otto: se l'host aveva solo fretta rientra tutto, se e'
+  // morto muore di nuovo in pochi secondi.
+  let ripescaConto = null;
+  if (ripesca && rimandati.length > 0) {
+    const spentiPrima = [...hostSpenti];
+    hostSpenti.clear();
+    fallimentiDiFila.clear();
+    ripescaConto = nuovoConto();
+    ripescaConto.provate = rimandati.length;
+    ripescaConto.hostSpentiPrima = spentiPrima;
+    await passata(rimandati, ripescaConto, PARALLELE_IN_RIPESCA);
+  }
 
   const potatura = pota ? potaIconeOrfane(tokens, { cartella, disco }) : null;
+
+  // I motivi, i piu' numerosi per primi e non tutti: questa riga finisce in
+  // una colonna di testo, e quindici host dicono cio' che c'e' da dire.
+  const motivi = {};
+  for (const [host, conteggi] of [...motiviPerHost.entries()]
+    .sort((a, b) => sommaValori(b[1]) - sommaValori(a[1]))
+    .slice(0, MOTIVI_PER_REGISTRO)) {
+    motivi[host] = Object.fromEntries(
+      [...conteggi.entries()].sort((a, b) => b[1] - a[1]).slice(0, MOTIVI_PER_HOST)
+    );
+  }
 
   sysLogger.logToDb(
     "SYSTEM_EVENT",
@@ -1665,12 +1857,14 @@ const cacheTokenImages = async (tokens, opzioni = {}) => {
     {
       ...conto,
       hostSpenti: [...hostSpenti],
+      ...(Object.keys(motivi).length ? { motivi } : {}),
+      ...(ripescaConto ? { ripesca: ripescaConto } : {}),
       ...(potatura ? { potatura } : {}),
     },
     conto.fallite > 0 ? "WARN" : "INFO"
   );
 
-  return conto;
+  return ripescaConto ? { ...conto, ripesca: ripescaConto } : conto;
 };
 
 /// Toglie dalla cache i file che il catalogo appena scambiato non riferisce.
